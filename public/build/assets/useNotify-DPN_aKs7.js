@@ -1,0 +1,1 @@
+import{aX as i}from"./app-B6zM3b8G.js";function u(){const e=i();function s(r,o,n,t){e.add({severity:r,summary:o,detail:n,life:t??(r==="error"?6e3:4500),group:"obims"})}return{success(r,o="Success"){s("success",o,r)},error(r,o="Something went wrong"){s("error",o,r,6e3)},warn(r,o="Warning"){s("warn",o,r)},info(r,o="Notice"){s("info",o,r)}}}export{u};
