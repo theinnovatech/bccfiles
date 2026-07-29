@@ -29,6 +29,7 @@ export async function bootstrapNotifications() {
     const notifications = useNotificationsStore(pinia);
     await notifications.load();
     notifications.subscribe(auth.user.id);
+    notifications.startPolling();
 
     app.mount(mountEl);
 }

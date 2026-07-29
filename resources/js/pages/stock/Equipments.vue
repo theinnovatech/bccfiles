@@ -56,7 +56,7 @@
 
             <form class="grid gap-4 md:grid-cols-2" @submit.prevent="save">
                 <div v-if="editingId">
-                    <label class="mb-1 block text-sm font-medium text-[#002a7a]"
+                    <label class="mb-1 block text-sm font-medium text-[#00164d]"
                         >Property No.</label
                     >
                     <InputText
@@ -67,7 +67,7 @@
                 </div>
                 <div v-else class="md:col-span-2">
                     <p
-                        class="rounded-md border border-[#c8d6ef] bg-[#eef2fa] px-3 py-2 text-xs text-[#5b7fbf]"
+                        class="rounded-md border border-[#a8b8d4] bg-[#e2e8f2] px-3 py-2 text-xs text-[#4a6490]"
                     >
                         Property number will be generated automatically when you
                         save this equipment.
@@ -75,7 +75,7 @@
                 </div>
 
                 <div v-if="form.barcode">
-                    <label class="mb-1 block text-sm font-medium text-[#002a7a]"
+                    <label class="mb-1 block text-sm font-medium text-[#00164d]"
                         >Barcode</label
                     >
                     <InputText v-model="form.barcode" class="w-full" readonly />
@@ -85,20 +85,20 @@
                     class="md:col-span-2"
                 >
                     <p
-                        class="rounded-md border border-dashed border-[#c8d6ef] bg-white px-3 py-2 text-xs text-[#5b7fbf]"
+                        class="border border-dashed border-[#a8b8d4] bg-transparent px-3 py-2 text-xs text-[#4a6490]"
                     >
                         No barcode assigned for this equipment.
                     </p>
                 </div>
 
                 <div>
-                    <label class="mb-1 block text-sm font-medium text-[#002a7a]"
+                    <label class="mb-1 block text-sm font-medium text-[#00164d]"
                         >Name</label
                     >
                     <InputText v-model="form.name" class="w-full" required />
                 </div>
                 <div>
-                    <label class="mb-1 block text-sm font-medium text-[#002a7a]"
+                    <label class="mb-1 block text-sm font-medium text-[#00164d]"
                         >Category</label
                     >
                     <Select
@@ -112,20 +112,20 @@
                     />
                     <p
                         v-if="!categories.length"
-                        class="mt-1 text-xs text-[#5b7fbf]"
+                        class="mt-1 text-xs text-[#4a6490]"
                     >
-                        Add categories first in Master Data → Equipment
+                        Add categories first in Settings → Equipment
                         Categories.
                     </p>
                 </div>
                 <div>
-                    <label class="mb-1 block text-sm font-medium text-[#002a7a]"
+                    <label class="mb-1 block text-sm font-medium text-[#00164d]"
                         >Type</label
                     >
                     <InputText v-model="form.type" class="w-full" required />
                 </div>
                 <div>
-                    <label class="mb-1 block text-sm font-medium text-[#002a7a]"
+                    <label class="mb-1 block text-sm font-medium text-[#00164d]"
                         >Qty</label
                     >
                     <InputNumber
@@ -135,8 +135,22 @@
                         required
                     />
                 </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-[#00164d]"
+                        >Life Span (Years)
+                        <span class="text-[#ce1126]">*</span></label
+                    >
+                    <InputNumber
+                        v-model="form.life_span_years"
+                        class="w-full"
+                        :min="1"
+                        :max="100"
+                        placeholder="e.g. 5"
+                        required
+                    />
+                </div>
                 <div class="md:col-span-2">
-                    <label class="mb-1 block text-sm font-medium text-[#002a7a]"
+                    <label class="mb-1 block text-sm font-medium text-[#00164d]"
                         >Description</label
                     >
                     <Textarea
@@ -147,7 +161,7 @@
                     />
                 </div>
                 <div class="md:col-span-2">
-                    <label class="mb-1 block text-sm font-medium text-[#002a7a]"
+                    <label class="mb-1 block text-sm font-medium text-[#00164d]"
                         >Specs</label
                     >
                     <Textarea
@@ -184,7 +198,7 @@
             class="stock-op-empty"
         >
             <svg
-                class="h-10 w-10 text-[#c8d6ef]"
+                class="h-10 w-10 text-[#a8b8d4]"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -202,10 +216,10 @@
                     d="M12 11v4m0 0v4m0-4h4m-4 0H8"
                 />
             </svg>
-            <p class="mt-3 text-sm font-medium text-[#002a7a]">
+            <p class="mt-3 text-sm font-medium text-[#00164d]">
                 No barcode scanned yet
             </p>
-            <p class="mt-1 text-xs text-[#5b7fbf]">
+            <p class="mt-1 text-xs text-[#4a6490]">
                 Scan a barcode above or continue without one.
             </p>
         </div>
@@ -243,6 +257,7 @@ const form = reactive({
     description: "",
     type: "",
     quantity: 1,
+    life_span_years: null,
     specs: "",
 });
 
@@ -259,6 +274,7 @@ function resetForm() {
     form.description = "";
     form.type = "";
     form.quantity = 1;
+    form.life_span_years = null;
     form.specs = "";
 
     const url = new URL(window.location.href);
@@ -277,6 +293,7 @@ function startEdit(equipment) {
     form.description = equipment.description || "";
     form.type = equipment.type;
     form.quantity = equipment.quantity ?? 1;
+    form.life_span_years = equipment.life_span_years ?? null;
     form.specs = equipment.specs || "";
 }
 
@@ -339,6 +356,12 @@ async function save() {
     saving.value = true;
 
     try {
+        if (!form.life_span_years || form.life_span_years < 1) {
+            notify.warn("Please enter the equipment life span in years.");
+            saving.value = false;
+            return;
+        }
+
         const payload = {
             barcode: form.barcode || null,
             name: form.name,
@@ -346,6 +369,7 @@ async function save() {
             description: form.description || null,
             type: form.type,
             quantity: form.quantity,
+            life_span_years: form.life_span_years,
             specs: form.specs || null,
         };
 

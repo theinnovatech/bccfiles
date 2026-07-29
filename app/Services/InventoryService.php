@@ -15,7 +15,8 @@ use InvalidArgumentException;
 class InventoryService
 {
     public function __construct(
-        private readonly ActivityLogService $activityLogService
+        private readonly ActivityLogService $activityLogService,
+        private readonly LowStockAlertService $lowStockAlertService
     ) {}
 
     public function receiveStock(Item $item, int $quantity, User $user, ?string $remarks = null): StockMovement
@@ -63,7 +64,7 @@ class InventoryService
         User $user,
         ?string $remarks = null
     ): StockMovement {
-        return DB::transaction(function () use ($item, $delta, $type, $user, $remarks) {
+        $result = DB::transaction(function () use ($item, $delta, $type, $user, $remarks) {
             $lockedItem = Item::query()->lockForUpdate()->findOrFail($item->id);
             $previousStock = $lockedItem->current_stock;
             $newStock = $previousStock + $delta;
@@ -101,8 +102,21 @@ class InventoryService
                 )
             );
 
-            return $movement->load(['item', 'performer']);
+            return [
+                'movement' => $movement->load(['item', 'performer']),
+                'item' => $lockedItem,
+                'previous_stock' => $previousStock,
+                'new_stock' => $actualNewStock,
+            ];
         });
+
+        $this->lowStockAlertService->evaluateAfterStockChange(
+            $result['item'],
+            $result['previous_stock'],
+            $result['new_stock']
+        );
+
+        return $result['movement'];
     }
 
     private function assertPositiveQuantity(int $quantity): void

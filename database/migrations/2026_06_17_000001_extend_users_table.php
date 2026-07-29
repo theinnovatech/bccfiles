@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->string('role')->default('department_user')->after('password');
+            $table->string('role')->default('supply_officer')->after('password');
             $table->unsignedBigInteger('department_id')->nullable()->after('role');
             $table->unsignedBigInteger('employee_id')->nullable()->after('department_id');
             $table->boolean('is_active')->default(true)->after('employee_id');

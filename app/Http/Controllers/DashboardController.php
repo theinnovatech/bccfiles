@@ -2,34 +2,21 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\RequestStatus;
 use App\Enums\TransactionType;
-use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Models\Equipment;
 use App\Models\Issuance;
 use App\Models\Item;
 use App\Models\ItemReturn;
 use App\Models\StockMovement;
-use App\Models\SupplyRequest;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
-    public function summary(Request $request): JsonResponse
+    public function summary(): JsonResponse
     {
-        $user = $request->user();
-        $today = now()->startOfDay();
-
         $itemsQuery = Item::query()->where('status', 'active');
         $movementsQuery = StockMovement::query()->whereDate('created_at', today());
-        $requestsQuery = SupplyRequest::query()->where('status', RequestStatus::Pending);
-
-        if ($user->role === UserRole::DepartmentUser) {
-            $requestsQuery->where('department_id', $user->department_id);
-        }
 
         return response()->json([
             'total_items' => (clone $itemsQuery)->count(),
@@ -38,7 +25,7 @@ class DashboardController extends Controller
             'out_of_stock' => (clone $itemsQuery)->where('current_stock', 0)->count(),
             'todays_issuance' => (clone $movementsQuery)->where('transaction_type', TransactionType::Out->value)->sum('quantity'),
             'todays_received' => (clone $movementsQuery)->where('transaction_type', TransactionType::In->value)->sum('quantity'),
-            'pending_requests' => $requestsQuery->count(),
+            'todays_issuance_records' => Issuance::query()->whereDate('issued_date', today())->count(),
             'registered_equipments' => Equipment::query()->count(),
         ]);
     }
@@ -53,14 +40,19 @@ class DashboardController extends Controller
     public function recentIssuance(): JsonResponse
     {
         return response()->json(
-            Issuance::query()->with(['request.department', 'issuer', 'details.item'])->orderByDesc('issued_date')->limit(5)->get()
+            Issuance::query()->with(['department', 'issuer', 'details.item', 'details.equipment'])->orderByDesc('issued_date')->limit(5)->get()
         );
     }
 
     public function recentReturns(): JsonResponse
     {
         return response()->json(
-            ItemReturn::query()->with(['item', 'returner'])->orderByDesc('date_returned')->limit(10)->get()
+            ItemReturn::query()
+                ->with(['equipment', 'department', 'borrower', 'returner'])
+                ->whereNotNull('equipment_id')
+                ->orderByDesc('date_returned')
+                ->limit(10)
+                ->get()
         );
     }
 

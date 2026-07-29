@@ -191,18 +191,10 @@ const features = [
         desc: "Monitor stock levels, receive goods, and record adjustments",
     },
     {
-        label: "Supply Requests",
-        desc: "Handle department supply request workflows",
-    },
-    {
         label: "Issuance & Returns",
-        desc: "Track item issuance and returns to inventory",
+        desc: "Record item/equipment issuance and equipment returns from hard-copy forms",
     },
     { label: "Reports", desc: "Generate inventory reports and insights" },
-    {
-        label: "Physical Inventory",
-        desc: "Conduct stock count sessions and reconcile variances",
-    },
 ];
 
 const projectManager = reactive({
@@ -273,7 +265,7 @@ const teamMembers = reactive([
 .about-doc-brand {
     font-size: 1.0625rem;
     font-weight: 600;
-    color: #0038a8;
+    color: #001f6b;
     letter-spacing: -0.01em;
 }
 
@@ -283,12 +275,12 @@ const teamMembers = reactive([
     gap: 0.375rem;
     font-size: 0.9375rem;
     font-weight: 500;
-    color: #5b7fbf;
+    color: #4a6490;
     transition: color 0.15s ease;
 }
 
 .about-doc-back:hover {
-    color: #0038a8;
+    color: #001f6b;
 }
 
 .about-doc-layout {
@@ -340,8 +332,8 @@ const teamMembers = reactive([
 }
 
 .about-doc-nav a:hover {
-    color: #0038a8;
-    border-left-color: #c8d6ef;
+    color: #001f6b;
+    border-left-color: #a8b8d4;
 }
 
 .about-doc-content {
@@ -362,7 +354,7 @@ const teamMembers = reactive([
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: #0038a8;
+    color: #001f6b;
 }
 
 .about-doc-h1 {
@@ -512,7 +504,7 @@ const teamMembers = reactive([
 .about-doc-team-photo span {
     font-size: 1.25rem;
     font-weight: 600;
-    color: #0038a8;
+    color: #001f6b;
 }
 
 .about-doc-team-photo--lead {
@@ -546,13 +538,13 @@ const teamMembers = reactive([
     display: inline-block;
     margin-top: 0.375rem;
     font-size: 1rem;
-    color: #0038a8;
+    color: #001f6b;
     word-break: break-word;
     transition: color 0.15s ease;
 }
 
 .about-doc-team-info a:hover {
-    color: #002a7a;
+    color: #00164d;
     text-decoration: underline;
 }
 

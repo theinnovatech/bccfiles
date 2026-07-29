@@ -2,16 +2,33 @@
     <div :class="embedded ? 'space-y-6' : 'mx-auto max-w-3xl space-y-6'">
         <div v-if="!embedded" class="shadcn-card p-6">
             <h3 class="shadcn-card-title mb-4">Register Item</h3>
-            <BarcodeScannerInput v-model="barcode" @scan="lookupBarcode" />
+            <BarcodeScannerInput
+                v-model="barcode"
+                @scan="lookupBarcode"
+                @clear="onBarcodeClear"
+            />
+            <div class="mt-3">
+                <UiButton variant="outline" @click="proceedWithoutBarcode">
+                    Item with no barcode
+                </UiButton>
+            </div>
         </div>
 
-        <StockOpScanner
-            v-else
-            v-model="barcode"
-            title="Scan to register"
-            hint="If the barcode is new, you can fill in item details below."
-            @scan="lookupBarcode"
-        />
+        <template v-else>
+            <StockOpScanner
+                v-model="barcode"
+                title="Scan to register"
+                hint="Scan or type a barcode to register an item. If the barcode is new, complete the form below."
+                @scan="lookupBarcode"
+                @clear="onBarcodeClear"
+            />
+
+            <div>
+                <UiButton variant="outline" @click="proceedWithoutBarcode">
+                    Item with no barcode
+                </UiButton>
+            </div>
+        </template>
 
         <div v-if="existingItem" class="stock-op-alert stock-op-alert-warn">
             <div class="stock-op-alert-icon" aria-hidden="true">
@@ -47,14 +64,21 @@
             </div>
 
             <form class="grid gap-4 md:grid-cols-2" @submit.prevent="save">
-                <div>
-                    <label class="mb-1 block text-sm font-medium text-[#002a7a]"
+                <div v-if="form.barcode">
+                    <label class="mb-1 block text-sm font-medium text-[#00164d]"
                         >Barcode</label
                     >
                     <InputText v-model="form.barcode" class="w-full" readonly />
                 </div>
+                <div v-else-if="noBarcodeMode" class="md:col-span-2">
+                    <p
+                        class="border border-dashed border-[#a8b8d4] bg-transparent px-3 py-2 text-xs text-[#4a6490]"
+                    >
+                        No barcode assigned for this item.
+                    </p>
+                </div>
                 <div>
-                    <label class="mb-1 block text-sm font-medium text-[#002a7a]"
+                    <label class="mb-1 block text-sm font-medium text-[#00164d]"
                         >Item Name</label
                     >
                     <InputText
@@ -64,13 +88,13 @@
                     />
                 </div>
                 <div>
-                    <label class="mb-1 block text-sm font-medium text-[#002a7a]"
+                    <label class="mb-1 block text-sm font-medium text-[#00164d]"
                         >Brand</label
                     >
                     <InputText v-model="form.brand" class="w-full" />
                 </div>
                 <div>
-                    <label class="mb-1 block text-sm font-medium text-[#002a7a]"
+                    <label class="mb-1 block text-sm font-medium text-[#00164d]"
                         >Category</label
                     >
                     <Select
@@ -82,7 +106,7 @@
                     />
                 </div>
                 <div>
-                    <label class="mb-1 block text-sm font-medium text-[#002a7a]"
+                    <label class="mb-1 block text-sm font-medium text-[#00164d]"
                         >Unit</label
                     >
                     <Select
@@ -94,7 +118,7 @@
                     />
                 </div>
                 <div>
-                    <label class="mb-1 block text-sm font-medium text-[#002a7a]"
+                    <label class="mb-1 block text-sm font-medium text-[#00164d]"
                         >Storage Location</label
                     >
                     <Select
@@ -106,7 +130,7 @@
                     />
                 </div>
                 <div>
-                    <label class="mb-1 block text-sm font-medium text-[#002a7a]"
+                    <label class="mb-1 block text-sm font-medium text-[#00164d]"
                         >Minimum Stock</label
                     >
                     <InputNumber
@@ -116,7 +140,7 @@
                     />
                 </div>
                 <div class="md:col-span-2">
-                    <label class="mb-1 block text-sm font-medium text-[#002a7a]"
+                    <label class="mb-1 block text-sm font-medium text-[#00164d]"
                         >Description</label
                     >
                     <Textarea
@@ -138,7 +162,7 @@
 
         <div v-else-if="embedded && !existingItem" class="stock-op-empty">
             <svg
-                class="h-10 w-10 text-[#c8d6ef]"
+                class="h-10 w-10 text-[#a8b8d4]"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -151,11 +175,11 @@
                     d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
                 />
             </svg>
-            <p class="mt-3 text-sm font-medium text-[#002a7a]">
+            <p class="mt-3 text-sm font-medium text-[#00164d]">
                 No barcode scanned yet
             </p>
-            <p class="mt-1 text-xs text-[#5b7fbf]">
-                Scan a new barcode above to register an item.
+            <p class="mt-1 text-xs text-[#4a6490]">
+                Scan a barcode above or continue without one.
             </p>
         </div>
     </div>
@@ -181,6 +205,7 @@ const notify = useNotify();
 const barcode = ref("");
 const existingItem = ref(null);
 const showForm = ref(false);
+const noBarcodeMode = ref(false);
 const saving = ref(false);
 const categories = ref([]);
 const units = ref([]);
@@ -198,6 +223,7 @@ const form = reactive({
 
 function resetForm() {
     showForm.value = false;
+    noBarcodeMode.value = false;
     existingItem.value = null;
     barcode.value = "";
     form.barcode = "";
@@ -210,24 +236,30 @@ function resetForm() {
     form.description = "";
 }
 
+function onBarcodeClear() {
+    showForm.value = false;
+    noBarcodeMode.value = false;
+    existingItem.value = null;
+    form.barcode = "";
+}
+
+function proceedWithoutBarcode() {
+    existingItem.value = null;
+    noBarcodeMode.value = true;
+    form.barcode = "";
+    showForm.value = true;
+}
+
 watch(barcode, (next) => {
     if (!next.trim()) {
-        showForm.value = false;
-        existingItem.value = null;
-        form.barcode = "";
-        form.item_name = "";
-        form.brand = "";
-        form.category_id = null;
-        form.unit_id = null;
-        form.location_id = null;
-        form.minimum_stock = 0;
-        form.description = "";
+        onBarcodeClear();
     }
 });
 
 async function lookupBarcode(code) {
     existingItem.value = null;
     showForm.value = false;
+    noBarcodeMode.value = false;
 
     try {
         const { data } = await api.get(
@@ -247,9 +279,28 @@ async function lookupBarcode(code) {
 }
 
 async function save() {
+    if (!form.item_name?.trim()) {
+        notify.warn("Please enter the item name.");
+        return;
+    }
+
+    if (!form.category_id || !form.unit_id || !form.location_id) {
+        notify.warn("Please select category, unit, and storage location.");
+        return;
+    }
+
     saving.value = true;
     try {
-        await api.post("/items", form);
+        await api.post("/items", {
+            barcode: form.barcode || null,
+            item_name: form.item_name,
+            brand: form.brand || null,
+            category_id: form.category_id,
+            unit_id: form.unit_id,
+            location_id: form.location_id,
+            minimum_stock: form.minimum_stock ?? 0,
+            description: form.description || null,
+        });
         notify.success("Item registered successfully.", "Item registered");
         resetForm();
     } catch (error) {

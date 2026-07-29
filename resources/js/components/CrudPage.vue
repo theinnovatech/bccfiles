@@ -38,7 +38,7 @@
     </UiCard>
 
     <div v-else class="space-y-4">
-        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[#eef2fa] pb-4">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[#e2e8f2] pb-4">
             <div>
                 <h4 class="stock-op-form-title">{{ title }}</h4>
                 <p class="stock-op-form-desc">Manage {{ title.toLowerCase() }} records.</p>

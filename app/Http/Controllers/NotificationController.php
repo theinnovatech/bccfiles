@@ -3,13 +3,26 @@
 namespace App\Http\Controllers;
 
 use App\Models\ObimsNotification;
+use App\Services\LowStockAlertService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class NotificationController extends Controller
 {
+    public function __construct(
+        private readonly LowStockAlertService $lowStockAlertService
+    ) {}
+
     public function index(Request $request): JsonResponse
     {
+        // Continuously re-check stock while staff use the app (at most once per minute).
+        Cache::remember('obims:low-stock-scan', 60, function () {
+            $this->lowStockAlertService->scanAllActiveItems();
+
+            return true;
+        });
+
         $notifications = ObimsNotification::query()
             ->where('user_id', $request->user()->id)
             ->orderByDesc('created_at')

@@ -13,7 +13,7 @@
             :loading="loading"
             paginator
             :rows="15"
-            class="rounded-md border border-[#c8d6ef]"
+            class="rounded-md border border-[#a8b8d4]"
         >
             <Column field="module" header="Module" />
             <Column field="name" header="Record" />

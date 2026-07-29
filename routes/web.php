@@ -14,16 +14,14 @@ use App\Http\Controllers\ItemController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ItemReturnController;
 use App\Http\Controllers\PageController;
+use App\Http\Controllers\PersonLookupController;
 use App\Http\Controllers\PredictiveInventoryController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\StockController;
-use App\Http\Controllers\StockCountController;
 use App\Http\Controllers\StorageLocationController;
-use App\Http\Controllers\SupplyRequestController;
 use App\Http\Controllers\UnitController;
 use App\Http\Controllers\UserController;
-use App\Models\SupplyRequest as SupplyRequestModel;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -57,23 +55,6 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard/recent-returns', [DashboardController::class, 'recentReturns']);
     Route::get('/dashboard/charts', [DashboardController::class, 'charts']);
 
-    Route::get('/items/barcode/{barcode}', [ItemController::class, 'findByBarcode']);
-    Route::get('/items/list', [ItemController::class, 'index']);
-    Route::get('/items/register', fn () => redirect('/stock/operations?tab=register'))->middleware('role:admin,supply_officer');
-    Route::post('/items', [ItemController::class, 'store']);
-    Route::put('/items/{item}', [ItemController::class, 'update'])->whereNumber('item');
-    Route::delete('/items/{item}', [ItemController::class, 'destroy'])->whereNumber('item');
-    Route::get('/items/{item}', [ItemController::class, 'show'])->whereNumber('item');
-
-    Route::get('/requests/list', [SupplyRequestController::class, 'index']);
-    Route::post('/requests', [SupplyRequestController::class, 'store']);
-    Route::get('/requests/{supplyRequest}/detail', [SupplyRequestController::class, 'show'])->whereNumber('supplyRequest');
-    Route::post('/requests/{supplyRequest}/approve', [SupplyRequestController::class, 'approve'])->middleware('role:admin,supply_officer');
-    Route::post('/requests/{supplyRequest}/reject', [SupplyRequestController::class, 'reject'])->middleware('role:admin,supply_officer');
-
-    Route::get('/reports/{type}/pdf', [ReportController::class, 'pdf']);
-    Route::get('/reports/{type}', [ReportController::class, 'show']);
-
     Route::get('/departments/list', [DepartmentController::class, 'index']);
     Route::get('/employees/list', [EmployeeController::class, 'index']);
     Route::get('/categories/list', [CategoryController::class, 'index']);
@@ -83,6 +64,16 @@ Route::middleware('auth')->group(function () {
     Route::get('/locations/list', [StorageLocationController::class, 'index']);
 
     Route::middleware('role:admin,supply_officer')->group(function () {
+        Route::get('/items/barcode/{barcode}', [ItemController::class, 'findByBarcode']);
+        Route::get('/items/list', [ItemController::class, 'index']);
+        Route::post('/items', [ItemController::class, 'store']);
+        Route::put('/items/{item}', [ItemController::class, 'update'])->whereNumber('item');
+        Route::delete('/items/{item}', [ItemController::class, 'destroy'])->whereNumber('item');
+        Route::get('/items/{item}', [ItemController::class, 'show'])->whereNumber('item');
+
+        Route::get('/reports/{type}/pdf', [ReportController::class, 'pdf']);
+        Route::get('/reports/{type}', [ReportController::class, 'show']);
+
         Route::post('/categories', [CategoryController::class, 'store']);
         Route::put('/categories/{category}', [CategoryController::class, 'update']);
         Route::delete('/categories/{category}', [CategoryController::class, 'destroy']);
@@ -108,17 +99,11 @@ Route::middleware('auth')->group(function () {
         Route::get('/stock/movements', [StockController::class, 'movements']);
 
         Route::get('/equipments/barcode/{barcode}', [EquipmentController::class, 'findByBarcode']);
+        Route::post('/equipments/receive', [EquipmentController::class, 'receive']);
         Route::post('/equipments', [EquipmentController::class, 'store']);
         Route::put('/equipments/{equipment}', [EquipmentController::class, 'update'])->whereNumber('equipment');
         Route::delete('/equipments/{equipment}', [EquipmentController::class, 'destroy'])->whereNumber('equipment');
         Route::get('/equipments/{equipment}', [EquipmentController::class, 'show'])->whereNumber('equipment');
-
-        Route::get('/stock-count/sessions/list', [StockCountController::class, 'index']);
-        Route::post('/stock-count/sessions', [StockCountController::class, 'storeSession']);
-        Route::get('/stock-count/sessions', [StockCountController::class, 'index']);
-        Route::get('/stock-count/sessions/{session}', [StockCountController::class, 'showSession'])->whereNumber('session');
-        Route::post('/stock-count/sessions/{session}/items', [StockCountController::class, 'addItem'])->whereNumber('session');
-        Route::post('/stock-count/sessions/{session}/complete', [StockCountController::class, 'complete'])->whereNumber('session');
 
         Route::get('/issuances/list', [IssuanceController::class, 'index']);
         Route::post('/issuances', [IssuanceController::class, 'store']);
@@ -126,6 +111,8 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/returns/list', [ItemReturnController::class, 'index']);
         Route::post('/returns', [ItemReturnController::class, 'store']);
+
+        Route::get('/lookups/by-person', [PersonLookupController::class, 'show']);
 
         Route::get('/activity-logs/list', [ActivityLogController::class, 'index']);
 
@@ -158,32 +145,27 @@ Route::middleware('auth')->group(function () {
     });
 
     Route::get('/stock/operations', fn (PageController $pages) => $pages->show('stock.operations'))->middleware('role:admin,supply_officer');
+    Route::get('/stock/registration', fn (PageController $pages) => $pages->show('stock.registration'))->middleware('role:admin,supply_officer');
     Route::get('/stock/card-management', fn (PageController $pages) => $pages->show('stock.card-management'))->middleware('role:admin,supply_officer');
     Route::get('/stock/property-card-management', fn (PageController $pages) => $pages->show('stock.property-card-management'))->middleware('role:admin,supply_officer');
     Route::get('/stock/receive', fn () => redirect('/stock/operations?tab=receive'))->middleware('role:admin,supply_officer');
     Route::get('/stock/adjust', fn () => redirect('/stock/operations?tab=adjust'))->middleware('role:admin,supply_officer');
-    Route::get('/stock/count', fn (PageController $pages) => $pages->show('stock.count'))->middleware('role:admin,supply_officer');
-    Route::get('/stock/count/records', fn (PageController $pages) => $pages->show('stock.count-records'))->middleware('role:admin,supply_officer');
-    Route::get('/requests/create', fn (PageController $pages) => $pages->show('requests.create'));
+    Route::get('/items/register', fn () => redirect('/stock/registration#register-item'))->middleware('role:admin,supply_officer');
     Route::get('/issuance', fn (PageController $pages) => $pages->show('issuance'))->middleware('role:admin,supply_officer');
     Route::get('/returns', fn (PageController $pages) => $pages->show('returns'))->middleware('role:admin,supply_officer');
-    Route::get('/reports', fn (PageController $pages) => $pages->show('reports'));
-    Route::get('/items', fn (PageController $pages) => $pages->show('items'));
+    Route::get('/person-lookup', fn (PageController $pages) => $pages->show('person-lookup'))->middleware('role:admin,supply_officer');
+    Route::get('/reports', fn (PageController $pages) => $pages->show('reports'))->middleware('role:admin,supply_officer');
+    Route::get('/items', fn (PageController $pages) => $pages->show('items'))->middleware('role:admin,supply_officer');
     Route::get('/inventory/predictions', fn (PageController $pages) => $pages->show('inventory.predictions'))->middleware('role:admin,supply_officer');
-    Route::get('/inventory/master-data', fn (PageController $pages) => $pages->show('inventory.master-data'))->middleware('role:admin,supply_officer');
-    Route::get('/categories', fn () => redirect('/inventory/master-data?tab=categories'))->middleware('role:admin,supply_officer');
-    Route::get('/equipment-categories', fn () => redirect('/inventory/master-data?tab=equipment-categories'))->middleware('role:admin,supply_officer');
-    Route::get('/units', fn () => redirect('/inventory/master-data?tab=units'))->middleware('role:admin,supply_officer');
-    Route::get('/locations', fn () => redirect('/inventory/master-data?tab=locations'))->middleware('role:admin,supply_officer');
-    Route::get('/requests', fn (PageController $pages) => $pages->show('requests'));
+    Route::get('/inventory/master-data', fn () => redirect('/settings'))->middleware('role:admin,supply_officer');
+    Route::get('/categories', fn () => redirect('/settings?tab=categories'))->middleware('role:admin,supply_officer');
+    Route::get('/equipment-categories', fn () => redirect('/settings?tab=equipment-categories'))->middleware('role:admin,supply_officer');
+    Route::get('/units', fn () => redirect('/settings?tab=units'))->middleware('role:admin,supply_officer');
+    Route::get('/locations', fn () => redirect('/settings?tab=locations'))->middleware('role:admin,supply_officer');
     Route::get('/departments', fn (PageController $pages) => $pages->show('departments'))->middleware('role:admin');
     Route::get('/employees', fn (PageController $pages) => $pages->show('employees'))->middleware('role:admin');
     Route::get('/activity-logs', fn (PageController $pages) => $pages->show('activity-logs'))->middleware('role:admin,supply_officer');
-    Route::get('/settings', fn (PageController $pages) => $pages->show('settings'))->middleware('role:admin');
+    Route::get('/settings', fn (PageController $pages) => $pages->show('settings'))->middleware('role:admin,supply_officer');
     Route::get('/users', fn (PageController $pages) => $pages->show('users'))->middleware('role:admin');
     Route::get('/deleted-data', fn (PageController $pages) => $pages->show('deleted-data'))->middleware('role:admin');
-
-    Route::get('/requests/{supplyRequest}', fn (PageController $pages, SupplyRequestModel $supplyRequest) => $pages->show('requests.show', [
-        'requestId' => $supplyRequest->id,
-    ]))->whereNumber('supplyRequest');
 });

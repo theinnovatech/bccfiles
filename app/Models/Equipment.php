@@ -20,6 +20,7 @@ class Equipment extends Model
         'description',
         'type',
         'quantity',
+        'life_span_years',
         'specs',
     ];
 
@@ -27,6 +28,7 @@ class Equipment extends Model
     {
         return [
             'quantity' => 'integer',
+            'life_span_years' => 'integer',
         ];
     }
 

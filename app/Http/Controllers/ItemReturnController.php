@@ -3,25 +3,24 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Models\Item;
+use App\Models\Equipment;
 use App\Models\ItemReturn;
 use App\Services\ActivityLogService;
-use App\Services\InventoryService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 
 class ItemReturnController extends Controller
 {
-    public function __construct(
-        private readonly InventoryService $inventoryService,
-        private readonly ActivityLogService $activityLogService
-    ) {}
+    public function __construct(private readonly ActivityLogService $activityLogService) {}
 
     public function index(): JsonResponse
     {
         return response()->json(
             ItemReturn::query()
-                ->with(['item', 'returner', 'issuance'])
+                ->with(['equipment.category', 'department', 'borrower', 'returner'])
+                ->whereNotNull('equipment_id')
                 ->orderByDesc('date_returned')
                 ->paginate(20)
         );
@@ -30,37 +29,58 @@ class ItemReturnController extends Controller
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'barcode' => ['required', 'string'],
+            'equipment_id' => ['required', 'exists:equipments,id'],
+            'department_id' => ['required', 'exists:departments,id'],
+            'borrower_employee_id' => ['nullable', 'exists:employees,id'],
+            'borrower_name' => ['nullable', 'string', 'max:255'],
             'quantity' => ['required', 'integer', 'min:1'],
             'reason' => ['nullable', 'string'],
-            'issuance_id' => ['nullable', 'exists:issuances,id'],
         ]);
 
-        $item = Item::query()->where('barcode', $data['barcode'])->firstOrFail();
+        $borrowerEmployeeId = $data['borrower_employee_id'] ?? null;
+        $borrowerName = trim((string) ($data['borrower_name'] ?? ''));
 
-        $this->inventoryService->returnStock(
-            $item,
-            $data['quantity'],
-            $request->user(),
-            $data['reason'] ?? 'Return of unused items'
-        );
+        if (! $borrowerEmployeeId && $borrowerName === '') {
+            return response()->json([
+                'message' => 'Please select or type the name of the person returning the equipment.',
+            ], 422);
+        }
 
-        $return = ItemReturn::create([
-            'issuance_id' => $data['issuance_id'] ?? null,
-            'item_id' => $item->id,
-            'quantity' => $data['quantity'],
-            'reason' => $data['reason'] ?? null,
-            'returned_by' => $request->user()->id,
-            'date_returned' => now(),
-        ]);
+        try {
+            $return = DB::transaction(function () use ($data, $request, $borrowerEmployeeId, $borrowerName) {
+                $equipment = Equipment::query()->lockForUpdate()->findOrFail($data['equipment_id']);
+
+                if ($data['quantity'] < 1) {
+                    throw new InvalidArgumentException('Return quantity must be at least 1.');
+                }
+
+                $equipment->increment('quantity', $data['quantity']);
+
+                return ItemReturn::create([
+                    'equipment_id' => $equipment->id,
+                    'department_id' => $data['department_id'],
+                    'borrower_employee_id' => $borrowerEmployeeId,
+                    'borrower_name' => $borrowerEmployeeId ? null : $borrowerName,
+                    'quantity' => $data['quantity'],
+                    'reason' => $data['reason'] ?? null,
+                    'returned_by' => $request->user()->id,
+                    'date_returned' => now(),
+                ]);
+            });
+        } catch (InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
 
         $this->activityLogService->log(
             $request->user(),
             'Returned',
             'Returns',
-            "Returned {$data['quantity']} units of {$item->item_name}"
+            "Recorded return of {$return->quantity} unit(s) of {$return->equipment->name}"
         );
 
-        return response()->json($return->load(['item', 'returner']), 201);
+        return response()->json(
+            $return->load(['equipment.category', 'department', 'borrower', 'returner']),
+            201
+        );
     }
 }

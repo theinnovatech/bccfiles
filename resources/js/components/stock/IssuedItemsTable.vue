@@ -1,5 +1,5 @@
 <template>
-    <UiCard title="Issued Stock Items" description="Items issued from approved supply requests.">
+    <UiCard title="Issued Stock Items" description="Items issued and recorded in the system.">
         <TableFilters
             v-model="filters"
             :filters="filterConfig"
@@ -14,7 +14,7 @@
                 :loading="loading"
                 paginator
                 :rows="10"
-                class="rounded-md border border-[#c8d6ef]"
+                class="rounded-md border border-[#a8b8d4]"
             >
                 <Column field="item_name" header="Item" />
                 <Column header="Department">
@@ -62,10 +62,10 @@ const issuedItems = computed(() => {
                 barcode: detail.barcode ?? detail.item?.barcode ?? '—',
                 quantity: detail.quantity,
                 issuance_number: issuance.issuance_number,
-                department: issuance.request?.department?.name
+                department: issuance.department?.name
                     ?? issuance.receiver?.department?.name
                     ?? '—',
-                received_by: issuance.receiver?.name ?? '—',
+                received_by: issuance.receiver?.name ?? issuance.received_by_name ?? '—',
                 issued_by: issuance.issuer?.name ?? '—',
                 issued_date: issuance.issued_date,
             });

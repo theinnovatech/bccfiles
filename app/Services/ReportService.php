@@ -8,7 +8,6 @@ use App\Models\Issuance;
 use App\Models\IssuanceDetail;
 use App\Models\Item;
 use App\Models\ItemReturn;
-use App\Models\StockCountItem;
 use App\Models\StockMovement;
 use Illuminate\Support\Collection;
 
@@ -72,12 +71,12 @@ class ReportService
 
         $issuanceDepartments = Issuance::query()
             ->whereHas('details', fn ($q) => $q->where('item_id', $itemId))
-            ->with('request.department')
+            ->with(['department', 'receiver.department'])
             ->get()
             ->keyBy('issuance_number');
 
         $returns = ItemReturn::query()
-            ->with('issuance.request.department')
+            ->with(['issuance.department', 'issuance.receiver.department'])
             ->where('item_id', $itemId)
             ->get();
 
@@ -101,7 +100,7 @@ class ReportService
 
         $issuanceDetails = IssuanceDetail::query()
             ->where('equipment_id', $equipmentId)
-            ->with(['issuance.request.department', 'issuance.receiver', 'issuance.issuer'])
+            ->with(['issuance.department', 'issuance.receiver', 'issuance.issuer'])
             ->whereHas('issuance', function ($query) use ($from, $to) {
                 if ($from) {
                     $query->whereDate('issued_date', '>=', $from);
@@ -158,8 +157,12 @@ class ReportService
         if ($movementType !== 'receipt') {
             foreach ($issuanceDetails as $detail) {
                 $balance -= $detail->quantity;
-                $department = $detail->issuance?->request?->department?->name ?? '';
-                $receiver = $detail->issuance?->receiver?->name ?? '';
+                $department = $detail->issuance?->department?->name
+                    ?? $detail->issuance?->receiver?->department?->name
+                    ?? '';
+                $receiver = $detail->issuance?->receiver?->name
+                    ?? $detail->issuance?->received_by_name
+                    ?? '';
                 $officeOfficer = trim(implode(' / ', array_filter([$department, $receiver])));
 
                 $rows->push([
@@ -185,7 +188,11 @@ class ReportService
     ): string {
         if ($movement->transaction_type === TransactionType::Out) {
             if (preg_match('/Issuance\s+(\S+)/i', $movement->remarks ?? '', $matches)) {
-                return $issuanceDepartments[$matches[1]]?->request?->department?->name ?? '—';
+                $issuance = $issuanceDepartments[$matches[1]] ?? null;
+
+                return $issuance?->department?->name
+                    ?? $issuance?->receiver?->department?->name
+                    ?? '—';
             }
 
             return '—';
@@ -204,7 +211,11 @@ class ReportService
                 return abs($return->date_returned->diffInSeconds($movement->created_at)) <= 60;
             });
 
-            return $matchedReturn?->issuance?->request?->department?->name ?? '—';
+            $issuance = $matchedReturn?->issuance;
+
+            return $issuance?->department?->name
+                ?? $issuance?->receiver?->department?->name
+                ?? '—';
         }
 
         return '—';
@@ -212,10 +223,19 @@ class ReportService
 
     public function issuances(?int $departmentId = null): Collection
     {
-        $query = Issuance::query()->with(['request.department', 'issuer', 'receiver', 'details.item', 'details.equipment']);
+        $query = Issuance::query()->with([
+            'department',
+            'issuer',
+            'receiver.department',
+            'details.item',
+            'details.equipment',
+        ]);
 
         if ($departmentId) {
-            $query->whereHas('request', fn ($q) => $q->where('department_id', $departmentId));
+            $query->where(function ($q) use ($departmentId) {
+                $q->where('department_id', $departmentId)
+                    ->orWhereHas('receiver', fn ($receiver) => $receiver->where('department_id', $departmentId));
+            });
         }
 
         return $query->orderByDesc('issued_date')->get();
@@ -223,7 +243,11 @@ class ReportService
 
     public function returns(): Collection
     {
-        return ItemReturn::query()->with(['item', 'returner', 'issuance'])->orderByDesc('date_returned')->get();
+        return ItemReturn::query()
+            ->with(['equipment', 'department', 'borrower', 'returner'])
+            ->whereNotNull('equipment_id')
+            ->orderByDesc('date_returned')
+            ->get();
     }
 
     public function lowStock(): Collection
@@ -235,14 +259,6 @@ class ReportService
             ->get();
     }
 
-    public function physicalInventory(): Collection
-    {
-        return StockCountItem::query()
-            ->with(['session.starter', 'item'])
-            ->orderByDesc('created_at')
-            ->get();
-    }
-
     public function monthlyConsumption(): Collection
     {
         return StockMovement::query()
@@ -251,8 +267,7 @@ class ReportService
                 $join->on('issuance_details.item_id', '=', 'stock_movements.item_id');
             })
             ->join('issuances', 'issuances.id', '=', 'issuance_details.issuance_id')
-            ->join('supply_requests', 'supply_requests.id', '=', 'issuances.request_id')
-            ->join('departments', 'departments.id', '=', 'supply_requests.department_id')
+            ->join('departments', 'departments.id', '=', 'issuances.department_id')
             ->where('stock_movements.transaction_type', TransactionType::Out->value)
             ->whereYear('stock_movements.created_at', now()->year)
             ->groupBy('departments.id', 'departments.name')

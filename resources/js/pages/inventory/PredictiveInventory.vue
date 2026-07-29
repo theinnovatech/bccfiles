@@ -1,18 +1,18 @@
 <template>
     <div class="space-y-6">
         <div class="shadcn-card overflow-visible">
-            <div class="stock-op-hero border-b border-[#c8d6ef] px-4 py-5 sm:px-6">
+            <div class="stock-op-hero border-b border-[#a8b8d4] px-4 py-5 sm:px-6">
                 <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                     <div class="max-w-xl">
-                        <h3 class="text-lg font-semibold text-[#002a7a]">Estimated Stock Life</h3>
-                        <p class="mt-1 text-sm text-[#5b7fbf]">
+                        <h3 class="text-lg font-semibold text-[#00164d]">Estimated Stock Life</h3>
+                        <p class="mt-1 text-sm text-[#4a6490]">
                             See how long each item might last before it runs out, using records of what was issued to requesters.
                         </p>
                     </div>
 
                     <div class="flex flex-col gap-1.5">
                         <div class="flex items-center gap-1.5">
-                            <label class="text-sm font-medium text-[#002a7a]">Look at records from</label>
+                            <label class="text-sm font-medium text-[#00164d]">Look at records from</label>
                             <InfoHoverHint
                                 aria-label="How the time period works"
                                 title="Time period for the estimate"
@@ -38,20 +38,20 @@
 
                 <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <div class="stock-op-form-panel !p-4">
-                        <p class="text-xs font-medium text-[#5b7fbf]">May run out within a week</p>
+                        <p class="text-xs font-medium text-[#4a6490]">May run out within a week</p>
                         <p class="mt-1 text-2xl font-bold text-[#ce1126]">{{ summary.critical }}</p>
                     </div>
                     <div class="stock-op-form-panel !p-4">
-                        <p class="text-xs font-medium text-[#5b7fbf]">May run out within a month</p>
+                        <p class="text-xs font-medium text-[#4a6490]">May run out within a month</p>
                         <p class="mt-1 text-2xl font-bold text-[#e5bc00]">{{ summary.warning }}</p>
                     </div>
                     <div class="stock-op-form-panel !p-4">
-                        <p class="text-xs font-medium text-[#5b7fbf]">Out of stock</p>
+                        <p class="text-xs font-medium text-[#4a6490]">Out of stock</p>
                         <p class="mt-1 text-2xl font-bold text-[#ce1126]">{{ summary.out_of_stock }}</p>
                     </div>
                     <div class="stock-op-form-panel !p-4">
-                        <p class="text-xs font-medium text-[#5b7fbf]">Enough stock for now</p>
-                        <p class="mt-1 text-2xl font-bold text-[#0038a8]">{{ summary.healthy + summary.stable }}</p>
+                        <p class="text-xs font-medium text-[#4a6490]">Enough stock for now</p>
+                        <p class="mt-1 text-2xl font-bold text-[#001f6b]">{{ summary.healthy + summary.stable }}</p>
                     </div>
                 </div>
             </div>
@@ -65,14 +65,14 @@
                     @reset="resetFilters"
                 />
 
-                <div class="mb-4 flex items-center gap-1.5 text-sm text-[#002a7a]">
+                <div class="mb-4 flex items-center gap-1.5 text-sm text-[#00164d]">
                     <span class="font-medium">How these estimates work</span>
                     <InfoHoverHint
                         aria-label="How stock estimates are calculated"
                         title="How we calculate these numbers"
                         :width="320"
                     >
-                        <p class="font-medium text-[#002a7a]">Data we use:</p>
+                        <p class="font-medium text-[#00164d]">Data we use:</p>
                         <ul class="mt-1 list-inside list-disc space-y-1">
                             <li><strong>Stock on hand</strong> — quantity in inventory today</li>
                             <li><strong>Issuance records</strong> — what was given to requesters in the time period you selected above</li>
@@ -94,20 +94,20 @@
                         :loading="loading"
                         paginator
                         :rows="10"
-                        class="rounded-md border border-[#c8d6ef]"
+                        class="rounded-md border border-[#a8b8d4]"
                     >
                         <Column header="Item">
                             <template #body="{ data }">
                                 <div>
-                                    <p class="font-medium text-[#002a7a]">{{ data.item.item_name }}</p>
-                                    <p class="text-xs text-[#5b7fbf]">{{ data.item.barcode }}</p>
+                                    <p class="font-medium text-[#00164d]">{{ data.item.item_name }}</p>
+                                    <p class="text-xs text-[#4a6490]">{{ data.item.barcode }}</p>
                                 </div>
                             </template>
                         </Column>
                         <Column header="Stock on hand">
                             <template #body="{ data }">
-                                <span class="font-semibold text-[#002a7a]">{{ data.item.current_stock }}</span>
-                                <span class="text-xs text-[#5b7fbf]"> {{ data.item.unit }}</span>
+                                <span class="font-semibold text-[#00164d]">{{ data.item.current_stock }}</span>
+                                <span class="text-xs text-[#4a6490]"> {{ data.item.unit }}</span>
                             </template>
                         </Column>
                         <Column>
@@ -151,7 +151,7 @@
                         <Column header="Most requests from">
                             <template #body="{ data }">
                                 <span v-if="data.top_requesters?.length">{{ data.top_requesters[0].name }}</span>
-                                <span v-else class="text-[#5b7fbf]">—</span>
+                                <span v-else class="text-[#4a6490]">—</span>
                             </template>
                         </Column>
                         <Column header="Status">
@@ -178,32 +178,32 @@
             :style="{ width: '520px' }"
         >
             <div v-if="selected" class="space-y-4 pt-1">
-                <p class="text-sm leading-relaxed text-[#001e5a]">{{ selected.message }}</p>
+                <p class="text-sm leading-relaxed text-[#000f33]">{{ selected.message }}</p>
 
-                <div class="rounded-lg border border-[#c8d6ef] bg-[#eef2fa] p-4 text-sm">
+                <div class="rounded-lg border border-[#a8b8d4] bg-[#e2e8f2] p-4 text-sm">
                     <p>
-                        <span class="text-[#5b7fbf]">Stock on hand:</span>
-                        <strong class="text-[#002a7a]">{{ selected.item.current_stock }} {{ selected.item.unit }}</strong>
+                        <span class="text-[#4a6490]">Stock on hand:</span>
+                        <strong class="text-[#00164d]">{{ selected.item.current_stock }} {{ selected.item.unit }}</strong>
                     </p>
                     <p class="mt-2">
-                        <span class="text-[#5b7fbf]">May last about:</span>
-                        <strong class="text-[#002a7a]">{{ formatDaysLeft(selected.estimated_days_left) }}</strong>
+                        <span class="text-[#4a6490]">May last about:</span>
+                        <strong class="text-[#00164d]">{{ formatDaysLeft(selected.estimated_days_left) }}</strong>
                     </p>
                 </div>
 
                 <div>
-                    <h4 class="mb-2 text-sm font-semibold text-[#002a7a]">Who requested this item</h4>
+                    <h4 class="mb-2 text-sm font-semibold text-[#00164d]">Who requested this item</h4>
                     <div v-if="selected.all_requesters?.length" class="space-y-2">
                         <div
                             v-for="person in selected.all_requesters"
                             :key="person.id"
-                            class="flex items-center justify-between rounded-md border border-[#c8d6ef] px-3 py-2 text-sm"
+                            class="flex items-center justify-between rounded-md border border-[#a8b8d4] px-3 py-2 text-sm"
                         >
-                            <span class="font-medium text-[#002a7a]">{{ person.name }}</span>
-                            <span class="text-[#5b7fbf]">{{ person.quantity_issued }} taken · {{ person.request_count }} request(s)</span>
+                            <span class="font-medium text-[#00164d]">{{ person.name }}</span>
+                            <span class="text-[#4a6490]">{{ person.quantity_issued }} taken · {{ person.request_count }} request(s)</span>
                         </div>
                     </div>
-                    <p v-else class="text-sm text-[#5b7fbf]">No request records for this period.</p>
+                    <p v-else class="text-sm text-[#4a6490]">No request records for this period.</p>
                 </div>
             </div>
         </Dialog>
@@ -282,7 +282,7 @@ function formatDaysLeft(value) {
 function daysLeftClass(row) {
     if (row.status === 'critical' || row.status === 'out_of_stock') return 'text-[#ce1126]';
     if (row.status === 'warning') return 'text-[#e5bc00]';
-    return 'text-[#002a7a]';
+    return 'text-[#00164d]';
 }
 
 function statusBadgeClass(status) {

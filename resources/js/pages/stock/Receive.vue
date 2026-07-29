@@ -35,7 +35,7 @@
                 <form class="space-y-4" @submit.prevent="submit">
                     <div>
                         <label
-                            class="mb-1 block text-sm font-medium text-[#002a7a]"
+                            class="mb-1 block text-sm font-medium text-[#00164d]"
                             >Quantity received</label
                         >
                         <InputNumber
@@ -49,7 +49,7 @@
                     </div>
                     <div>
                         <label
-                            class="mb-1 block text-sm font-medium text-[#002a7a]"
+                            class="mb-1 block text-sm font-medium text-[#00164d]"
                             >Remarks</label
                         >
                         <Textarea
@@ -85,7 +85,7 @@
 
         <div v-else-if="embedded" class="stock-op-empty">
             <svg
-                class="h-10 w-10 text-[#c8d6ef]"
+                class="h-10 w-10 text-[#a8b8d4]"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -98,10 +98,10 @@
                     d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
                 />
             </svg>
-            <p class="mt-3 text-sm font-medium text-[#002a7a]">
+            <p class="mt-3 text-sm font-medium text-[#00164d]">
                 No item selected
             </p>
-            <p class="mt-1 text-xs text-[#5b7fbf]">
+            <p class="mt-1 text-xs text-[#4a6490]">
                 Scan a registered item barcode to receive stock.
             </p>
         </div>

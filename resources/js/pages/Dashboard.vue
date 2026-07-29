@@ -13,13 +13,13 @@
                 :style="{ animationDelay: `${80 + index * 70}ms` }"
             >
                 <div class="flex items-center justify-between">
-                    <p class="text-sm font-medium text-[#5b7fbf]">{{ card.label }}</p>
+                    <p class="text-sm font-medium text-[#4a6490]">{{ card.label }}</p>
                     <UiBadge variant="secondary">{{ card.badge }}</UiBadge>
                 </div>
-                <p class="mt-3 text-3xl font-bold tracking-tight text-[#002a7a]">
+                <p class="mt-3 text-3xl font-bold tracking-tight text-[#00164d]">
                     <AnimatedCounter :value="card.value" :active="loaded" />
                 </p>
-                <p class="mt-1 text-xs text-[#5b7fbf]">{{ card.hint }}</p>
+                <p class="mt-1 text-xs text-[#4a6490]">{{ card.hint }}</p>
             </div>
         </div>
 
@@ -34,7 +34,7 @@
                         :options="inventoryOptions"
                         :series="inventorySeries"
                     />
-                    <div v-else class="flex h-[300px] items-center justify-center text-sm text-[#5b7fbf]">Loading chart...</div>
+                    <div v-else class="flex h-[300px] items-center justify-center text-sm text-[#4a6490]">Loading chart...</div>
                 </UiCard>
             </div>
             <div class="dashboard-fade-in" style="animation-delay: 680ms">
@@ -47,7 +47,7 @@
                         :options="monthlyOptions"
                         :series="monthlySeries"
                     />
-                    <div v-else class="flex h-[300px] items-center justify-center text-sm text-[#5b7fbf]">Loading chart...</div>
+                    <div v-else class="flex h-[300px] items-center justify-center text-sm text-[#4a6490]">Loading chart...</div>
                 </UiCard>
             </div>
         </div>
@@ -70,15 +70,15 @@
                         <li
                             v-for="movement in recentMovements"
                             :key="movement.id"
-                            class="flex items-start justify-between gap-3 border-b border-[#eef2fa] pb-3 last:border-0 last:pb-0"
+                            class="flex items-start justify-between gap-3 border-b border-[#e2e8f2] pb-3 last:border-0 last:pb-0"
                         >
                             <div>
-                                <p class="text-sm font-medium text-[#002a7a]">{{ movement.item?.item_name }}</p>
-                                <p class="text-xs text-[#5b7fbf]">{{ movement.transaction_type }} · {{ movement.quantity }} units</p>
+                                <p class="text-sm font-medium text-[#00164d]">{{ movement.item?.item_name }}</p>
+                                <p class="text-xs text-[#4a6490]">{{ movement.transaction_type }} · {{ movement.quantity }} units</p>
                             </div>
                             <UiBadge variant="outline">{{ movement.transaction_type }}</UiBadge>
                         </li>
-                        <li v-if="loaded && !recentMovements.length" class="py-8 text-center text-sm text-[#5b7fbf]">No recent movements.</li>
+                        <li v-if="loaded && !recentMovements.length" class="py-8 text-center text-sm text-[#4a6490]">No recent movements.</li>
                     </ul>
                 </UiCard>
             </div>
@@ -100,14 +100,14 @@
                         <li
                             v-for="issue in recentIssuance"
                             :key="issue.id"
-                            class="flex items-start justify-between gap-3 border-b border-[#eef2fa] pb-3 last:border-0 last:pb-0"
+                            class="flex items-start justify-between gap-3 border-b border-[#e2e8f2] pb-3 last:border-0 last:pb-0"
                         >
                             <div>
-                                <p class="text-sm font-medium text-[#002a7a]">{{ issue.issuance_number }}</p>
-                                <p class="text-xs text-[#5b7fbf]">{{ issue.request?.department?.name }}</p>
+                                <p class="text-sm font-medium text-[#00164d]">{{ issue.issuance_number }}</p>
+                                <p class="text-xs text-[#4a6490]">{{ issue.department?.name || '—' }}</p>
                             </div>
                         </li>
-                        <li v-if="loaded && !recentIssuance.length" class="py-8 text-center text-sm text-[#5b7fbf]">No recent issuances.</li>
+                        <li v-if="loaded && !recentIssuance.length" class="py-8 text-center text-sm text-[#4a6490]">No recent issuances.</li>
                     </ul>
                 </UiCard>
             </div>
@@ -129,15 +129,15 @@
                         <li
                             v-for="item in lowStockItems"
                             :key="item.id"
-                            class="flex items-start justify-between gap-3 border-b border-[#eef2fa] pb-3 last:border-0 last:pb-0"
+                            class="flex items-start justify-between gap-3 border-b border-[#e2e8f2] pb-3 last:border-0 last:pb-0"
                         >
                             <div>
-                                <p class="text-sm font-medium text-[#002a7a]">{{ item.item_name }}</p>
-                                <p class="text-xs text-[#5b7fbf]">Min: {{ item.minimum_stock }}</p>
+                                <p class="text-sm font-medium text-[#00164d]">{{ item.item_name }}</p>
+                                <p class="text-xs text-[#4a6490]">Min: {{ item.minimum_stock }}</p>
                             </div>
                             <UiBadge variant="destructive">{{ item.current_stock }} left</UiBadge>
                         </li>
-                        <li v-if="loaded && !lowStockItems.length" class="py-8 text-center text-sm text-[#5b7fbf]">All items are sufficiently stocked.</li>
+                        <li v-if="loaded && !lowStockItems.length" class="py-8 text-center text-sm text-[#4a6490]">All items are sufficiently stocked.</li>
                     </ul>
                 </UiCard>
             </div>
@@ -152,29 +152,15 @@ import UiBadge from '../components/ui/UiBadge.vue';
 import UiButton from '../components/ui/UiButton.vue';
 import AnimatedCounter from '../components/ui/AnimatedCounter.vue';
 import api from '../services/api';
-import { useAuthStore } from '../stores/auth';
-
-const auth = useAuthStore();
-
 function goTo(url) {
     window.location.href = url;
 }
 
 function viewAllStockMovements() {
-    if (auth.isDepartmentUser) {
-        goTo('/items');
-        return;
-    }
-
     goTo('/activity-logs?module=Stock');
 }
 
 function viewAllIssuance() {
-    if (auth.isDepartmentUser) {
-        goTo('/requests');
-        return;
-    }
-
     goTo('/issuance');
 }
 
@@ -205,7 +191,7 @@ const statCards = computed(() => [
     { label: 'Out of Stock', value: summary.value.out_of_stock ?? 0, badge: 'Critical', hint: 'Zero quantity items' },
     { label: "Today's Issuance", value: summary.value.todays_issuance ?? 0, badge: 'Out', hint: 'Issued today' },
     { label: "Today's Received", value: summary.value.todays_received ?? 0, badge: 'In', hint: 'Received today' },
-    { label: 'Pending Requests', value: summary.value.pending_requests ?? 0, badge: 'Open', hint: 'Awaiting approval' },
+    { label: "Today's Issuance Records", value: summary.value.todays_issuance_records ?? 0, badge: 'Records', hint: 'Issuances recorded today' },
     { label: 'Registered Equipment', value: summary.value.registered_equipments ?? 0, badge: 'Assets', hint: 'Equipment on record' },
 ]);
 
@@ -220,7 +206,7 @@ const inventoryOptions = computed(() => ({
         fontFamily: 'Inter, sans-serif',
     },
     labels: ['In Stock', 'Low Stock', 'Out of Stock'],
-    colors: ['#0038A8', '#FCD116', '#CE1126'],
+    colors: ['#001F6B', '#FCD116', '#CE1126'],
     legend: { position: 'bottom', fontFamily: 'Inter, sans-serif' },
     stroke: { width: 0 },
     dataLabels: { enabled: false },
@@ -243,7 +229,7 @@ const monthlyOptions = computed(() => ({
         fontFamily: 'Inter, sans-serif',
         animations: chartAnimations,
     },
-    colors: ['#0038A8'],
+    colors: ['#001F6B'],
     plotOptions: {
         bar: {
             borderRadius: 4,
@@ -251,13 +237,13 @@ const monthlyOptions = computed(() => ({
         },
     },
     dataLabels: { enabled: false },
-    grid: { borderColor: '#c8d6ef', strokeDashArray: 4 },
+    grid: { borderColor: '#a8b8d4', strokeDashArray: 4 },
     xaxis: {
         categories: (charts.value.monthly_issuance || []).map((row) => `M${row.month}`),
         axisBorder: { show: false },
         axisTicks: { show: false },
     },
-    yaxis: { labels: { style: { colors: '#5b7fbf' } } },
+    yaxis: { labels: { style: { colors: '#4a6490' } } },
 }));
 
 const lowStockItems = computed(() => charts.value.low_stock_items || []);

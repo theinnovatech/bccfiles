@@ -8,7 +8,7 @@
             @reset="resetFilters"
         />
 
-        <DataTable :value="filteredLogs" :loading="loading" paginator :rows="15" class="rounded-md border border-[#c8d6ef]">
+        <DataTable :value="filteredLogs" :loading="loading" paginator :rows="15" class="rounded-md border border-[#a8b8d4]">
             <Column header="Time"><template #body="{ data }">{{ formatDate(data.created_at) }}</template></Column>
             <Column header="User"><template #body="{ data }">{{ data.user?.name || 'System' }}</template></Column>
             <Column field="action" header="Action" />

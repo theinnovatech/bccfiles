@@ -19,18 +19,22 @@ function playNotificationSound() {
 }
 
 function toastSeverity(type) {
-    if (type === 'supply_request_rejected') {
+    if (type === 'out_of_stock') {
         return 'error';
     }
 
-    return 'success';
+    if (type === 'low_stock') {
+        return 'warn';
+    }
+
+    return 'info';
 }
 
 export function showNotificationToast(payload) {
     playNotificationSound();
 
     ToastEventBus.emit('add', {
-        severity: toastSeverity(payload.type),
+        severity: toastSeverity(payload?.type),
         summary: payload.title,
         detail: payload.message,
         life: 6000,

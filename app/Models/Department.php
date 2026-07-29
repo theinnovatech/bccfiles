@@ -26,8 +26,8 @@ class Department extends Model
         return $this->hasMany(User::class);
     }
 
-    public function supplyRequests(): HasMany
+    public function issuances(): HasMany
     {
-        return $this->hasMany(SupplyRequest::class);
+        return $this->hasMany(Issuance::class);
     }
 }

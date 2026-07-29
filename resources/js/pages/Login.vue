@@ -1,6 +1,6 @@
 <template>
     <div
-        class="login-page flex min-h-screen min-h-[100dvh] overflow-x-hidden flex-col md:h-screen md:overflow-hidden md:flex-row bg-gradient-to-br from-[#3a6fd6] via-[#1e5bc4] to-[#0046a8]"
+        class="login-page flex min-h-screen min-h-[100dvh] overflow-x-hidden flex-col md:h-screen md:overflow-hidden md:flex-row bg-gradient-to-br from-[#001f6b] via-[#00164d] to-[#000f33]"
         :class="{ 'login-split-open': splitting }"
     >
         <!-- Left Side: White panel -->
@@ -25,11 +25,11 @@
                 </div>
                 <div class="space-y-1">
                     <h2
-                        class="text-2xl font-bold tracking-tight text-[#0038a8]"
+                        class="text-2xl font-bold tracking-tight text-[#001f6b]"
                     >
                         OBIMS
                     </h2>
-                    <p class="text-sm text-[#5b7fbf] font-medium">
+                    <p class="text-sm text-[#4a6490] font-medium">
                         {{ organizationName }}
                     </p>
                 </div>
@@ -103,7 +103,7 @@
                         OBIMS
                     </h1>
                     <p
-                        class="text-xs sm:text-sm text-[#d6e0f5] font-medium px-2 break-words"
+                        class="text-xs sm:text-sm text-[#c5d0e8] font-medium px-2 break-words"
                     >
                         {{ organizationName }}
                     </p>
@@ -252,10 +252,13 @@
                         <label
                             class="login-enter-item login-remember"
                             style="--login-enter-delay: 0.69s"
+                            for="login-remember"
                         >
                             <input
+                                id="login-remember"
                                 v-model="remember"
                                 type="checkbox"
+                                name="remember"
                                 class="login-remember-input"
                             />
                             <span class="login-remember-box" aria-hidden="true">
@@ -266,7 +269,7 @@
 
                         <UiButton
                             type="submit"
-                            class="login-enter-item login-submit-btn w-full h-11 min-h-[2.75rem] bg-[#fcd116] hover:bg-[#e5bc00] text-[#001e5a] hover:text-[#001e5a] font-bold rounded-xl transition-all shadow-lg shadow-[#fcd116]/10 border-none"
+                            class="login-enter-item login-submit-btn w-full h-11 min-h-[2.75rem] bg-[#fcd116] hover:bg-[#e5bc00] text-[#000f33] hover:text-[#000f33] font-bold rounded-xl transition-all shadow-lg shadow-[#fcd116]/10 border-none"
                             style="--login-enter-delay: 0.77s"
                             :loading="loading"
                         >
@@ -324,6 +327,40 @@ const showPassword = ref(false);
 const remember = ref(false);
 const blockAutofill = ref(true);
 const form = reactive({ email: "", password: "" });
+
+const REMEMBER_FLAG_KEY = "obims.login.remember";
+const REMEMBER_EMAIL_KEY = "obims.login.email";
+
+function loadRememberedLogin() {
+    try {
+        if (localStorage.getItem(REMEMBER_FLAG_KEY) !== "1") {
+            return;
+        }
+
+        remember.value = true;
+        const savedEmail = localStorage.getItem(REMEMBER_EMAIL_KEY);
+
+        if (savedEmail) {
+            form.email = savedEmail;
+        }
+    } catch {
+        // ignore storage access errors
+    }
+}
+
+function persistRememberedLogin() {
+    try {
+        if (remember.value) {
+            localStorage.setItem(REMEMBER_FLAG_KEY, "1");
+            localStorage.setItem(REMEMBER_EMAIL_KEY, form.email.trim());
+        } else {
+            localStorage.removeItem(REMEMBER_FLAG_KEY);
+            localStorage.removeItem(REMEMBER_EMAIL_KEY);
+        }
+    } catch {
+        // ignore storage access errors
+    }
+}
 
 const TAGLINE =
     "Supply Unit Inventory Management System. Track, manage, and optimize division materials efficiently.";
@@ -494,10 +531,14 @@ onMounted(async () => {
     startTaglineTypewriter();
     resetLoginFields();
 
-    requestAnimationFrame(resetLoginFields);
+    requestAnimationFrame(() => {
+        resetLoginFields();
+        loadRememberedLogin();
+    });
     setTimeout(() => {
         if (blockAutofill.value) {
             resetLoginFields();
+            loadRememberedLogin();
         }
     }, 150);
 
@@ -535,7 +576,7 @@ async function submit() {
         const credentials = {
             email: form.email,
             password: form.password,
-            remember: remember.value,
+            remember: Boolean(remember.value),
         };
 
         if (turnstileSiteKey) {
@@ -543,6 +584,7 @@ async function submit() {
         }
 
         await auth.login(credentials);
+        persistRememberedLogin();
 
         splitting.value = true;
         setTimeout(() => {
@@ -840,6 +882,7 @@ async function submit() {
 
 /* ─── Remember me ───────────────────────────────────────────── */
 .login-remember {
+    position: relative;
     display: inline-flex;
     align-items: center;
     gap: 0.625rem;
@@ -849,9 +892,13 @@ async function submit() {
 
 .login-remember-input {
     position: absolute;
+    inset: 0 auto 0 0;
+    width: 1.125rem;
+    height: 1.125rem;
+    margin: 0;
     opacity: 0;
-    width: 0;
-    height: 0;
+    cursor: pointer;
+    z-index: 1;
 }
 
 .login-remember-box {
@@ -866,11 +913,12 @@ async function submit() {
     transition:
         background-color 0.2s ease,
         border-color 0.2s ease;
+    pointer-events: none;
 }
 
 .login-remember-icon {
     font-size: 0.625rem;
-    color: #001e5a;
+    color: #000f33;
     opacity: 0;
     transform: scale(0.5);
     transition:
@@ -994,8 +1042,8 @@ async function submit() {
     border: none !important;
     outline: none !important;
     background-color: transparent !important;
-    -webkit-box-shadow: 0 0 0 1000px #3d7fd0 inset !important;
-    box-shadow: 0 0 0 1000px #3d7fd0 inset !important;
+    -webkit-box-shadow: 0 0 0 1000px #00164d inset !important;
+    box-shadow: 0 0 0 1000px #00164d inset !important;
     transition: background-color 9999s ease-out 0s;
 }
 
@@ -1004,8 +1052,8 @@ async function submit() {
 .login-field-input:autofill:focus {
     -webkit-text-fill-color: #fff !important;
     caret-color: #fff;
-    box-shadow: 0 0 0 1000px #3d7fd0 inset !important;
-    -webkit-box-shadow: 0 0 0 1000px #3d7fd0 inset !important;
+    box-shadow: 0 0 0 1000px #00164d inset !important;
+    -webkit-box-shadow: 0 0 0 1000px #00164d inset !important;
 }
 
 .login-field-icon {

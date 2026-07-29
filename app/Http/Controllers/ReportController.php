@@ -102,7 +102,6 @@ class ReportController extends Controller
             ),
             'returns' => $this->reportService->returns(),
             'low-stock' => $this->reportService->lowStock(),
-            'physical-inventory' => $this->reportService->physicalInventory(),
             'monthly-consumption' => $this->reportService->monthlyConsumption(),
             'stock-card' => $this->reportService->stockCard(
                 $request->integer('item_id'),
@@ -122,10 +121,6 @@ class ReportController extends Controller
 
     private function departmentIdForReport(Request $request): ?int
     {
-        if ($request->user()->isDepartmentUser()) {
-            return $request->user()->department_id;
-        }
-
         if (! $request->filled('department_id')) {
             return null;
         }
@@ -149,9 +144,8 @@ class ReportController extends Controller
             'stock-movements' => 'Stock Movement Report',
             'stock-card' => 'Stock Card Report',
             'issuance' => 'Issuance Report',
-            'returns' => 'Return Report',
+            'returns' => 'Equipment Return Report',
             'low-stock' => 'Low Stock Report',
-            'physical-inventory' => 'Physical Inventory Report',
             'monthly-consumption' => 'Monthly Supply Consumption Report',
             default => 'Report',
         };
@@ -186,9 +180,8 @@ class ReportController extends Controller
             'stock-card' => 'Stock-Card-Report.pdf',
             'property-card' => 'Property-Card-Report.pdf',
             'issuance' => 'Issuance-Report.pdf',
-            'returns' => 'Returns-Report.pdf',
+            'returns' => 'Equipment-Returns-Report.pdf',
             'low-stock' => 'Low-Stock-Report.pdf',
-            'physical-inventory' => 'Physical-Inventory-Report.pdf',
             'monthly-consumption' => 'Monthly-Consumption-Report.pdf',
             default => 'Report.pdf',
         };

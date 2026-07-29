@@ -107,24 +107,22 @@ class PredictiveInventoryService
 
         return DB::table('issuance_details')
             ->join('issuances', 'issuance_details.issuance_id', '=', 'issuances.id')
-            ->join('supply_requests', 'issuances.request_id', '=', 'supply_requests.id')
-            ->join('users', 'supply_requests.requested_by', '=', 'users.id')
+            ->leftJoin('employees', 'issuances.received_by', '=', 'employees.id')
             ->where('issuance_details.item_id', $itemId)
             ->where('issuances.issued_date', '>=', $windowStart)
             ->select(
-                'users.id',
-                'users.name',
+                DB::raw("COALESCE(employees.name, issuances.received_by_name, 'Unknown') as name"),
                 DB::raw('SUM(issuance_details.quantity) as quantity_issued'),
                 DB::raw('COUNT(*) as request_count')
             )
-            ->groupBy('users.id', 'users.name')
+            ->groupBy(DB::raw("COALESCE(employees.name, issuances.received_by_name, 'Unknown')"))
             ->orderByDesc('quantity_issued')
             ->get()
             ->map(function ($row) use ($netConsumption) {
                 $quantity = (int) $row->quantity_issued;
 
                 return [
-                    'id'               => (int) $row->id,
+                    'id'               => null,
                     'name'             => $row->name,
                     'quantity_issued'  => $quantity,
                     'request_count'    => (int) $row->request_count,

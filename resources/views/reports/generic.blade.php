@@ -7,7 +7,7 @@
         body {
             font-family: DejaVu Sans, sans-serif;
             font-size: 11px;
-            color: #001e5a;
+            color: #000f33;
             margin: 0;
             padding: 0;
         }
@@ -46,7 +46,7 @@
 
         .org-line {
             font-size: 9px;
-            color: #5b7fbf;
+            color: #4a6490;
             text-transform: uppercase;
             letter-spacing: 0.4px;
         }
@@ -55,27 +55,27 @@
             margin-top: 2px;
             font-size: 11px;
             font-weight: bold;
-            color: #0038a8;
+            color: #001f6b;
             text-transform: uppercase;
         }
 
         .system-line {
             margin-top: 2px;
             font-size: 10px;
-            color: #002a7a;
+            color: #00164d;
         }
 
         .report-title {
             margin-top: 6px;
             font-size: 15px;
             font-weight: bold;
-            color: #0038a8;
+            color: #001f6b;
         }
 
         .meta {
             margin-top: 4px;
             font-size: 9px;
-            color: #5b7fbf;
+            color: #4a6490;
         }
 
         .stock-card-header {
@@ -351,7 +351,7 @@
 
         .header-rule-blue {
             height: 1px;
-            background: #0038a8;
+            background: #001f6b;
             margin-bottom: 16px;
         }
 
@@ -362,21 +362,21 @@
 
         table.data-table th,
         table.data-table td {
-            border: 1px solid #c8d6ef;
+            border: 1px solid #a8b8d4;
             padding: 6px;
             text-align: left;
             vertical-align: top;
         }
 
         table.data-table th {
-            background: #eef2fa;
-            color: #002a7a;
+            background: #e2e8f2;
+            color: #00164d;
             font-weight: bold;
         }
 
         .empty {
             margin-top: 24px;
-            color: #5b7fbf;
+            color: #4a6490;
             font-style: italic;
             text-align: center;
         }
@@ -387,9 +387,9 @@
             left: 0;
             right: 0;
             font-size: 8px;
-            color: #5b7fbf;
+            color: #4a6490;
             text-align: center;
-            border-top: 1px solid #c8d6ef;
+            border-top: 1px solid #a8b8d4;
             padding-top: 6px;
         }
     </style>
@@ -637,6 +637,7 @@
                     <th>Category</th>
                     <th>Type</th>
                     <th>Available Qty</th>
+                    <th>Life Span</th>
                     <th>Description</th>
                 </tr>
             </thead>
@@ -649,6 +650,7 @@
                         <td>{{ $row->category->name ?? '' }}</td>
                         <td>{{ $row->type }}</td>
                         <td>{{ $row->quantity }}</td>
+                        <td>{{ $row->life_span_years ? $row->life_span_years.' yr'.($row->life_span_years === 1 ? '' : 's') : '' }}</td>
                         <td>{{ $row->description ?? '' }}</td>
                     </tr>
                 @endforeach
@@ -717,10 +719,15 @@
             </thead>
             <tbody>
                 @foreach($rows as $row)
+                    @php
+                        $departmentName = $row->department->name
+                            ?? $row->receiver->department->name
+                            ?? '';
+                    @endphp
                     @forelse($row->details as $detail)
                         <tr>
                             <td>{{ $row->issuance_number }}</td>
-                            <td>{{ $row->request->department->name ?? '' }}</td>
+                            <td>{{ $departmentName }}</td>
                             <td>{{ $detail->equipment_id || $detail->equipment ? 'Equipment' : 'Item' }}</td>
                             <td>{{ $detail->equipment->name ?? $detail->item->item_name ?? '' }}</td>
                             <td>{{ $detail->equipment->property_number ?? $detail->barcode ?? $detail->item->barcode ?? '' }}</td>
@@ -730,7 +737,7 @@
                     @empty
                         <tr>
                             <td>{{ $row->issuance_number }}</td>
-                            <td>{{ $row->request->department->name ?? '' }}</td>
+                            <td>{{ $departmentName }}</td>
                             <td>-</td>
                             <td>-</td>
                             <td>-</td>
@@ -746,43 +753,22 @@
             <thead>
                 <tr>
                     <th>Date</th>
-                    <th>Item</th>
+                    <th>Equipment</th>
+                    <th>Department</th>
                     <th>Qty</th>
                     <th>Returned By</th>
-                    <th>Reason</th>
+                    <th>Remarks</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach($rows as $row)
                     <tr>
                         <td>{{ $row->date_returned }}</td>
-                        <td>{{ $row->item->item_name ?? '' }}</td>
+                        <td>{{ $row->equipment->name ?? '' }}</td>
+                        <td>{{ $row->department->name ?? '' }}</td>
                         <td>{{ $row->quantity }}</td>
-                        <td>{{ $row->returner->name ?? '' }}</td>
+                        <td>{{ $row->borrower->name ?? $row->borrower_name ?? '' }}</td>
                         <td>{{ $row->reason ?? '' }}</td>
-                    </tr>
-                @endforeach
-            </tbody>
-        </table>
-    @elseif($type === 'physical-inventory')
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Session</th>
-                    <th>Item</th>
-                    <th>System Qty</th>
-                    <th>Physical Qty</th>
-                    <th>Variance</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach($rows as $row)
-                    <tr>
-                        <td>{{ $row->session_id }}</td>
-                        <td>{{ $row->item->item_name ?? '' }}</td>
-                        <td>{{ $row->expected_quantity }}</td>
-                        <td>{{ $row->physical_quantity }}</td>
-                        <td>{{ $row->variance }}</td>
                     </tr>
                 @endforeach
             </tbody>

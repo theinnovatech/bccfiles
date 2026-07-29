@@ -26,11 +26,6 @@ class ReferenceNumberGenerator
         return sprintf('%s-%d-%04d', $prefix, $year, $sequence);
     }
 
-    public static function forRequest(): string
-    {
-        return self::generateFromTable('supply_requests', 'request_number', 'REQ');
-    }
-
     public static function forIssuance(): string
     {
         return self::generateFromTable('issuances', 'issuance_number', 'ISS');
@@ -39,11 +34,6 @@ class ReferenceNumberGenerator
     public static function forEmployee(): string
     {
         return self::generateFromTable('employees', 'employee_number', 'EMP');
-    }
-
-    public static function forStockCount(): string
-    {
-        return self::generateFromTable('stock_count_sessions', 'session_number', 'CNT');
     }
 
     public static function forMovement(): string
@@ -78,9 +68,7 @@ class ReferenceNumberGenerator
     private static function tableForPrefix(string $prefix): string
     {
         return match ($prefix) {
-            'REQ' => 'supply_requests',
             'ISS' => 'issuances',
-            'CNT' => 'stock_count_sessions',
             default => 'stock_movements',
         };
     }

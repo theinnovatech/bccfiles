@@ -22,7 +22,7 @@
 
             <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <div class="md:col-span-2">
-                    <label class="mb-1 block text-sm font-medium text-[#002a7a]"
+                    <label class="mb-1 block text-sm font-medium text-[#00164d]"
                         >Item</label
                     >
                     <Select
@@ -37,7 +37,7 @@
                     />
                 </div>
                 <div>
-                    <label class="mb-1 block text-sm font-medium text-[#002a7a]"
+                    <label class="mb-1 block text-sm font-medium text-[#00164d]"
                         >From Date</label
                     >
                     <input
@@ -47,7 +47,7 @@
                     />
                 </div>
                 <div>
-                    <label class="mb-1 block text-sm font-medium text-[#002a7a]"
+                    <label class="mb-1 block text-sm font-medium text-[#00164d]"
                         >To Date</label
                     >
                     <input
@@ -57,7 +57,7 @@
                     />
                 </div>
                 <div>
-                    <label class="mb-1 block text-sm font-medium text-[#002a7a]"
+                    <label class="mb-1 block text-sm font-medium text-[#00164d]"
                         >Movement Type</label
                     >
                     <Select
@@ -84,45 +84,45 @@
 
             <div
                 v-if="selectedItem"
-                class="mt-5 grid gap-3 rounded-lg border border-[#eef2fa] bg-[#f8faff] p-4 sm:grid-cols-2 lg:grid-cols-4"
+                class="mt-5 grid gap-3 border border-[#a8b8d4] bg-transparent p-4 sm:grid-cols-2 lg:grid-cols-4"
             >
                 <div>
                     <p
-                        class="text-xs font-semibold uppercase tracking-wide text-[#5b7fbf]"
+                        class="text-xs font-semibold uppercase tracking-wide text-[#4a6490]"
                     >
                         Item
                     </p>
-                    <p class="mt-1 text-sm font-medium text-[#002a7a]">
+                    <p class="mt-1 text-sm font-medium text-[#00164d]">
                         {{ selectedItem.item_name }}
                     </p>
                 </div>
                 <div>
                     <p
-                        class="text-xs font-semibold uppercase tracking-wide text-[#5b7fbf]"
+                        class="text-xs font-semibold uppercase tracking-wide text-[#4a6490]"
                     >
                         Barcode
                     </p>
-                    <p class="mt-1 text-sm text-[#002a7a]">
+                    <p class="mt-1 text-sm text-[#00164d]">
                         {{ selectedItem.barcode }}
                     </p>
                 </div>
                 <div>
                     <p
-                        class="text-xs font-semibold uppercase tracking-wide text-[#5b7fbf]"
+                        class="text-xs font-semibold uppercase tracking-wide text-[#4a6490]"
                     >
                         Current Stock
                     </p>
-                    <p class="mt-1 text-sm font-semibold text-[#0038a8]">
+                    <p class="mt-1 text-sm font-semibold text-[#001f6b]">
                         {{ selectedItem.current_stock }}
                     </p>
                 </div>
                 <div>
                     <p
-                        class="text-xs font-semibold uppercase tracking-wide text-[#5b7fbf]"
+                        class="text-xs font-semibold uppercase tracking-wide text-[#4a6490]"
                     >
                         Location
                     </p>
-                    <p class="mt-1 text-sm text-[#002a7a]">
+                    <p class="mt-1 text-sm text-[#00164d]">
                         {{ selectedItem.location?.name || "—" }}
                     </p>
                 </div>
@@ -178,7 +178,7 @@
 
             <div v-if="!hasLoaded" class="stock-card-placeholder">
                 <svg
-                    class="h-12 w-12 text-[#c8d6ef]"
+                    class="h-12 w-12 text-[#a8b8d4]"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -190,17 +190,17 @@
                         d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
                     />
                 </svg>
-                <p class="mt-3 text-sm font-medium text-[#002a7a]">
+                <p class="mt-3 text-sm font-medium text-[#00164d]">
                     No item selected
                 </p>
-                <p class="mt-1 text-xs text-[#5b7fbf]">
+                <p class="mt-1 text-xs text-[#4a6490]">
                     Choose an item above to view its stock card.
                 </p>
             </div>
 
             <div v-else-if="loading" class="stock-card-placeholder">
                 <svg
-                    class="h-8 w-8 animate-spin text-[#0038a8]"
+                    class="h-8 w-8 animate-spin text-[#001f6b]"
                     viewBox="0 0 24 24"
                     fill="none"
                 >
@@ -218,7 +218,7 @@
                         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
                     />
                 </svg>
-                <p class="mt-3 text-sm text-[#5b7fbf]">Loading stock card...</p>
+                <p class="mt-3 text-sm text-[#4a6490]">Loading stock card...</p>
             </div>
 
             <template v-else>
@@ -436,12 +436,12 @@ onMounted(async () => {
     gap: 0.375rem;
     font-size: 0.875rem;
     font-weight: 500;
-    color: #5b7fbf;
+    color: #4a6490;
     transition: color 0.15s ease;
 }
 
 .stock-card-back-link:hover {
-    color: #0038a8;
+    color: #001f6b;
 }
 
 .stock-card-placeholder {
@@ -450,20 +450,20 @@ onMounted(async () => {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    border: 1px dashed #c8d6ef;
-    border-radius: 0.5rem;
-    background: #f0f4fb;
+    border: 1px dashed #a8b8d4;
+    border-radius: 0;
+    background: transparent;
     text-align: center;
 }
 
 .report-view-tabs {
     display: flex;
     width: 100%;
-    gap: 0.25rem;
-    border-radius: 0.5rem;
-    border: 1px solid #c8d6ef;
-    background: #eef2fa;
-    padding: 0.25rem;
+    gap: 0;
+    border-radius: 0;
+    border: 1px solid #a8b8d4;
+    background: transparent;
+    padding: 0;
 }
 
 @media (min-width: 640px) {
@@ -475,13 +475,18 @@ onMounted(async () => {
 
 .report-view-tab {
     flex: 1;
-    border-radius: 0.375rem;
+    border-radius: 0;
     padding: 0.5rem 0.75rem;
     font-size: 0.875rem;
     font-weight: 500;
-    color: #5b7fbf;
+    color: #4a6490;
     transition: all 0.15s ease;
     text-align: center;
+    border-right: 1px solid #a8b8d4;
+}
+
+.report-view-tab:last-child {
+    border-right: 0;
 }
 
 @media (min-width: 640px) {
@@ -492,12 +497,12 @@ onMounted(async () => {
 }
 
 .report-view-tab:hover {
-    color: #0038a8;
+    color: #001f6b;
 }
 
 .report-view-tab-active {
-    background: white;
-    color: #0038a8;
-    box-shadow: 0 1px 2px rgb(0 56 168 / 0.08);
+    background: #001f6b;
+    color: white;
+    box-shadow: none;
 }
 </style>

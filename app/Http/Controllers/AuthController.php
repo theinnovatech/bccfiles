@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
 
@@ -20,6 +22,7 @@ class AuthController extends Controller
         $request->validate([
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
+            'remember' => ['sometimes', 'boolean'],
             'cf_turnstile_response' => [$turnstileEnabled ? 'required' : 'nullable', 'string'],
         ]);
 
@@ -50,8 +53,9 @@ class AuthController extends Controller
         }
 
         $credentials = $request->only('email', 'password');
+        $remember = $request->boolean('remember');
 
-        if (! Auth::attempt($credentials, $request->boolean('remember'))) {
+        if (! Auth::attempt($credentials, $remember)) {
             throw ValidationException::withMessages([
                 'email' => ['The provided credentials are incorrect.'],
             ]);
@@ -67,7 +71,20 @@ class AuthController extends Controller
             ]);
         }
 
+        if (! in_array($user->role, [UserRole::Admin, UserRole::SupplyOfficer], true)) {
+            Auth::logout();
+
+            throw ValidationException::withMessages([
+                'email' => ['Only admin and supply officer accounts can access this system.'],
+            ]);
+        }
+
         $request->session()->regenerate();
+
+        // Drop any leftover remember-me cookie when the user did not opt in.
+        if (! $remember) {
+            Cookie::queue(Cookie::forget(Auth::getRecallerName()));
+        }
 
         return response()->json([
             'user' => $this->formatUser($user),

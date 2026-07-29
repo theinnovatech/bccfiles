@@ -24,7 +24,7 @@
                     :loading="loading"
                     paginator
                     :rows="10"
-                    class="rounded-md border border-[#c8d6ef]"
+                    class="rounded-md border border-[#a8b8d4]"
                 >
                     <Column field="barcode" header="Barcode" />
                     <Column field="item_name" header="Item Name" />

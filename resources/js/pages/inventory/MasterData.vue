@@ -2,19 +2,24 @@
     <div class="space-y-6">
         <div class="shadcn-card overflow-hidden">
             <div
-                class="stock-op-hero border-b border-[#c8d6ef] px-4 py-5 sm:px-6"
+                class="stock-op-hero border-b border-[#a8b8d4] px-4 py-5 sm:px-6"
             >
-                <h3 class="text-lg font-semibold text-[#002a7a]">
-                    Master Data
-                </h3>
-                <p class="mt-1 text-sm text-[#5b7fbf]">
+                <h3 class="text-lg font-semibold text-[#00164d]">Settings</h3>
+                <p class="mt-1 text-sm text-[#4a6490]">
                     Manage item categories, equipment categories, units of
-                    measure, and storage locations.
+                    measure, storage locations, and system configuration.
                 </p>
 
-                <div class="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                <div
+                    class="mt-4 grid gap-2 sm:grid-cols-2"
+                    :class="
+                        visibleTabs.length > 4
+                            ? 'lg:grid-cols-5'
+                            : 'lg:grid-cols-4'
+                    "
+                >
                     <button
-                        v-for="tab in tabs"
+                        v-for="tab in visibleTabs"
                         :key="tab.key"
                         type="button"
                         class="stock-op-tab-card"
@@ -42,17 +47,25 @@
                 />
                 <Units v-else-if="activeTab === 'units'" embedded />
                 <Locations v-else-if="activeTab === 'locations'" embedded />
+                <SystemSettings
+                    v-else-if="activeTab === 'system' && auth.isAdmin"
+                    embedded
+                />
             </div>
         </div>
     </div>
 </template>
 
 <script setup>
-import { h, onMounted, ref } from "vue";
+import { computed, h, onMounted, ref } from "vue";
 import Categories from "./Categories.vue";
 import EquipmentCategories from "./EquipmentCategories.vue";
 import Units from "./Units.vue";
 import Locations from "./Locations.vue";
+import SystemSettings from "../Settings.vue";
+import { useAuthStore } from "../../stores/auth";
+
+const auth = useAuthStore();
 
 const IconCategories = () =>
     h(
@@ -85,7 +98,7 @@ const IconUnits = () =>
             h("path", {
                 "stroke-linecap": "round",
                 "stroke-linejoin": "round",
-                d: "M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m0 0v12m0-12v-2.25m0 2.25h10.5M7.5 18h10.5M7.5 18v-2.25m0 2.25H3.75",
+                d: "M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3",
             }),
         ],
     );
@@ -131,32 +144,70 @@ const IconEquipmentCategories = () =>
         ],
     );
 
+const IconSystem = () =>
+    h(
+        "svg",
+        {
+            fill: "none",
+            viewBox: "0 0 24 24",
+            stroke: "currentColor",
+            "stroke-width": "2",
+        },
+        [
+            h("path", {
+                "stroke-linecap": "round",
+                "stroke-linejoin": "round",
+                d: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z",
+            }),
+            h("path", {
+                "stroke-linecap": "round",
+                "stroke-linejoin": "round",
+                d: "M15 12a3 3 0 11-6 0 3 3 0 016 0z",
+            }),
+        ],
+    );
+
 const tabs = [
     {
         key: "categories",
         label: "Item Categories",
         description: "Group inventory items by type",
         icon: IconCategories,
+        adminOnly: false,
     },
     {
         key: "equipment-categories",
         label: "Equipment Categories",
         description: "Categories used when registering equipment",
         icon: IconEquipmentCategories,
+        adminOnly: false,
     },
     {
         key: "units",
         label: "Units",
         description: "Define units of measure",
         icon: IconUnits,
+        adminOnly: false,
     },
     {
         key: "locations",
         label: "Locations",
         description: "Storage areas and shelves",
         icon: IconLocations,
+        adminOnly: false,
+    },
+    {
+        key: "system",
+        label: "System",
+        description: "Organization and inventory rules",
+        icon: IconSystem,
+        adminOnly: true,
     },
 ];
+
+const visibleTabs = computed(() =>
+    tabs.filter((tab) => !tab.adminOnly || auth.isAdmin),
+);
 
 const activeTab = ref("categories");
 
@@ -171,8 +222,10 @@ function setTab(key) {
 onMounted(() => {
     const tab = new URLSearchParams(window.location.search).get("tab");
 
-    if (tabs.some((entry) => entry.key === tab)) {
+    if (visibleTabs.value.some((entry) => entry.key === tab)) {
         activeTab.value = tab;
+    } else if (tab === "system" && !auth.isAdmin) {
+        activeTab.value = "categories";
     }
 });
 </script>

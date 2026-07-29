@@ -5,8 +5,8 @@
                 <div>
                     <h3 class="shadcn-card-title">Employees</h3>
                     <p class="shadcn-card-description">
-                        Manage employee records. Department Users receive login
-                        credentials by email.
+                        Manage employee records used when recording issuances
+                        and returns from hard-copy forms.
                     </p>
                 </div>
                 <UiButton @click="openDialog()">
@@ -42,7 +42,7 @@
                 :loading="loading"
                 paginator
                 :rows="10"
-                class="rounded-md border border-[#c8d6ef]"
+                class="rounded-md border border-[#a8b8d4]"
             >
                 <Column field="employee_number" header="Employee ID" />
                 <Column field="name" header="Name" />
@@ -56,29 +56,10 @@
                         data.department?.name || "—"
                     }}</template>
                 </Column>
-                <Column header="Role">
-                    <template #body="{ data }">
-                        <span
-                            class="stock-count-badge"
-                            :class="roleBadgeClass(data.role)"
-                            >{{ roleLabel(data.role) }}</span
-                        >
-                    </template>
-                </Column>
-                <Column field="contact_email" header="Contact Email" />
-                <Column header="User Account">
-                    <template #body="{ data }">
-                        <span
-                            class="stock-count-badge"
-                            :class="
-                                data.user
-                                    ? 'stock-count-badge-success'
-                                    : 'stock-count-badge-muted'
-                            "
-                        >
-                            {{ data.user ? "Linked" : "None" }}
-                        </span>
-                    </template>
+                <Column field="contact_email" header="Contact Email">
+                    <template #body="{ data }">{{
+                        data.contact_email || "—"
+                    }}</template>
                 </Column>
                 <Column header="Actions" style="width: 6rem">
                     <template #body="{ data }">
@@ -137,7 +118,7 @@
                 <div class="grid gap-4 sm:grid-cols-2">
                     <div class="sm:col-span-2">
                         <label
-                            class="mb-1 block text-sm font-medium text-[#002a7a]"
+                            class="mb-1 block text-sm font-medium text-[#00164d]"
                             >Full Name
                             <span class="text-[#ce1126]">*</span></label
                         >
@@ -150,9 +131,8 @@
 
                     <div class="sm:col-span-2">
                         <label
-                            class="mb-1 block text-sm font-medium text-[#002a7a]"
-                            >Contact Email
-                            <span class="text-[#ce1126]">*</span></label
+                            class="mb-1 block text-sm font-medium text-[#00164d]"
+                            >Contact Email</label
                         >
                         <InputText
                             v-model="form.contact_email"
@@ -160,14 +140,11 @@
                             class="w-full"
                             placeholder="employee@email.com"
                         />
-                        <p class="mt-1 text-xs text-[#5b7fbf]">
-                            Used as login email if role is Department User.
-                        </p>
                     </div>
 
                     <div>
                         <label
-                            class="mb-1 block text-sm font-medium text-[#002a7a]"
+                            class="mb-1 block text-sm font-medium text-[#00164d]"
                             >Department
                             <span class="text-[#ce1126]">*</span></label
                         >
@@ -183,22 +160,7 @@
 
                     <div>
                         <label
-                            class="mb-1 block text-sm font-medium text-[#002a7a]"
-                            >Role <span class="text-[#ce1126]">*</span></label
-                        >
-                        <Select
-                            v-model="form.role"
-                            :options="roles"
-                            optionLabel="label"
-                            optionValue="value"
-                            placeholder="Select role"
-                            class="w-full"
-                        />
-                    </div>
-
-                    <div class="sm:col-span-2">
-                        <label
-                            class="mb-1 block text-sm font-medium text-[#002a7a]"
+                            class="mb-1 block text-sm font-medium text-[#00164d]"
                             >Position</label
                         >
                         <InputText
@@ -206,62 +168,6 @@
                             class="w-full"
                             placeholder="e.g. Clerk, Teacher, Coordinator"
                         />
-                    </div>
-                </div>
-
-                <div
-                    v-if="form.role === 'department_user' && !editingId"
-                    class="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm"
-                >
-                    <div class="flex items-start gap-2">
-                        <svg
-                            class="mt-0.5 h-4 w-4 shrink-0 text-blue-600"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            stroke-width="2"
-                        >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                            />
-                        </svg>
-                        <p class="text-blue-800">
-                            A login account will be created automatically and
-                            credentials will be sent to
-                            <strong>{{
-                                form.contact_email || "the contact email"
-                            }}</strong
-                            >.
-                        </p>
-                    </div>
-                </div>
-
-                <div
-                    v-if="
-                        form.role === 'department_user' && editingId && !hasUser
-                    "
-                    class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm"
-                >
-                    <div class="flex items-start gap-2">
-                        <svg
-                            class="mt-0.5 h-4 w-4 shrink-0 text-amber-600"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            stroke-width="2"
-                        >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                            />
-                        </svg>
-                        <p class="text-amber-800">
-                            No user account found. Saving will create one and
-                            send credentials to the contact email.
-                        </p>
                     </div>
                 </div>
             </div>
@@ -300,21 +206,13 @@ const loading = ref(false);
 const saving = ref(false);
 const dialogVisible = ref(false);
 const editingId = ref(null);
-const hasUser = ref(false);
 
 const form = reactive({
     name: "",
     contact_email: "",
     department_id: null,
-    role: "department_user",
     position: "",
 });
-
-const roles = [
-    { label: "Admin", value: "admin" },
-    { label: "Supply Officer", value: "supply_officer" },
-    { label: "Department User", value: "department_user" },
-];
 
 const filterConfig = computed(() => [
     {
@@ -330,13 +228,6 @@ const filterConfig = computed(() => [
             "department.name",
         ],
     },
-    {
-        key: "role",
-        type: "select",
-        label: "Role",
-        field: "role",
-        options: [{ label: "All roles", value: "" }, ...roles],
-    },
 ]);
 
 const {
@@ -346,34 +237,17 @@ const {
     resetFilters,
 } = useTableFilters(employees, filterConfig);
 
-function roleLabel(role) {
-    return roles.find((entry) => entry.value === role)?.label || role || "—";
-}
-
-function roleBadgeClass(role) {
-    if (role === "admin") return "stock-count-badge-active";
-    if (role === "supply_officer") return "stock-count-badge-complete";
-    return "";
-}
-
 function openDialog(employee = null) {
     editingId.value = employee?.id ?? null;
-    hasUser.value = !!employee?.user;
     form.name = employee?.name ?? "";
     form.contact_email = employee?.contact_email ?? "";
     form.department_id = employee?.department_id ?? null;
-    form.role = employee?.role ?? "department_user";
     form.position = employee?.position ?? "";
     dialogVisible.value = true;
 }
 
 async function save() {
-    if (
-        !form.name ||
-        !form.contact_email ||
-        !form.department_id ||
-        !form.role
-    ) {
+    if (!form.name || !form.department_id) {
         notify.warn("Please fill in all required fields.");
         return;
     }
@@ -385,29 +259,13 @@ async function save() {
                 `/employees/${editingId.value}`,
                 form,
             );
-            if (data.mail_sent) {
-                notify.success(
-                    data.message || "Employee updated successfully.",
-                );
-            } else {
-                notify.warn(
-                    data.message ||
-                        "Employee updated, but credentials email could not be sent.",
-                );
-            }
+            notify.success(data.message || "Employee updated successfully.");
         } else {
             const { data } = await api.post("/employees", form);
-            if (data.mail_sent) {
-                notify.success(
-                    data.message || "Employee created successfully.",
-                    "Employee created",
-                );
-            } else {
-                notify.warn(
-                    data.message ||
-                        "Employee created, but credentials email could not be sent.",
-                );
-            }
+            notify.success(
+                data.message || "Employee created successfully.",
+                "Employee created",
+            );
         }
         dialogVisible.value = false;
         await load();

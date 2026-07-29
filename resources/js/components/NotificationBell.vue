@@ -40,7 +40,7 @@
             </div>
 
             <div v-if="!store.items.length" class="notification-empty">
-                No notifications yet.
+                No low-stock alerts yet.
             </div>
 
             <ul v-else class="notification-list">

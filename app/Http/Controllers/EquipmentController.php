@@ -26,10 +26,60 @@ class EquipmentController extends Controller
     {
         $equipment = Equipment::query()
             ->with('category')
-            ->where('barcode', $barcode)
+            ->where(function ($query) use ($barcode) {
+                $query->where('barcode', $barcode)
+                    ->orWhere('property_number', $barcode);
+            })
             ->first();
 
         return response()->json(['equipment' => $equipment]);
+    }
+
+    public function receive(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'equipment_id' => ['nullable', 'integer', 'exists:equipments,id'],
+            'barcode' => ['nullable', 'string', 'max:255'],
+            'quantity' => ['required', 'integer', 'min:1'],
+            'remarks' => ['nullable', 'string'],
+        ]);
+
+        if (empty($data['equipment_id']) && empty($data['barcode'])) {
+            return response()->json([
+                'message' => 'Select an equipment or provide a barcode/property number.',
+            ], 422);
+        }
+
+        $equipment = ! empty($data['equipment_id'])
+            ? Equipment::query()->with('category')->findOrFail($data['equipment_id'])
+            : Equipment::query()
+                ->with('category')
+                ->where(function ($query) use ($data) {
+                    $query->where('barcode', $data['barcode'])
+                        ->orWhere('property_number', $data['barcode']);
+                })
+                ->firstOrFail();
+
+        $equipment->increment('quantity', $data['quantity']);
+        $equipment->refresh()->load('category');
+
+        $remarks = trim((string) ($data['remarks'] ?? ''));
+        $message = "Received {$data['quantity']} unit(s) for equipment {$equipment->name} ({$equipment->property_number})";
+        if ($remarks !== '') {
+            $message .= " — {$remarks}";
+        }
+
+        $this->activityLogService->log(
+            $request->user(),
+            'Received',
+            'Equipments',
+            $message
+        );
+
+        return response()->json([
+            'equipment' => $equipment,
+            'quantity_received' => $data['quantity'],
+        ]);
     }
 
     public function store(Request $request): JsonResponse
@@ -41,6 +91,7 @@ class EquipmentController extends Controller
             'description' => ['nullable', 'string'],
             'type' => ['required', 'string', 'max:255'],
             'quantity' => ['required', 'integer', 'min:1'],
+            'life_span_years' => ['required', 'integer', 'min:1', 'max:100'],
             'specs' => ['nullable', 'string'],
         ]);
 
@@ -75,6 +126,7 @@ class EquipmentController extends Controller
             'description' => ['nullable', 'string'],
             'type' => ['required', 'string', 'max:255'],
             'quantity' => ['required', 'integer', 'min:1'],
+            'life_span_years' => ['required', 'integer', 'min:1', 'max:100'],
             'specs' => ['nullable', 'string'],
         ]);
 

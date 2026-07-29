@@ -2,136 +2,146 @@
     <div class="space-y-6">
         <div class="shadcn-card overflow-hidden">
             <div
-                class="stock-op-hero border-b border-[#c8d6ef] px-4 py-5 sm:px-6"
+                class="stock-op-hero border-b border-[#a8b8d4] px-4 py-5 sm:px-6"
             >
-                <h3 class="text-lg font-semibold text-[#002a7a]">
-                    Return Unused Items
+                <h3 class="text-lg font-semibold text-[#00164d]">
+                    Record Equipment Return
                 </h3>
-                <p class="mt-1 text-sm text-[#5b7fbf]">
-                    Scan returned items and add them back to inventory when
-                    departments return unused supplies.
+                <p class="mt-1 text-sm text-[#4a6490]">
+                    Manually record borrowed equipment being returned from a
+                    hard-copy return form.
                 </p>
             </div>
 
-            <div class="stock-op-content p-4 sm:p-6 space-y-6">
-                <StockOpScanner
-                    v-model="barcode"
-                    title="Scan to return item"
-                    hint="Scan a registered item barcode and enter the quantity being returned."
-                    @scan="lookupItem"
-                />
+            <form
+                class="min-w-0 space-y-5 p-4 sm:p-6"
+                @submit.prevent="submit"
+            >
+                <div class="grid gap-4 md:grid-cols-2">
+                    <div class="md:col-span-2">
+                        <label
+                            class="mb-1 block text-sm font-medium text-[#00164d]"
+                            >Equipment
+                            <span class="text-[#ce1126]">*</span></label
+                        >
+                        <Select
+                            v-model="form.equipment_id"
+                            :options="equipments"
+                            optionLabel="label"
+                            optionValue="id"
+                            placeholder="Select equipment"
+                            class="w-full"
+                            filter
+                        />
+                    </div>
 
-                <div v-if="item" class="stock-op-workspace">
-                    <StockOpItemSummary
-                        :item="item"
-                        :fields="[
-                            { label: 'Barcode', value: item.barcode },
-                            {
-                                label: 'Current stock',
-                                value: item.current_stock,
-                            },
-                            {
-                                label: 'Category',
-                                value: item.category?.name || '—',
-                            },
-                            {
-                                label: 'Location',
-                                value: item.location?.name || '—',
-                            },
-                        ]"
-                    />
+                    <div>
+                        <label
+                            class="mb-1 block text-sm font-medium text-[#00164d]"
+                            >Quantity
+                            <span class="text-[#ce1126]">*</span></label
+                        >
+                        <InputNumber
+                            v-model="form.quantity"
+                            class="w-full"
+                            :min="1"
+                            inputClass="w-full"
+                        />
+                    </div>
 
-                    <div class="stock-op-form-panel">
-                        <div class="stock-op-form-header">
-                            <h4 class="stock-op-form-title">Return details</h4>
-                            <p class="stock-op-form-desc">
-                                Returned quantity will be added back to on-hand
-                                stock.
-                            </p>
-                        </div>
+                    <div>
+                        <label
+                            class="mb-1 block text-sm font-medium text-[#00164d]"
+                            >Department
+                            <span class="text-[#ce1126]">*</span></label
+                        >
+                        <Select
+                            v-model="form.department_id"
+                            :options="departments"
+                            optionLabel="name"
+                            optionValue="id"
+                            placeholder="Select department"
+                            class="w-full"
+                            filter
+                        />
+                    </div>
 
-                        <form class="space-y-4" @submit.prevent="submit">
-                            <div>
-                                <label
-                                    class="mb-1 block text-sm font-medium text-[#002a7a]"
-                                    >Returned quantity</label
-                                >
-                                <InputNumber
-                                    v-model="quantity"
-                                    class="w-full"
-                                    :min="0"
-                                    :use-grouping="false"
-                                    input-class="w-full"
-                                    @input="onQuantityInput"
-                                />
-                            </div>
-                            <div>
-                                <label
-                                    class="mb-1 block text-sm font-medium text-[#002a7a]"
-                                    >Reason</label
-                                >
-                                <Textarea
-                                    v-model="reason"
-                                    class="w-full"
-                                    rows="2"
-                                    placeholder="Optional reason for the return"
-                                />
-                            </div>
-                            <div
-                                class="stock-op-highlight stock-op-highlight-positive"
-                            >
-                                <span class="stock-op-highlight-label"
-                                    >New stock after return</span
-                                >
-                                <strong class="stock-op-highlight-value">{{
-                                    newStockAfterReturn
-                                }}</strong>
-                            </div>
-                            <div class="flex flex-col gap-3 sm:flex-row">
-                                <UiButton type="submit" :loading="loading"
-                                    >Process Return</UiButton
-                                >
-                                <UiButton
-                                    type="button"
-                                    variant="outline"
-                                    :disabled="loading"
-                                    @click="clearItem"
-                                >
-                                    Cancel
-                                </UiButton>
-                            </div>
-                        </form>
+                    <div class="md:col-span-2">
+                        <label
+                            class="mb-1 block text-sm font-medium text-[#00164d]"
+                            >Returned By
+                            <span class="text-[#ce1126]">*</span></label
+                        >
+                        <AutoComplete
+                            v-model="returnedByInput"
+                            :suggestions="borrowerSuggestions"
+                            optionLabel="name"
+                            dropdown
+                            :forceSelection="false"
+                            placeholder="Select or type borrower name"
+                            class="w-full"
+                            inputClass="w-full"
+                            :disabled="!form.department_id"
+                            @complete="searchBorrowers"
+                        />
+                        <p class="mt-1 text-xs text-[#4a6490]">
+                            Name of the person returning the borrowed equipment.
+                            Pick from employees or type if not listed.
+                        </p>
+                    </div>
+
+                    <div class="md:col-span-2">
+                        <label
+                            class="mb-1 block text-sm font-medium text-[#00164d]"
+                            >Condition / Remarks</label
+                        >
+                        <Textarea
+                            v-model="form.reason"
+                            class="w-full"
+                            rows="2"
+                            placeholder="Optional notes (condition, missing parts, hard-copy reference, etc.)"
+                        />
                     </div>
                 </div>
 
-                <div v-else class="stock-op-empty">
-                    <svg
-                        class="h-10 w-10 text-[#c8d6ef]"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        stroke-width="1.5"
-                        aria-hidden="true"
-                    >
-                        <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"
-                        />
-                    </svg>
-                    <p class="mt-3 text-sm font-medium text-[#002a7a]">
-                        No item selected
-                    </p>
-                    <p class="mt-1 text-xs text-[#5b7fbf]">
-                        Scan an item barcode to process a return.
+                <div
+                    v-if="selectedEquipment"
+                    class="border border-[#a8b8d4] bg-transparent p-4 text-sm text-[#00164d]"
+                >
+                    <p class="font-medium">{{ selectedEquipment.name }}</p>
+                    <p class="mt-1 text-[#4a6490]">
+                        Property No.:
+                        {{ selectedEquipment.property_number || "—" }} · Current
+                        available qty: {{ selectedEquipment.quantity ?? 0 }}
+                        <span v-if="form.quantity">
+                            → after return:
+                            {{
+                                (selectedEquipment.quantity ?? 0) +
+                                (Number(form.quantity) || 0)
+                            }}
+                        </span>
                     </p>
                 </div>
-            </div>
+
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <UiButton type="submit" :loading="loading">
+                        Process Return
+                    </UiButton>
+                    <UiButton
+                        type="button"
+                        variant="outline"
+                        :disabled="loading"
+                        @click="resetForm"
+                    >
+                        Clear Form
+                    </UiButton>
+                </div>
+            </form>
         </div>
 
         <UiCard
-            title="Recent Returns"
-            description="Latest processed item returns added back to inventory."
+            title="Equipment Return History"
+            description="Recent equipment returns recorded from hard-copy forms."
         >
             <TableFilters
                 v-model="filters"
@@ -142,47 +152,14 @@
             />
 
             <div v-if="loadingList" class="stock-op-empty">
-                <svg
-                    class="h-8 w-8 animate-spin text-[#0038a8]"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                >
-                    <circle
-                        class="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        stroke-width="4"
-                    />
-                    <path
-                        class="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                    />
-                </svg>
-                <p class="mt-3 text-sm text-[#5b7fbf]">Loading returns...</p>
+                <p class="text-sm text-[#4a6490]">Loading returns...</p>
             </div>
 
             <div v-else-if="!filteredReturns.length" class="stock-op-empty">
-                <svg
-                    class="h-10 w-10 text-[#c8d6ef]"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    stroke-width="1.5"
-                    aria-hidden="true"
-                >
-                    <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"
-                    />
-                </svg>
-                <p class="mt-3 text-sm font-medium text-[#002a7a]">
-                    No returns recorded yet
+                <p class="mt-3 text-sm font-medium text-[#00164d]">
+                    No equipment returns recorded yet
                 </p>
-                <p class="mt-1 text-xs text-[#5b7fbf]">
+                <p class="mt-1 text-xs text-[#4a6490]">
                     Processed returns will appear here.
                 </p>
             </div>
@@ -193,34 +170,48 @@
                     striped-rows
                     paginator
                     :rows="10"
-                    class="rounded-md border border-[#c8d6ef]"
+                    class="rounded-md border border-[#a8b8d4]"
                 >
                     <Column header="Date">
                         <template #body="{ data }">{{
                             formatDate(data.date_returned)
                         }}</template>
                     </Column>
-                    <Column header="Item">
+                    <Column header="Equipment">
                         <template #body="{ data }">
                             <div>
-                                <p class="font-medium text-[#002a7a]">
-                                    {{ data.item?.item_name }}
+                                <p class="font-medium text-[#00164d]">
+                                    {{ data.equipment?.name || "—" }}
                                 </p>
-                                <p class="text-xs text-[#5b7fbf]">
-                                    {{ data.item?.barcode }}
+                                <p class="text-xs text-[#4a6490]">
+                                    {{
+                                        data.equipment?.property_number ||
+                                        data.equipment?.barcode ||
+                                        "—"
+                                    }}
                                 </p>
                             </div>
                         </template>
                     </Column>
+                    <Column header="Department">
+                        <template #body="{ data }">{{
+                            data.department?.name || "—"
+                        }}</template>
+                    </Column>
                     <Column field="quantity" header="Qty" />
                     <Column header="Returned By">
+                        <template #body="{ data }">{{
+                            borrowerName(data)
+                        }}</template>
+                    </Column>
+                    <Column header="Recorded By">
                         <template #body="{ data }">{{
                             data.returner?.name || "—"
                         }}</template>
                     </Column>
-                    <Column header="Reason">
+                    <Column header="Remarks">
                         <template #body="{ data }">
-                            <span class="text-sm text-[#5b7fbf]">{{
+                            <span class="text-sm text-[#4a6490]">{{
                                 data.reason || "—"
                             }}</span>
                         </template>
@@ -232,7 +223,9 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
+import Select from "primevue/select";
+import AutoComplete from "primevue/autocomplete";
 import InputNumber from "primevue/inputnumber";
 import Textarea from "primevue/textarea";
 import DataTable from "primevue/datatable";
@@ -240,42 +233,64 @@ import Column from "primevue/column";
 import UiButton from "../../components/ui/UiButton.vue";
 import UiCard from "../../components/ui/UiCard.vue";
 import TableFilters from "../../components/TableFilters.vue";
-import StockOpScanner from "../../components/stock/StockOpScanner.vue";
-import StockOpItemSummary from "../../components/stock/StockOpItemSummary.vue";
 import { useNotify } from "../../composables/useNotify";
 import { useTableFilters } from "../../composables/useTableFilters";
 import api from "../../services/api";
 
 const notify = useNotify();
-const barcode = ref("");
-const item = ref(null);
-const quantity = ref(0);
-const reason = ref("");
+const departments = ref([]);
+const employees = ref([]);
+const equipmentRows = ref([]);
+const returns = ref([]);
 const loading = ref(false);
 const loadingList = ref(false);
-const returns = ref([]);
+const returnedByInput = ref(null);
+const borrowerSuggestions = ref([]);
 
-const newStockAfterReturn = computed(() => {
-    if (!item.value) {
-        return 0;
-    }
-
-    const returnedQty = Number(quantity.value) || 0;
-
-    return item.value.current_stock + returnedQty;
+const form = reactive({
+    equipment_id: null,
+    department_id: null,
+    quantity: 1,
+    reason: "",
 });
 
-function onQuantityInput(event) {
-    quantity.value = event.value ?? 0;
-}
+const equipments = computed(() =>
+    equipmentRows.value.map((equipment) => ({
+        id: equipment.id,
+        label: `${equipment.name}${equipment.property_number ? ` · ${equipment.property_number}` : ""} · Qty: ${equipment.quantity ?? 0}`,
+    })),
+);
+
+const selectedEquipment = computed(() =>
+    equipmentRows.value.find((row) => row.id === form.equipment_id) ?? null,
+);
+
+const employeeOptions = computed(() => {
+    if (!form.department_id) {
+        return [];
+    }
+
+    return employees.value.filter(
+        (employee) => employee.department_id === form.department_id,
+    );
+});
 
 const filterConfig = computed(() => [
     {
         key: "search",
         type: "search",
         label: "Search",
-        placeholder: "Item name, barcode, or returned by...",
-        fields: ["item.item_name", "item.barcode", "returner.name", "reason"],
+        placeholder: "Equipment, property no., borrower, department...",
+        fields: [
+            "equipment.name",
+            "equipment.property_number",
+            "equipment.barcode",
+            "department.name",
+            "borrower.name",
+            "borrower_name",
+            "returner.name",
+            "reason",
+        ],
     },
 ]);
 
@@ -286,71 +301,116 @@ const {
     resetFilters,
 } = useTableFilters(returns, filterConfig);
 
+watch(
+    () => form.department_id,
+    () => {
+        returnedByInput.value = null;
+        borrowerSuggestions.value = [];
+    },
+);
+
+function searchBorrowers(event) {
+    const query = (event.query || "").trim().toLowerCase();
+    const options = employeeOptions.value;
+
+    borrowerSuggestions.value = query
+        ? options.filter((employee) =>
+              employee.name.toLowerCase().includes(query),
+          )
+        : options;
+}
+
+function borrowerName(row) {
+    return row.borrower?.name || row.borrower_name || "—";
+}
+
 function formatDate(value) {
     return value ? new Date(value).toLocaleString() : "—";
 }
 
-function clearItem() {
-    item.value = null;
-    barcode.value = "";
-    quantity.value = 0;
-    reason.value = "";
+function resolveBorrowerPayload() {
+    const value = returnedByInput.value;
+
+    if (value && typeof value === "object" && value.id) {
+        return {
+            borrower_employee_id: value.id,
+            borrower_name: null,
+        };
+    }
+
+    const typedName = typeof value === "string" ? value.trim() : "";
+
+    return {
+        borrower_employee_id: null,
+        borrower_name: typedName || null,
+    };
 }
 
-async function lookupItem(code) {
-    try {
-        const { data } = await api.get(
-            `/items/barcode/${encodeURIComponent(code)}`,
-        );
-
-        if (!data.item) {
-            notify.warn(
-                "No registered item was found for that barcode.",
-                "Not found",
-            );
-            clearItem();
-            return;
-        }
-
-        item.value = data.item;
-        quantity.value = 0;
-        reason.value = "";
-    } catch (error) {
-        notify.error(
-            error.response?.data?.message || "Unable to look up item.",
-        );
-        clearItem();
-    }
+function resetForm() {
+    form.equipment_id = null;
+    form.department_id = null;
+    form.quantity = 1;
+    form.reason = "";
+    returnedByInput.value = null;
+    borrowerSuggestions.value = [];
 }
 
 async function submit() {
-    if (!item.value) {
-        return;
-    }
+    const borrower = resolveBorrowerPayload();
 
-    const returnedQty = Number(quantity.value) || 0;
-
-    if (returnedQty <= 0) {
-        notify.warn("Enter a quantity greater than zero.", "Invalid quantity");
+    if (
+        !form.equipment_id ||
+        !form.department_id ||
+        !form.quantity ||
+        form.quantity < 1 ||
+        (!borrower.borrower_employee_id && !borrower.borrower_name)
+    ) {
+        notify.warn(
+            "Please complete equipment, quantity, department, and returned by.",
+        );
         return;
     }
 
     loading.value = true;
     try {
         await api.post("/returns", {
-            barcode: item.value.barcode,
-            quantity: returnedQty,
-            reason: reason.value || null,
+            equipment_id: form.equipment_id,
+            department_id: form.department_id,
+            quantity: form.quantity,
+            reason: form.reason || null,
+            ...borrower,
         });
-        notify.success("Return processed successfully.", "Return completed");
-        clearItem();
-        await loadReturns();
+        notify.success(
+            "Equipment return recorded successfully.",
+            "Return completed",
+        );
+        resetForm();
+        await Promise.all([loadLookups(), loadReturns()]);
     } catch (error) {
         notify.error(
             error.response?.data?.message || "Unable to process return.",
         );
     } finally {
         loading.value = false;
+    }
+}
+
+async function loadLookups() {
+    try {
+        const [deptRes, empRes, equipmentRes] = await Promise.all([
+            api.get("/departments/list"),
+            api.get("/employees/list"),
+            api.get("/equipments/list"),
+        ]);
+
+        departments.value = deptRes.data.data ?? deptRes.data;
+        employees.value = empRes.data.data ?? empRes.data;
+        equipmentRows.value = equipmentRes.data ?? [];
+    } catch (error) {
+        notify.error(
+            error.response?.data?.message ||
+                "Unable to load return form options.",
+        );
     }
 }
 
@@ -368,5 +428,8 @@ async function loadReturns() {
     }
 }
 
-onMounted(loadReturns);
+onMounted(async () => {
+    await loadLookups();
+    await loadReturns();
+});
 </script>

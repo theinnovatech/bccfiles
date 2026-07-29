@@ -13,13 +13,9 @@ use App\Models\IssuanceDetail;
 use App\Models\Item;
 use App\Models\ItemReturn;
 use App\Models\ObimsNotification;
-use App\Models\RequestDetail;
 use App\Models\Setting;
-use App\Models\StockCountItem;
-use App\Models\StockCountSession;
 use App\Models\StockMovement;
 use App\Models\StorageLocation;
-use App\Models\SupplyRequest;
 use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
@@ -79,16 +75,6 @@ class SoftDeleteRegistry
                 'label' => 'Settings',
                 'name_fields' => ['key'],
             ],
-            'supply_requests' => [
-                'model' => SupplyRequest::class,
-                'label' => 'Supply Requests',
-                'name_fields' => ['request_number'],
-            ],
-            'request_details' => [
-                'model' => RequestDetail::class,
-                'label' => 'Request Details',
-                'name_fields' => ['id'],
-            ],
             'issuances' => [
                 'model' => Issuance::class,
                 'label' => 'Issuances',
@@ -101,23 +87,13 @@ class SoftDeleteRegistry
             ],
             'returns' => [
                 'model' => ItemReturn::class,
-                'label' => 'Returns',
-                'name_fields' => ['id'],
+                'label' => 'Equipment Returns',
+                'name_fields' => ['borrower_name', 'id'],
             ],
             'stock_movements' => [
                 'model' => StockMovement::class,
                 'label' => 'Stock Movements',
                 'name_fields' => ['reference_number', 'id'],
-            ],
-            'stock_count_sessions' => [
-                'model' => StockCountSession::class,
-                'label' => 'Stock Count Sessions',
-                'name_fields' => ['session_number'],
-            ],
-            'stock_count_items' => [
-                'model' => StockCountItem::class,
-                'label' => 'Stock Count Items',
-                'name_fields' => ['id'],
             ],
             'activity_logs' => [
                 'model' => ActivityLog::class,

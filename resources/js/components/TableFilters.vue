@@ -2,10 +2,10 @@
     <div class="table-filters">
         <div class="table-filters-header">
             <div class="flex items-center gap-2">
-                <svg class="h-4 w-4 text-[#0038a8]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <svg class="h-4 w-4 text-[#001f6b]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.036a2.5 2.5 0 01-.659 1.591l-5.432 6.198a2.5 2.5 0 00-.659 1.591v2.927a.75.75 0 01-1.085.67l-2.5-1.25a.75.75 0 01-.415-.67v-1.677a2.5 2.5 0 00-.659-1.591L4.659 7.401A2.5 2.5 0 014 5.81V4.774c0-.54.384-1.006.917-1.096A41.033 41.033 0 0112 3z" />
                 </svg>
-                <p class="text-sm font-medium text-[#002a7a]">Filters</p>
+                <p class="text-sm font-medium text-[#00164d]">Filters</p>
                 <span v-if="resultCount !== null" class="table-filters-count">{{ resultCount }} result{{ resultCount === 1 ? '' : 's' }}</span>
             </div>
             <button v-if="hasActiveFilters" type="button" class="table-filters-clear" @click="$emit('reset')">
@@ -15,7 +15,7 @@
 
         <div class="table-filters-grid">
             <div v-for="filter in filters" :key="filter.key" class="space-y-1.5">
-                <label class="text-xs font-medium text-[#5b7fbf]">{{ filter.label }}</label>
+                <label class="text-xs font-medium text-[#4a6490]">{{ filter.label }}</label>
 
                 <input
                     v-if="filter.type === 'search'"

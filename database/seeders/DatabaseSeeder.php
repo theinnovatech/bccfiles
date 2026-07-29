@@ -53,8 +53,6 @@ class DatabaseSeeder extends Seeder
             ['name' => 'Cabinet C-02', 'code' => 'C-02'],
         ])->map(fn ($l) => StorageLocation::create($l));
 
-        $accounting = $departments->firstWhere('code', 'ACC');
-
         $adminEmployee = Employee::create([
             'employee_number' => 'EMP-001',
             'name' => 'Maria Santos',
@@ -62,14 +60,14 @@ class DatabaseSeeder extends Seeder
             'position' => 'Supply Officer',
         ]);
 
-        $deptEmployee = Employee::create([
+        Employee::create([
             'employee_number' => 'EMP-002',
             'name' => 'John Cruz',
-            'department_id' => $accounting->id,
+            'department_id' => $departments->firstWhere('code', 'ACC')->id,
             'position' => 'Staff',
         ]);
 
-        $admin = User::create([
+        User::create([
             'name' => 'System Admin',
             'email' => 'admin@obims.local',
             'password' => Hash::make('password'),
@@ -87,18 +85,7 @@ class DatabaseSeeder extends Seeder
             'is_active' => true,
         ]);
 
-        $departmentUser = User::create([
-            'name' => 'John Cruz',
-            'email' => 'accounting@obims.local',
-            'password' => Hash::make('password'),
-            'role' => UserRole::DepartmentUser,
-            'department_id' => $accounting->id,
-            'employee_id' => $deptEmployee->id,
-            'is_active' => true,
-        ]);
-
         $adminEmployee->update(['user_id' => $supplyOfficer->id]);
-        $deptEmployee->update(['user_id' => $departmentUser->id]);
 
         Item::create([
             'barcode' => '4809012345678',

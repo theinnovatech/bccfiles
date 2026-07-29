@@ -9,16 +9,16 @@
             </div>
         </template>
 
-        <div v-if="loading" class="px-4 py-10 text-center text-sm text-[#5b7fbf]">
+        <div v-if="loading" class="px-4 py-10 text-center text-sm text-[#4a6490]">
             Loading equipments...
         </div>
 
         <div v-else-if="!equipments.length" class="flex min-h-[220px] flex-col items-center justify-center px-4 py-10 text-center">
-            <svg class="h-10 w-10 text-[#c8d6ef]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <svg class="h-10 w-10 text-[#a8b8d4]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 3.75H6.912a2.25 2.25 0 00-2.15 1.588L2.35 13.177a2.25 2.25 0 00-.1.661V18a2.25 2.25 0 002.25 2.25h15a2.25 2.25 0 002.25-2.25v-4.162a2.25 2.25 0 00-.1-.661L19.24 5.338a2.25 2.25 0 00-2.15-1.588H15M9 3.75V5.25A2.25 2.25 0 0011.25 7.5h1.5A2.25 2.25 0 0015 5.25V3.75M9 3.75h6" />
             </svg>
-            <p class="mt-3 text-sm font-medium text-[#002a7a]">No equipments yet</p>
-            <p class="mt-1 text-xs text-[#5b7fbf]">Register equipment from Stock Operations.</p>
+            <p class="mt-3 text-sm font-medium text-[#00164d]">No equipments yet</p>
+            <p class="mt-1 text-xs text-[#4a6490]">Register equipment from the Registration page.</p>
         </div>
 
         <template v-else>
@@ -36,7 +36,7 @@
                     paginator
                     :rows="10"
                     striped-rows
-                    class="rounded-md border border-[#c8d6ef] equipment-table"
+                    class="rounded-md border border-[#a8b8d4] equipment-table"
                 >
                     <Column header="Barcode">
                         <template #body="{ data }">
@@ -52,6 +52,11 @@
                     </Column>
                     <Column field="type" header="Type" />
                     <Column field="quantity" header="Qty" />
+                    <Column header="Life Span">
+                        <template #body="{ data }">
+                            {{ data.life_span_years ? `${data.life_span_years} yr${data.life_span_years === 1 ? '' : 's'}` : '—' }}
+                        </template>
+                    </Column>
                     <Column header="Description">
                         <template #body="{ data }">
                             <span class="line-clamp-2">{{ data.description || '—' }}</span>
@@ -176,7 +181,7 @@ async function loadEquipments() {
 }
 
 function editEquipment(equipment) {
-    window.location.href = `/stock/operations?tab=equipments&edit=${equipment.id}`;
+    window.location.href = `/stock/registration?edit=${equipment.id}#register-equipment`;
 }
 
 function confirmRemove(equipment) {
@@ -202,14 +207,14 @@ onMounted(loadEquipments);
 
 <style scoped>
 .equipment-table :deep(.p-datatable-thead > tr > th) {
-    background: #eef2fa;
-    color: #002a7a;
+    background: #e2e8f2;
+    color: #00164d;
     font-size: 0.8125rem;
 }
 
 .equipment-table :deep(.p-datatable-tbody > tr > td) {
     font-size: 0.875rem;
-    color: #002a7a;
+    color: #00164d;
 }
 
 .equipment-actions {

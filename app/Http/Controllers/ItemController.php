@@ -6,13 +6,17 @@ use App\Enums\ItemStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Item;
 use App\Services\ActivityLogService;
+use App\Services\LowStockAlertService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 class ItemController extends Controller
 {
-    public function __construct(private readonly ActivityLogService $activityLogService) {}
+    public function __construct(
+        private readonly ActivityLogService $activityLogService,
+        private readonly LowStockAlertService $lowStockAlertService
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -39,13 +43,17 @@ class ItemController extends Controller
             $query->where('current_stock', 0);
         }
 
+        if ($request->boolean('all')) {
+            return response()->json($query->orderBy('item_name')->get());
+        }
+
         return response()->json($query->orderBy('item_name')->paginate(20));
     }
 
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'barcode' => ['required', 'string', 'max:255', 'unique:items,barcode'],
+            'barcode' => ['nullable', 'string', 'max:255', 'unique:items,barcode'],
             'item_name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'brand' => ['nullable', 'string', 'max:255'],
@@ -56,15 +64,17 @@ class ItemController extends Controller
             'status' => ['nullable', Rule::enum(ItemStatus::class)],
         ]);
 
+        $data['barcode'] = filled($data['barcode'] ?? null) ? trim($data['barcode']) : null;
         $data['status'] = $data['status'] ?? ItemStatus::Active->value;
         $data['current_stock'] = 0;
 
         $item = Item::create($data);
+        $identifier = $item->barcode ?: 'no barcode';
         $this->activityLogService->log(
             $request->user(),
             'Registered',
             'Items',
-            "Registered item {$item->item_name} ({$item->barcode})"
+            "Registered item {$item->item_name} ({$identifier})"
         );
 
         return response()->json($item->load(['category', 'unit', 'location']), 201);
@@ -88,7 +98,7 @@ class ItemController extends Controller
     public function update(Request $request, Item $item): JsonResponse
     {
         $data = $request->validate([
-            'barcode' => ['required', 'string', 'max:255', 'unique:items,barcode,'.$item->id],
+            'barcode' => ['nullable', 'string', 'max:255', Rule::unique('items', 'barcode')->ignore($item->id)],
             'item_name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'brand' => ['nullable', 'string', 'max:255'],
@@ -99,7 +109,11 @@ class ItemController extends Controller
             'status' => ['required', Rule::enum(ItemStatus::class)],
         ]);
 
+        $data['barcode'] = filled($data['barcode'] ?? null) ? trim($data['barcode']) : null;
+
         $item->update($data);
+        $item->refresh();
+        $this->lowStockAlertService->evaluateItem($item);
         $this->activityLogService->log($request->user(), 'Updated', 'Items', "Updated item {$item->item_name}");
 
         return response()->json($item->load(['category', 'unit', 'location']));

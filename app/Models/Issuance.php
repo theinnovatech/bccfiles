@@ -10,11 +10,13 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Issuance extends Model
 {
     use SoftDeletes;
+
     protected $fillable = [
         'issuance_number',
-        'request_id',
+        'department_id',
         'issued_by',
         'received_by',
+        'received_by_name',
         'issued_date',
     ];
 
@@ -23,9 +25,9 @@ class Issuance extends Model
         return ['issued_date' => 'datetime'];
     }
 
-    public function request(): BelongsTo
+    public function department(): BelongsTo
     {
-        return $this->belongsTo(SupplyRequest::class, 'request_id');
+        return $this->belongsTo(Department::class);
     }
 
     public function issuer(): BelongsTo

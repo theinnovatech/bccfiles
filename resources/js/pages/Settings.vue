@@ -1,33 +1,41 @@
 <template>
-    <div class="shadcn-card overflow-hidden">
-        <div class="stock-op-hero border-b border-[#c8d6ef] px-4 py-5 sm:px-6">
-            <h3 class="text-lg font-semibold text-[#002a7a]">System Settings</h3>
-            <p class="mt-1 text-sm text-[#5b7fbf]">
+    <div :class="embedded ? '' : 'shadcn-card overflow-hidden'">
+        <div
+            v-if="!embedded"
+            class="stock-op-hero border-b border-[#a8b8d4] px-4 py-5 sm:px-6"
+        >
+            <h3 class="text-lg font-semibold text-[#00164d]">System Settings</h3>
+            <p class="mt-1 text-sm text-[#4a6490]">
                 Configure organization details and inventory rules for the whole system.
             </p>
         </div>
 
         <div v-if="loadingPage" class="stock-op-empty">
-            <svg class="h-8 w-8 animate-spin text-[#0038a8]" viewBox="0 0 24 24" fill="none">
+            <svg class="h-8 w-8 animate-spin text-[#001f6b]" viewBox="0 0 24 24" fill="none">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
-            <p class="mt-3 text-sm text-[#5b7fbf]">Loading settings...</p>
+            <p class="mt-3 text-sm text-[#4a6490]">Loading settings...</p>
         </div>
 
-        <form v-else class="stock-op-content space-y-6 p-4 sm:p-6" @submit.prevent="save">
+        <form
+            v-else
+            class="space-y-6"
+            :class="embedded ? '' : 'stock-op-content p-4 sm:p-6'"
+            @submit.prevent="save"
+        >
             <section v-for="group in settingGroups" :key="group.key" class="space-y-4">
                 <div>
-                    <h4 class="text-sm font-semibold text-[#002a7a]">{{ group.label }}</h4>
-                    <p class="mt-0.5 text-xs text-[#5b7fbf]">{{ group.description }}</p>
+                    <h4 class="text-sm font-semibold text-[#00164d]">{{ group.label }}</h4>
+                    <p class="mt-0.5 text-xs text-[#4a6490]">{{ group.description }}</p>
                 </div>
 
                 <div class="stock-op-form-panel space-y-5 p-4 sm:p-5">
                     <div v-for="setting in group.items" :key="setting.key" class="space-y-1.5">
-                        <div v-if="setting.type === 'boolean'" class="flex items-start justify-between gap-4 rounded-lg border border-[#c8d6ef] bg-white px-4 py-3">
+                        <div v-if="setting.type === 'boolean'" class="flex items-start justify-between gap-4 border border-[#a8b8d4] bg-transparent px-4 py-3">
                             <div>
-                                <p class="text-sm font-medium text-[#002a7a]">{{ setting.label }}</p>
-                                <p v-if="setting.description" class="mt-1 text-xs leading-relaxed text-[#5b7fbf]">
+                                <p class="text-sm font-medium text-[#00164d]">{{ setting.label }}</p>
+                                <p v-if="setting.description" class="mt-1 text-xs leading-relaxed text-[#4a6490]">
                                     {{ setting.description }}
                                 </p>
                             </div>
@@ -39,10 +47,10 @@
                         </div>
 
                         <template v-else>
-                            <label :for="`setting-${setting.key}`" class="block text-sm font-medium text-[#002a7a]">
+                            <label :for="`setting-${setting.key}`" class="block text-sm font-medium text-[#00164d]">
                                 {{ setting.label }}
                             </label>
-                            <p v-if="setting.description" class="text-xs leading-relaxed text-[#5b7fbf]">
+                            <p v-if="setting.description" class="text-xs leading-relaxed text-[#4a6490]">
                                 {{ setting.description }}
                             </p>
                             <InputText
@@ -56,7 +64,7 @@
                 </div>
             </section>
 
-            <div class="flex flex-wrap items-center justify-end gap-3 border-t border-[#eef2fa] pt-4">
+            <div class="flex flex-wrap items-center justify-end gap-3 border-t border-[#e2e8f2] pt-4">
                 <UiButton variant="outline" type="button" :disabled="saving" @click="load">
                     Reset changes
                 </UiButton>
@@ -76,6 +84,10 @@ import UiButton from '../components/ui/UiButton.vue';
 import { useNotify } from '../composables/useNotify';
 import api from '../services/api';
 import { updateOrganizationNameDisplay } from '../utils/organizationDisplay';
+
+defineProps({
+    embedded: { type: Boolean, default: false },
+});
 
 const notify = useNotify();
 const settings = ref([]);

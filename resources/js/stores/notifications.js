@@ -3,24 +3,55 @@ import api from '../services/api';
 import { getEcho } from '../echo';
 import { showNotificationToast } from '../utils/notificationAlert';
 
+const POLL_INTERVAL_MS = 60_000;
+
 export const useNotificationsStore = defineStore('notifications', {
     state: () => ({
         items: [],
         unreadCount: 0,
         loaded: false,
         subscribedUserId: null,
+        pollTimer: null,
     }),
     actions: {
-        async load() {
+        async load({ silent = false } = {}) {
             try {
                 const { data } = await api.get('/notifications/list');
-                this.items = data.notifications ?? [];
+                const previousIds = new Set(this.items.map((item) => item.id));
+                const nextItems = data.notifications ?? [];
+
+                this.items = nextItems;
                 this.unreadCount = data.unread_count ?? 0;
+
+                if (silent && this.loaded) {
+                    nextItems
+                        .filter((item) => !item.read_at && !previousIds.has(item.id))
+                        .forEach((item) => showNotificationToast(item));
+                }
             } catch {
-                this.items = [];
-                this.unreadCount = 0;
+                if (!silent) {
+                    this.items = [];
+                    this.unreadCount = 0;
+                }
             } finally {
                 this.loaded = true;
+            }
+        },
+
+        startPolling() {
+            if (this.pollTimer) {
+                return;
+            }
+
+            this.pollTimer = window.setInterval(() => {
+                this.load({ silent: true });
+            }, POLL_INTERVAL_MS);
+        },
+
+        stopPolling() {
+            if (this.pollTimer) {
+                window.clearInterval(this.pollTimer);
+                this.pollTimer = null;
             }
         },
 

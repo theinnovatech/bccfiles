@@ -23,7 +23,7 @@
 
             <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <div class="md:col-span-2">
-                    <label class="mb-1 block text-sm font-medium text-[#002a7a]"
+                    <label class="mb-1 block text-sm font-medium text-[#00164d]"
                         >Equipment</label
                     >
                     <Select
@@ -38,7 +38,7 @@
                     />
                 </div>
                 <div>
-                    <label class="mb-1 block text-sm font-medium text-[#002a7a]"
+                    <label class="mb-1 block text-sm font-medium text-[#00164d]"
                         >From Date</label
                     >
                     <input
@@ -48,7 +48,7 @@
                     />
                 </div>
                 <div>
-                    <label class="mb-1 block text-sm font-medium text-[#002a7a]"
+                    <label class="mb-1 block text-sm font-medium text-[#00164d]"
                         >To Date</label
                     >
                     <input
@@ -58,7 +58,7 @@
                     />
                 </div>
                 <div>
-                    <label class="mb-1 block text-sm font-medium text-[#002a7a]"
+                    <label class="mb-1 block text-sm font-medium text-[#00164d]"
                         >Movement Type</label
                     >
                     <Select
@@ -85,46 +85,60 @@
 
             <div
                 v-if="selectedEquipment"
-                class="mt-5 grid gap-3 rounded-lg border border-[#eef2fa] bg-[#f8faff] p-4 sm:grid-cols-2 lg:grid-cols-4"
+                class="mt-5 grid gap-3 border border-[#a8b8d4] bg-transparent p-4 sm:grid-cols-2 lg:grid-cols-4"
             >
                 <div>
                     <p
-                        class="text-xs font-semibold uppercase tracking-wide text-[#5b7fbf]"
+                        class="text-xs font-semibold uppercase tracking-wide text-[#4a6490]"
                     >
                         Equipment
                     </p>
-                    <p class="mt-1 text-sm font-medium text-[#002a7a]">
+                    <p class="mt-1 text-sm font-medium text-[#00164d]">
                         {{ selectedEquipment.name }}
                     </p>
                 </div>
                 <div>
                     <p
-                        class="text-xs font-semibold uppercase tracking-wide text-[#5b7fbf]"
+                        class="text-xs font-semibold uppercase tracking-wide text-[#4a6490]"
                     >
                         Property No.
                     </p>
-                    <p class="mt-1 text-sm text-[#002a7a]">
+                    <p class="mt-1 text-sm text-[#00164d]">
                         {{ selectedEquipment.property_number || "—" }}
                     </p>
                 </div>
                 <div>
                     <p
-                        class="text-xs font-semibold uppercase tracking-wide text-[#5b7fbf]"
+                        class="text-xs font-semibold uppercase tracking-wide text-[#4a6490]"
                     >
                         Available Qty
                     </p>
-                    <p class="mt-1 text-sm font-semibold text-[#0038a8]">
+                    <p class="mt-1 text-sm font-semibold text-[#001f6b]">
                         {{ selectedEquipment.quantity }}
                     </p>
                 </div>
                 <div>
                     <p
-                        class="text-xs font-semibold uppercase tracking-wide text-[#5b7fbf]"
+                        class="text-xs font-semibold uppercase tracking-wide text-[#4a6490]"
                     >
                         Category
                     </p>
-                    <p class="mt-1 text-sm text-[#002a7a]">
+                    <p class="mt-1 text-sm text-[#00164d]">
                         {{ selectedEquipment.category?.name || "—" }}
+                    </p>
+                </div>
+                <div>
+                    <p
+                        class="text-xs font-semibold uppercase tracking-wide text-[#4a6490]"
+                    >
+                        Life Span
+                    </p>
+                    <p class="mt-1 text-sm text-[#00164d]">
+                        {{
+                            selectedEquipment.life_span_years
+                                ? `${selectedEquipment.life_span_years} yr${selectedEquipment.life_span_years === 1 ? "" : "s"}`
+                                : "—"
+                        }}
                     </p>
                 </div>
             </div>
@@ -180,7 +194,7 @@
 
             <div v-if="!hasLoaded" class="property-card-placeholder">
                 <svg
-                    class="h-12 w-12 text-[#c8d6ef]"
+                    class="h-12 w-12 text-[#a8b8d4]"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -192,17 +206,17 @@
                         d="M9 3.75H6.912a2.25 2.25 0 00-2.15 1.588L2.35 13.177a2.25 2.25 0 00-.1.661V18a2.25 2.25 0 002.25 2.25h15a2.25 2.25 0 002.25-2.25v-4.162a2.25 2.25 0 00-.1-.661L19.24 5.338a2.25 2.25 0 00-2.15-1.588H15M9 3.75V5.25A2.25 2.25 0 0011.25 7.5h1.5A2.25 2.25 0 0015 5.25V3.75M9 3.75h6"
                     />
                 </svg>
-                <p class="mt-3 text-sm font-medium text-[#002a7a]">
+                <p class="mt-3 text-sm font-medium text-[#00164d]">
                     No equipment selected
                 </p>
-                <p class="mt-1 text-xs text-[#5b7fbf]">
+                <p class="mt-1 text-xs text-[#4a6490]">
                     Choose an equipment above to view its property card.
                 </p>
             </div>
 
             <div v-else-if="loading" class="property-card-placeholder">
                 <svg
-                    class="h-8 w-8 animate-spin text-[#0038a8]"
+                    class="h-8 w-8 animate-spin text-[#001f6b]"
                     viewBox="0 0 24 24"
                     fill="none"
                 >
@@ -220,7 +234,7 @@
                         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
                     />
                 </svg>
-                <p class="mt-3 text-sm text-[#5b7fbf]">
+                <p class="mt-3 text-sm text-[#4a6490]">
                     Loading property card...
                 </p>
             </div>
@@ -446,12 +460,12 @@ onMounted(async () => {
     gap: 0.375rem;
     font-size: 0.875rem;
     font-weight: 500;
-    color: #5b7fbf;
+    color: #4a6490;
     transition: color 0.15s ease;
 }
 
 .property-card-back-link:hover {
-    color: #0038a8;
+    color: #001f6b;
 }
 
 .property-card-placeholder {
@@ -460,20 +474,20 @@ onMounted(async () => {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    border: 1px dashed #c8d6ef;
-    border-radius: 0.5rem;
-    background: #f0f4fb;
+    border: 1px dashed #a8b8d4;
+    border-radius: 0;
+    background: transparent;
     text-align: center;
 }
 
 .report-view-tabs {
     display: flex;
     width: 100%;
-    gap: 0.25rem;
-    border-radius: 0.5rem;
-    border: 1px solid #c8d6ef;
-    background: #eef2fa;
-    padding: 0.25rem;
+    gap: 0;
+    border-radius: 0;
+    border: 1px solid #a8b8d4;
+    background: transparent;
+    padding: 0;
 }
 
 @media (min-width: 640px) {
@@ -485,13 +499,18 @@ onMounted(async () => {
 
 .report-view-tab {
     flex: 1;
-    border-radius: 0.375rem;
+    border-radius: 0;
     padding: 0.5rem 0.75rem;
     font-size: 0.875rem;
     font-weight: 500;
-    color: #5b7fbf;
+    color: #4a6490;
     transition: all 0.15s ease;
     text-align: center;
+    border-right: 1px solid #a8b8d4;
+}
+
+.report-view-tab:last-child {
+    border-right: 0;
 }
 
 @media (min-width: 640px) {
@@ -502,12 +521,12 @@ onMounted(async () => {
 }
 
 .report-view-tab:hover {
-    color: #0038a8;
+    color: #001f6b;
 }
 
 .report-view-tab-active {
-    background: white;
-    color: #0038a8;
-    box-shadow: 0 1px 2px rgb(0 56 168 / 0.08);
+    background: #001f6b;
+    color: white;
+    box-shadow: none;
 }
 </style>

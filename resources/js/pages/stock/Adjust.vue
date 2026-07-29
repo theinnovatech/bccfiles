@@ -40,7 +40,7 @@
                 <form class="space-y-4" @submit.prevent="submit">
                     <div>
                         <label
-                            class="mb-1 block text-sm font-medium text-[#002a7a]"
+                            class="mb-1 block text-sm font-medium text-[#00164d]"
                             >Actual count</label
                         >
                         <InputNumber
@@ -52,7 +52,7 @@
                     </div>
                     <div>
                         <label
-                            class="mb-1 block text-sm font-medium text-[#002a7a]"
+                            class="mb-1 block text-sm font-medium text-[#00164d]"
                             >Reason</label
                         >
                         <Select
@@ -65,7 +65,7 @@
                     </div>
                     <div>
                         <label
-                            class="mb-1 block text-sm font-medium text-[#002a7a]"
+                            class="mb-1 block text-sm font-medium text-[#00164d]"
                             >Remarks</label
                         >
                         <Textarea
@@ -101,7 +101,7 @@
 
         <div v-else-if="embedded" class="stock-op-empty">
             <svg
-                class="h-10 w-10 text-[#c8d6ef]"
+                class="h-10 w-10 text-[#a8b8d4]"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -114,10 +114,10 @@
                     d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
                 />
             </svg>
-            <p class="mt-3 text-sm font-medium text-[#002a7a]">
+            <p class="mt-3 text-sm font-medium text-[#00164d]">
                 No item selected
             </p>
-            <p class="mt-1 text-xs text-[#5b7fbf]">
+            <p class="mt-1 text-xs text-[#4a6490]">
                 Scan an item barcode to record a stock adjustment.
             </p>
         </div>

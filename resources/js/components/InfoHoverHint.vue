@@ -1,7 +1,7 @@
 <template>
     <button
         type="button"
-        class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[#5b7fbf] transition-colors hover:bg-[#eef2fa] hover:text-[#0038a8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0038a8] focus-visible:ring-offset-1"
+        class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[#4a6490] transition-colors hover:bg-[#e2e8f2] hover:text-[#001f6b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#001f6b] focus-visible:ring-offset-1"
         :aria-label="ariaLabel"
         :aria-expanded="open"
         @mouseenter="show"
@@ -25,8 +25,8 @@
                 @mouseenter="cancelHide"
                 @mouseleave="hide"
             >
-                <p v-if="title" class="text-sm font-semibold text-[#002a7a]">{{ title }}</p>
-                <div class="text-xs leading-relaxed text-[#5b7fbf]" :class="{ 'mt-2': title }">
+                <p v-if="title" class="text-sm font-semibold text-[#00164d]">{{ title }}</p>
+                <div class="text-xs leading-relaxed text-[#4a6490]" :class="{ 'mt-2': title }">
                     <slot />
                 </div>
             </div>

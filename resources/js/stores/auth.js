@@ -11,8 +11,8 @@ export const useAuthStore = defineStore('auth', {
         role: (state) => state.user?.role,
         isAdmin: (state) => state.user?.role === 'admin',
         isSupplyOfficer: (state) => state.user?.role === 'supply_officer',
-        isDepartmentUser: (state) => state.user?.role === 'department_user',
     },
+
     actions: {
         async fetchUser() {
             try {

@@ -1,33 +1,33 @@
 <template>
     <div class="report-pdf-viewer">
         <div v-if="!type" class="report-pdf-placeholder">
-            <svg class="h-12 w-12 text-[#c8d6ef]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <svg class="h-12 w-12 text-[#a8b8d4]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625A2.25 2.25 0 003.75 7.5v12.75A2.25 2.25 0 006 7.5h13.125A2.25 2.25 0 0021 18.75V7.5M8.25 7.5V4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V7.5" />
             </svg>
-            <p class="mt-3 text-sm font-medium text-[#002a7a]">PDF preview</p>
-            <p class="mt-1 text-xs text-[#5b7fbf]">Select a report to view its PDF here before downloading.</p>
+            <p class="mt-3 text-sm font-medium text-[#00164d]">PDF preview</p>
+            <p class="mt-1 text-xs text-[#4a6490]">Select a report to view its PDF here before downloading.</p>
         </div>
 
         <div v-else-if="error" class="report-pdf-placeholder">
             <p class="text-sm font-medium text-[#ce1126]">Unable to load PDF preview</p>
-            <p class="mt-1 text-xs text-[#5b7fbf]">{{ error }}</p>
+            <p class="mt-1 text-xs text-[#4a6490]">{{ error }}</p>
         </div>
 
         <div v-else-if="empty" class="report-pdf-placeholder">
-            <svg class="h-12 w-12 text-[#c8d6ef]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <svg class="h-12 w-12 text-[#a8b8d4]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
             </svg>
-            <p class="mt-3 text-sm font-medium text-[#002a7a]">No data yet</p>
-            <p class="mt-1 text-xs text-[#5b7fbf]">There is no data to include in this PDF report.</p>
+            <p class="mt-3 text-sm font-medium text-[#00164d]">No data yet</p>
+            <p class="mt-1 text-xs text-[#4a6490]">There is no data to include in this PDF report.</p>
         </div>
 
         <div v-else class="report-pdf-container">
             <div v-if="loading" class="report-pdf-loading-overlay">
-                <svg class="h-8 w-8 animate-spin text-[#0038a8]" viewBox="0 0 24 24" fill="none">
+                <svg class="h-8 w-8 animate-spin text-[#001f6b]" viewBox="0 0 24 24" fill="none">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
-                <p class="mt-3 text-sm text-[#5b7fbf]">Generating PDF preview...</p>
+                <p class="mt-3 text-sm text-[#4a6490]">Generating PDF preview...</p>
             </div>
 
             <iframe
@@ -130,9 +130,9 @@ onBeforeUnmount(clearLoadTimeout);
 <style scoped>
 .report-pdf-viewer {
     overflow: hidden;
-    border: 1px solid #c8d6ef;
+    border: 1px solid #a8b8d4;
     border-radius: 0.5rem;
-    background: #eef2fa;
+    background: #e2e8f2;
 }
 
 .report-pdf-container {
@@ -148,7 +148,7 @@ onBeforeUnmount(clearLoadTimeout);
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    background: #eef2fa;
+    background: #e2e8f2;
     text-align: center;
 }
 

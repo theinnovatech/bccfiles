@@ -5,7 +5,7 @@
                 <div>
                     <h3 class="shadcn-card-title">Admin Accounts</h3>
                     <p class="shadcn-card-description">
-                        Create and manage administrator logins. Department users are created from the Employees page.
+                        Create and manage administrator logins. Only admin and supply officer accounts can access OBIMS.
                     </p>
                 </div>
                 <UiButton @click="openDialog()">
@@ -25,7 +25,7 @@
             @reset="resetFilters"
         />
 
-        <DataTable :value="filteredUsers" :loading="loading" paginator :rows="10" class="rounded-md border border-[#c8d6ef]">
+        <DataTable :value="filteredUsers" :loading="loading" paginator :rows="10" class="rounded-md border border-[#a8b8d4]">
             <Column field="name" header="Name" />
             <Column field="email" header="Email" />
             <Column header="Role">
@@ -57,27 +57,27 @@
         >
             <div class="space-y-4 pt-2">
                 <div>
-                    <label class="mb-1 block text-sm font-medium text-[#002a7a]">Full Name <span class="text-[#ce1126]">*</span></label>
+                    <label class="mb-1 block text-sm font-medium text-[#00164d]">Full Name <span class="text-[#ce1126]">*</span></label>
                     <InputText v-model="form.name" placeholder="Administrator name" class="w-full" />
                 </div>
                 <div>
-                    <label class="mb-1 block text-sm font-medium text-[#002a7a]">Email <span class="text-[#ce1126]">*</span></label>
+                    <label class="mb-1 block text-sm font-medium text-[#00164d]">Email <span class="text-[#ce1126]">*</span></label>
                     <InputText v-model="form.email" type="email" placeholder="admin@example.com" class="w-full" />
                 </div>
                 <div>
-                    <label class="mb-1 block text-sm font-medium text-[#002a7a]">
+                    <label class="mb-1 block text-sm font-medium text-[#00164d]">
                         Password
                         <span v-if="!editingId" class="text-[#ce1126]">*</span>
-                        <span v-else class="text-xs font-normal text-[#5b7fbf]">(leave blank to keep current)</span>
+                        <span v-else class="text-xs font-normal text-[#4a6490]">(leave blank to keep current)</span>
                     </label>
                     <Password v-model="form.password" :feedback="false" toggleMask placeholder="Password" class="w-full" inputClass="w-full" />
                 </div>
                 <div class="flex items-center gap-2">
                     <Checkbox v-model="form.is_active" binary inputId="active" />
-                    <label for="active" class="text-sm text-[#5b7fbf]">Active account</label>
+                    <label for="active" class="text-sm text-[#4a6490]">Active account</label>
                 </div>
                 <div class="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
-                    This page is for <strong>admin accounts only</strong>. To add department users, use the Employees page.
+                    This page is for <strong>admin accounts only</strong>. Supply officer accounts are managed separately in seeding or by an administrator.
                 </div>
             </div>
             <template #footer>
