@@ -13,6 +13,7 @@ class Item extends Model
     use SoftDeletes;
     protected $fillable = [
         'barcode',
+        'item_number',
         'item_name',
         'description',
         'brand',
@@ -61,5 +62,20 @@ class Item extends Model
     public function isOutOfStock(): bool
     {
         return $this->current_stock === 0;
+    }
+
+    public function displayIdentifier(): string
+    {
+        return $this->barcode ?: ($this->item_number ?: '—');
+    }
+
+    public static function findByCode(string $code): ?self
+    {
+        return static::query()
+            ->where(function ($query) use ($code) {
+                $query->where('barcode', $code)
+                    ->orWhere('item_number', $code);
+            })
+            ->first();
     }
 }

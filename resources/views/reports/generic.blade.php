@@ -460,7 +460,7 @@
                         <td class="info-item"><strong>Item:</strong> {{ $item->item_name }}</td>
                         <td class="info-description"><strong>Description:</strong> {{ $item->description ?: '—' }}</td>
                         <td class="info-stock">
-                            <div class="info-stock-row"><strong>Stock No.:</strong> {{ $item->barcode }}</div>
+                            <div class="info-stock-row"><strong>Stock No.:</strong> {{ $item->barcode ?: $item->item_number }}</div>
                             <div class="info-stock-row"><strong>Re-order Point:</strong> {{ $item->minimum_stock }}</div>
                         </td>
                     </tr>
@@ -672,7 +672,7 @@
                 @foreach($rows as $row)
                     <tr>
                         <td>{{ $row->created_at }}</td>
-                        <td>{{ $row->item->barcode ?? '' }}</td>
+                        <td>{{ $row->item->barcode ?? $row->item->item_number ?? '' }}</td>
                         <td>{{ $row->item->item_name ?? '' }}</td>
                         <td>{{ $row->transaction_type->value ?? $row->transaction_type }}</td>
                         <td>{{ $row->quantity }}</td>
@@ -695,7 +695,7 @@
             <tbody>
                 @foreach($rows as $row)
                     <tr>
-                        <td>{{ $row->barcode }}</td>
+                        <td>{{ $row->barcode ?: ($row->item_number ?? '') }}</td>
                         <td>{{ $row->item_name }}</td>
                         <td>{{ $row->current_stock }}</td>
                         <td>{{ $row->minimum_stock }}</td>
@@ -730,7 +730,7 @@
                             <td>{{ $departmentName }}</td>
                             <td>{{ $detail->equipment_id || $detail->equipment ? 'Equipment' : 'Item' }}</td>
                             <td>{{ $detail->equipment->name ?? $detail->item->item_name ?? '' }}</td>
-                            <td>{{ $detail->equipment->property_number ?? $detail->barcode ?? $detail->item->barcode ?? '' }}</td>
+                            <td>{{ $detail->equipment->property_number ?? $detail->barcode ?? $detail->item->barcode ?? $detail->item->item_number ?? '' }}</td>
                             <td>{{ $detail->quantity }}</td>
                             <td>{{ $row->issued_date }}</td>
                         </tr>

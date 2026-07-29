@@ -60,6 +60,11 @@ class User extends Authenticatable
         return $this->role === UserRole::SupplyOfficer;
     }
 
+    public function isDepartmentUser(): bool
+    {
+        return $this->role === UserRole::DepartmentUser;
+    }
+
     public function obimsNotifications(): HasMany
     {
         return $this->hasMany(ObimsNotification::class);

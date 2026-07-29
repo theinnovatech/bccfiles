@@ -64,7 +64,8 @@
 
         <template v-else-if="type === 'stock-movements'">
             <Column header="Date"><template #body="{ data }">{{ formatDateTime(data.created_at) }}</template></Column>
-            <Column header="Barcode"><template #body="{ data }">{{ data.item?.barcode }}</template></Column>
+            <Column header="Barcode"><template #body="{ data }">{{ data.item?.barcode || '—' }}</template></Column>
+            <Column header="Item No."><template #body="{ data }">{{ data.item?.item_number || '—' }}</template></Column>
             <Column header="Item"><template #body="{ data }">{{ data.item?.item_name }}</template></Column>
             <Column header="Type"><template #body="{ data }">{{ formatType(data.transaction_type) }}</template></Column>
             <Column field="quantity" header="Qty" />
@@ -145,7 +146,7 @@ const rows = computed(() => {
                 department,
                 line_type: detail.equipment_id || detail.equipment ? 'Equipment' : 'Item',
                 item_name: detail.equipment?.name || detail.item?.item_name || '-',
-                identifier: detail.equipment?.property_number || detail.barcode || detail.item?.barcode || '-',
+                identifier: detail.equipment?.property_number || detail.barcode || detail.item?.barcode || detail.item?.item_number || '-',
                 quantity: detail.quantity,
                 issued_date: issuance.issued_date,
             }));

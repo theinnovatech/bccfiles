@@ -62,7 +62,21 @@
                 </div>
                 <div>
                     <label class="mb-1 block text-sm font-medium text-[#00164d]">Email <span class="text-[#ce1126]">*</span></label>
-                    <InputText v-model="form.email" type="email" placeholder="admin@example.com" class="w-full" />
+                    <div class="admin-email-field">
+                        <InputText
+                            v-model="form.emailLocal"
+                            type="text"
+                            placeholder="username"
+                            class="admin-email-local"
+                            autocomplete="off"
+                            @input="sanitizeEmailLocal"
+                        />
+                        <span class="admin-email-domain">@obims.admin.com</span>
+                    </div>
+                    <p class="mt-1.5 text-xs text-[#4a6490]">
+                        Login email:
+                        <span class="font-medium text-[#00164d]">{{ fullAdminEmail || 'username@obims.admin.com' }}</span>
+                    </p>
                 </div>
                 <div>
                     <label class="mb-1 block text-sm font-medium text-[#00164d]">
@@ -112,12 +126,41 @@ const loading = ref(false);
 const saving = ref(false);
 const dialogVisible = ref(false);
 const editingId = ref(null);
+const ADMIN_EMAIL_DOMAIN = '@obims.admin.com';
+
 const form = reactive({
     name: '',
-    email: '',
+    emailLocal: '',
     password: '',
     is_active: true,
 });
+
+const fullAdminEmail = computed(() => {
+    const local = form.emailLocal.trim().toLowerCase();
+    return local ? `${local}${ADMIN_EMAIL_DOMAIN}` : '';
+});
+
+function extractEmailLocal(email) {
+    if (!email) {
+        return '';
+    }
+
+    const value = String(email).trim().toLowerCase();
+    const atIndex = value.indexOf('@');
+
+    if (atIndex === -1) {
+        return value;
+    }
+
+    return value.slice(0, atIndex);
+}
+
+function sanitizeEmailLocal() {
+    form.emailLocal = form.emailLocal
+        .replace(/@.*$/, '')
+        .replace(/[^a-zA-Z0-9._+-]/g, '')
+        .toLowerCase();
+}
 
 const filterConfig = computed(() => [
     {
@@ -157,22 +200,32 @@ async function load() {
 function openDialog(user = null) {
     editingId.value = user?.id ?? null;
     form.name = user?.name || '';
-    form.email = user?.email || '';
+    form.emailLocal = extractEmailLocal(user?.email);
     form.password = '';
     form.is_active = user?.is_active ?? true;
     dialogVisible.value = true;
 }
 
 async function save() {
-    if (!form.name || !form.email || (!editingId.value && !form.password)) {
+    sanitizeEmailLocal();
+
+    if (!form.name || !form.emailLocal || (!editingId.value && !form.password)) {
         notify.warn('Please fill in all required fields.');
         return;
     }
 
     saving.value = true;
     try {
-        const payload = { ...form };
-        if (!payload.password) delete payload.password;
+        const payload = {
+            name: form.name,
+            email: fullAdminEmail.value,
+            is_active: form.is_active,
+        };
+
+        if (form.password) {
+            payload.password = form.password;
+        }
+
         if (editingId.value) {
             await api.put(`/users/${editingId.value}`, payload);
             notify.success('Admin account updated successfully.');
@@ -191,3 +244,45 @@ async function save() {
 
 onMounted(load);
 </script>
+
+<style scoped>
+.admin-email-field {
+    display: flex;
+    align-items: stretch;
+    overflow: hidden;
+    border: 1px solid #a8b8d4;
+    border-radius: 0.375rem;
+    background: #fff;
+}
+
+.admin-email-field:focus-within {
+    outline: 2px solid #001f6b;
+    outline-offset: 2px;
+}
+
+.admin-email-local {
+    flex: 1 1 auto;
+    min-width: 0;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+}
+
+.admin-email-local:focus {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+.admin-email-domain {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    padding: 0 0.75rem;
+    border-left: 1px solid #a8b8d4;
+    background: #e2e8f2;
+    color: #00164d;
+    font-size: 0.875rem;
+    font-weight: 500;
+    white-space: nowrap;
+}
+</style>

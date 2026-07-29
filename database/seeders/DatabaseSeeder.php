@@ -13,6 +13,7 @@ use App\Providers\AppServiceProvider;
 use App\Models\StorageLocation;
 use App\Models\Unit;
 use App\Models\User;
+use App\Support\ReferenceNumberGenerator;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
@@ -22,6 +23,7 @@ class DatabaseSeeder extends Seeder
     {
         Setting::setValue('organization_name', AppServiceProvider::DEFAULT_ORGANIZATION_NAME, 'general');
         Setting::setValue('allow_negative_stock', 'false', 'inventory');
+        Setting::setValue('department_user_pages', json_encode(['dashboard']), 'permissions');
 
         $departments = collect([
             ['name' => 'Human Resource', 'code' => 'HR'],
@@ -89,6 +91,7 @@ class DatabaseSeeder extends Seeder
 
         Item::create([
             'barcode' => '4809012345678',
+            'item_number' => ReferenceNumberGenerator::forItem(),
             'item_name' => 'A4 Bond Paper',
             'description' => 'Standard A4 bond paper',
             'brand' => 'Hardcopy',
@@ -102,6 +105,7 @@ class DatabaseSeeder extends Seeder
 
         Item::create([
             'barcode' => '4809012345679',
+            'item_number' => ReferenceNumberGenerator::forItem(),
             'item_name' => 'Ballpen Blue',
             'description' => 'Blue ink ballpen',
             'brand' => 'Pilot',
@@ -115,6 +119,7 @@ class DatabaseSeeder extends Seeder
 
         Item::create([
             'barcode' => '4809012345680',
+            'item_number' => ReferenceNumberGenerator::forItem(),
             'item_name' => 'Folder Long',
             'description' => 'Long size folder',
             'brand' => 'Ariel',

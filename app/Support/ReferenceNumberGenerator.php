@@ -46,6 +46,11 @@ class ReferenceNumberGenerator
         return self::generateFromTable('equipments', 'property_number', 'PROP');
     }
 
+    public static function forItem(): string
+    {
+        return self::generateFromTable('items', 'item_number', 'ITEM');
+    }
+
     private static function generateFromTable(string $table, string $column, string $prefix): string
     {
         $year = now()->year;

@@ -7,8 +7,10 @@ use App\Http\Controllers\Controller;
 use App\Models\Item;
 use App\Services\ActivityLogService;
 use App\Services\LowStockAlertService;
+use App\Support\ReferenceNumberGenerator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class ItemController extends Controller
@@ -27,6 +29,7 @@ class ItemController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->where('item_name', 'like', "%{$search}%")
                     ->orWhere('barcode', 'like', "%{$search}%")
+                    ->orWhere('item_number', 'like', "%{$search}%")
                     ->orWhere('brand', 'like', "%{$search}%");
             });
         }
@@ -68,8 +71,14 @@ class ItemController extends Controller
         $data['status'] = $data['status'] ?? ItemStatus::Active->value;
         $data['current_stock'] = 0;
 
-        $item = Item::create($data);
-        $identifier = $item->barcode ?: 'no barcode';
+        $item = DB::transaction(function () use ($data) {
+            return Item::create([
+                ...$data,
+                'item_number' => ReferenceNumberGenerator::forItem(),
+            ]);
+        });
+
+        $identifier = $item->displayIdentifier();
         $this->activityLogService->log(
             $request->user(),
             'Registered',
@@ -89,7 +98,10 @@ class ItemController extends Controller
     {
         $item = Item::query()
             ->with(['category', 'unit', 'location'])
-            ->where('barcode', $barcode)
+            ->where(function ($query) use ($barcode) {
+                $query->where('barcode', $barcode)
+                    ->orWhere('item_number', $barcode);
+            })
             ->first();
 
         return response()->json(['item' => $item]);

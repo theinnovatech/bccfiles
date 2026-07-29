@@ -600,7 +600,7 @@ async function loadLookups() {
         employees.value = empRes.data.data ?? empRes.data;
         items.value = (Array.isArray(itemRes.data) ? itemRes.data : itemRes.data?.data ?? []).map((item) => ({
             id: item.id,
-            label: `${item.item_name}${item.barcode ? ` (${item.barcode})` : ""} · Stock: ${item.current_stock ?? 0}`,
+            label: `${item.item_name}${item.barcode || item.item_number ? ` (${item.barcode || item.item_number})` : ""} · Stock: ${item.current_stock ?? 0}`,
         }));
         equipments.value = (equipmentRes.data ?? []).map((equipment) => ({
             id: equipment.id,

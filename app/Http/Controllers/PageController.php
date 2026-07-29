@@ -44,6 +44,7 @@ class PageController extends Controller
             'reports' => 'Reports',
             'activity-logs' => 'Activity Logs',
             'settings' => 'Settings',
+            'permissions' => 'Employee Permissions',
             'users' => 'Admin Accounts',
             'deleted-data' => 'Deleted Data',
             default => 'OBIMS',

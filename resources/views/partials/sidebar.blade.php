@@ -1,28 +1,33 @@
 @php
+    use App\Services\PagePermissionService;
+
     $role = auth()->user()->role->value;
+    $employeePages = $role === 'department_user'
+        ? PagePermissionService::allowedPagesForDepartmentUsers()
+        : [];
 
     $menuGroups = [
         [
             'label' => 'Overview',
             'items' => [
-                ['label' => 'Dashboard', 'url' => '/', 'icon' => 'home', 'roles' => ['admin', 'supply_officer']],
+                ['label' => 'Dashboard', 'url' => '/', 'icon' => 'home', 'page' => 'dashboard', 'roles' => ['admin', 'supply_officer', 'department_user']],
             ],
         ],
         [
             'label' => 'Inventory',
             'items' => [
-                ['label' => 'Supply Master', 'url' => '/items', 'icon' => 'box', 'roles' => ['admin', 'supply_officer']],
-                ['label' => 'Estimated Stock', 'url' => '/inventory/predictions', 'icon' => 'chart-line', 'roles' => ['admin', 'supply_officer']],
-                ['label' => 'Stock Operations', 'url' => '/stock/operations', 'icon' => 'barcode', 'roles' => ['admin', 'supply_officer']],
-                ['label' => 'Registration', 'url' => '/stock/registration', 'icon' => 'plus-square', 'roles' => ['admin', 'supply_officer']],
+                ['label' => 'Supply Master', 'url' => '/items', 'icon' => 'box', 'page' => 'items', 'roles' => ['admin', 'supply_officer']],
+                ['label' => 'Estimated Stock', 'url' => '/inventory/predictions', 'icon' => 'chart-line', 'page' => 'inventory.predictions', 'roles' => ['admin', 'supply_officer']],
+                ['label' => 'Stock Operations', 'url' => '/stock/operations', 'icon' => 'barcode', 'page' => 'stock.operations', 'roles' => ['admin', 'supply_officer']],
+                ['label' => 'Registration', 'url' => '/stock/registration', 'icon' => 'plus-square', 'page' => 'stock.registration', 'roles' => ['admin', 'supply_officer']],
             ],
         ],
         [
             'label' => 'Transactions',
             'items' => [
-                ['label' => 'Item Issuance', 'url' => '/issuance', 'icon' => 'send', 'roles' => ['admin', 'supply_officer']],
-                ['label' => 'Equipment Returns', 'url' => '/returns', 'icon' => 'replay', 'roles' => ['admin', 'supply_officer']],
-                ['label' => 'Person Lookup', 'url' => '/person-lookup', 'icon' => 'search', 'roles' => ['admin', 'supply_officer']],
+                ['label' => 'Item Issuance', 'url' => '/issuance', 'icon' => 'send', 'page' => 'issuance', 'roles' => ['admin', 'supply_officer']],
+                ['label' => 'Equipment Returns', 'url' => '/returns', 'icon' => 'replay', 'page' => 'returns', 'roles' => ['admin', 'supply_officer']],
+                ['label' => 'Person Lookup', 'url' => '/person-lookup', 'icon' => 'search', 'page' => 'person-lookup', 'roles' => ['admin', 'supply_officer']],
             ],
         ],
         [
@@ -35,27 +40,35 @@
         [
             'label' => 'Insights',
             'items' => [
-                ['label' => 'Reports', 'url' => '/reports', 'icon' => 'chart-bar', 'roles' => ['admin', 'supply_officer']],
-                ['label' => 'Activity Logs', 'url' => '/activity-logs', 'icon' => 'history', 'roles' => ['admin', 'supply_officer']],
+                ['label' => 'Reports', 'url' => '/reports', 'icon' => 'chart-bar', 'page' => 'reports', 'roles' => ['admin', 'supply_officer']],
+                ['label' => 'Activity Logs', 'url' => '/activity-logs', 'icon' => 'history', 'page' => 'activity-logs', 'roles' => ['admin', 'supply_officer']],
             ],
         ],
         [
             'label' => 'System',
             'items' => [
                 ['label' => 'Admin Accounts', 'url' => '/users', 'icon' => 'user-edit', 'roles' => ['admin']],
+                ['label' => 'Permissions', 'url' => '/permissions/manage', 'icon' => 'shield', 'roles' => ['admin']],
                 ['label' => 'Deleted Data', 'url' => '/deleted-data', 'icon' => 'trash', 'roles' => ['admin']],
                 ['label' => 'Settings', 'url' => '/settings', 'icon' => 'cog', 'roles' => ['admin', 'supply_officer']],
             ],
         ],
     ];
 
+    $canSeeMenuItem = function (array $item) use ($role, $employeePages): bool {
+        if ($role === 'department_user') {
+            $pageKey = $item['page'] ?? null;
+
+            return $pageKey !== null && in_array($pageKey, $employeePages, true);
+        }
+
+        return in_array($role, $item['roles'], true);
+    };
+
     $flatMenu = collect($menuGroups)->flatMap(fn ($group) => $group['items'])->all();
     $currentPath = trim(request()->path(), '/');
 
-    $visibleMenu = array_values(array_filter(
-        $flatMenu,
-        fn ($item) => in_array($role, $item['roles'], true)
-    ));
+    $visibleMenu = array_values(array_filter($flatMenu, $canSeeMenuItem));
 
     $activeUrl = collect($visibleMenu)
         ->filter(function ($item) use ($currentPath) {
@@ -85,7 +98,7 @@
             @php
                 $visibleItems = array_values(array_filter(
                     $group['items'],
-                    fn ($item) => in_array($role, $item['roles'], true)
+                    $canSeeMenuItem
                 ));
             @endphp
 

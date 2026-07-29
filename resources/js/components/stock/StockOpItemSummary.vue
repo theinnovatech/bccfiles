@@ -8,7 +8,9 @@
             </div>
             <div>
                 <p class="stock-op-summary-name">{{ item.item_name }}</p>
-                <p v-if="item.barcode" class="stock-op-summary-meta">{{ item.barcode }}</p>
+                <p v-if="item.barcode || item.item_number" class="stock-op-summary-meta">
+                    {{ item.barcode || item.item_number }}
+                </p>
             </div>
         </div>
         <dl class="stock-op-summary-grid">

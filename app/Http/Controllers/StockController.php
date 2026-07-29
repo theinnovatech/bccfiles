@@ -22,7 +22,12 @@ class StockController extends Controller
             'remarks' => ['nullable', 'string'],
         ]);
 
-        $item = Item::query()->where('barcode', $data['barcode'])->firstOrFail();
+        $item = Item::findByCode($data['barcode']);
+
+        if (! $item) {
+            return response()->json(['message' => 'Item not found for that barcode or item number.'], 404);
+        }
+
         $movement = $this->inventoryService->receiveStock($item, $data['quantity'], $request->user(), $data['remarks'] ?? null);
 
         return response()->json([
@@ -40,7 +45,12 @@ class StockController extends Controller
             'remarks' => ['nullable', 'string'],
         ]);
 
-        $item = Item::query()->where('barcode', $data['barcode'])->firstOrFail();
+        $item = Item::findByCode($data['barcode']);
+
+        if (! $item) {
+            return response()->json(['message' => 'Item not found for that barcode or item number.'], 404);
+        }
+
         $delta = $data['actual_count'] - $item->current_stock;
 
         if ($delta === 0) {

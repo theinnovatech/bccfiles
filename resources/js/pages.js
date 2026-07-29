@@ -17,5 +17,6 @@ export const pageModules = {
     'activity-logs': () => import('./pages/ActivityLogs.vue'),
     settings: () => import('./pages/inventory/MasterData.vue'),
     users: () => import('./pages/Users.vue'),
+    permissions: () => import('./pages/Permissions.vue'),
     'deleted-data': () => import('./pages/DeletedData.vue'),
 };

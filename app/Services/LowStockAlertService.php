@@ -111,21 +111,23 @@ class LowStockAlertService
 
         $stock = (int) $item->current_stock;
         $minimum = (int) $item->minimum_stock;
-        $barcode = $item->barcode ? " ({$item->barcode})" : '';
+        $code = $item->barcode ?: $item->item_number;
+        $codeLabel = $code ? " ({$code})" : '';
 
         if ($type === 'out_of_stock') {
             $title = 'Out of stock';
-            $message = "{$item->item_name}{$barcode} is out of stock (0 on hand; minimum {$minimum}).";
+            $message = "{$item->item_name}{$codeLabel} is out of stock (0 on hand; minimum {$minimum}).";
             $url = '/items?stockStatus=out_of_stock';
         } else {
             $title = 'Low stock alert';
-            $message = "{$item->item_name}{$barcode} is low: {$stock} on hand (minimum {$minimum}).";
+            $message = "{$item->item_name}{$codeLabel} is low: {$stock} on hand (minimum {$minimum}).";
             $url = '/items?stockStatus=low_stock';
         }
 
         $data = [
             'item_id' => $item->id,
             'barcode' => $item->barcode,
+            'item_number' => $item->item_number,
             'item_name' => $item->item_name,
             'current_stock' => $stock,
             'minimum_stock' => $minimum,

@@ -68,7 +68,7 @@ class SoftDeleteRegistry
             'items' => [
                 'model' => Item::class,
                 'label' => 'Items',
-                'name_fields' => ['item_name', 'barcode'],
+                'name_fields' => ['item_name', 'item_number', 'barcode'],
             ],
             'settings' => [
                 'model' => Setting::class,

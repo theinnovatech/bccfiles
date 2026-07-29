@@ -4,6 +4,7 @@
             <h3 class="mb-4 text-lg font-semibold">Stock Adjustment</h3>
             <BarcodeScannerInput
                 v-model="barcode"
+                placeholder="Scan barcode / item no., or type manually, then press Enter"
                 @scan="lookupItem"
                 @clear="onBarcodeClear"
             />
@@ -12,17 +13,34 @@
         <StockOpScanner
             v-else
             v-model="barcode"
-            title="Scan to adjust stock"
-            hint="Use a barcode scanner, or type the code manually and press Enter."
+            title="Adjust stock"
+            placeholder="Scan barcode / item no., or type manually, then press Enter"
             @scan="lookupItem"
             @clear="onBarcodeClear"
-        />
+        >
+            <template #aside>
+                <label class="stock-op-scan-field-label">Or select item</label>
+                <Select
+                    v-model="selectedItemId"
+                    :options="itemOptions"
+                    optionLabel="label"
+                    optionValue="value"
+                    filter
+                    filterPlaceholder="Search item..."
+                    placeholder="Select item"
+                    class="w-full"
+                    showClear
+                    @update:model-value="onSelectItem"
+                />
+            </template>
+        </StockOpScanner>
 
         <div v-if="item" class="stock-op-workspace">
             <StockOpItemSummary
                 :item="item"
                 :fields="[
-                    { label: 'Barcode', value: item.barcode },
+                    { label: 'Barcode', value: item.barcode || '—' },
+                    { label: 'Item No.', value: item.item_number || '—' },
                     { label: 'System stock', value: item.current_stock },
                     { label: 'Category', value: item.category?.name || '—' },
                     { label: 'Unit', value: item.unit?.name || '—' },
@@ -118,14 +136,14 @@
                 No item selected
             </p>
             <p class="mt-1 text-xs text-[#4a6490]">
-                Scan an item barcode to record a stock adjustment.
+                Enter a barcode or item number, or select an item.
             </p>
         </div>
     </div>
 </template>
 
 <script setup>
-import { computed, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import InputNumber from "primevue/inputnumber";
 import Textarea from "primevue/textarea";
 import Select from "primevue/select";
@@ -143,6 +161,8 @@ defineProps({
 const notify = useNotify();
 const barcode = ref("");
 const item = ref(null);
+const items = ref([]);
+const selectedItemId = ref(null);
 const actualCount = ref(0);
 const reason = ref("damaged");
 const remarks = ref("");
@@ -154,6 +174,15 @@ const reasons = [
     { label: "Miscount", value: "miscount" },
     { label: "Correction", value: "correction" },
 ];
+
+const itemOptions = computed(() =>
+    items.value.map((row) => ({
+        value: row.id,
+        label: row.item_number
+            ? `${row.item_name} (${row.barcode || row.item_number})`
+            : row.item_name,
+    })),
+);
 
 const adjustmentAmount = computed(() => {
     if (!item.value) {
@@ -175,19 +204,35 @@ const adjustmentClass = computed(() => {
     return "";
 });
 
+function itemLookupCode(row) {
+    return row?.barcode || row?.item_number || "";
+}
+
 function clearItem() {
     item.value = null;
     barcode.value = "";
+    selectedItemId.value = null;
     actualCount.value = 0;
     reason.value = "damaged";
     remarks.value = "";
 }
 
-function onBarcodeClear() {
-    item.value = null;
-    actualCount.value = 0;
+function applyItem(row) {
+    item.value = row;
+    selectedItemId.value = row.id;
+    barcode.value = itemLookupCode(row);
+    actualCount.value = row.current_stock;
     reason.value = "damaged";
     remarks.value = "";
+}
+
+function onBarcodeClear() {
+    if (!selectedItemId.value) {
+        item.value = null;
+        actualCount.value = 0;
+        reason.value = "damaged";
+        remarks.value = "";
+    }
 }
 
 watch(barcode, (next) => {
@@ -195,6 +240,15 @@ watch(barcode, (next) => {
         onBarcodeClear();
     }
 });
+
+async function loadItems() {
+    try {
+        const { data } = await api.get("/items/list", { params: { all: 1 } });
+        items.value = data.data ?? data ?? [];
+    } catch {
+        items.value = [];
+    }
+}
 
 async function lookupItem(code) {
     try {
@@ -206,10 +260,7 @@ async function lookupItem(code) {
             clearItem();
             return;
         }
-        item.value = data.item;
-        actualCount.value = data.item.current_stock;
-        reason.value = "damaged";
-        remarks.value = "";
+        applyItem(data.item);
     } catch (error) {
         notify.error(
             error.response?.data?.message || "Unable to look up item.",
@@ -218,11 +269,38 @@ async function lookupItem(code) {
     }
 }
 
+function onSelectItem(id) {
+    if (!id) {
+        clearItem();
+        return;
+    }
+
+    const row = items.value.find((entry) => entry.id === id);
+    if (!row) {
+        notify.warn("Item not found in the list.", "Not found");
+        return;
+    }
+
+    applyItem(row);
+}
+
 async function submit() {
+    if (!item.value) {
+        notify.warn("Select an item first.", "No item");
+        return;
+    }
+
+    const code = itemLookupCode(item.value);
+
+    if (!code) {
+        notify.warn("This item has no barcode or item number.", "Cannot adjust");
+        return;
+    }
+
     loading.value = true;
     try {
         const { data } = await api.post("/stock/adjust", {
-            barcode: item.value.barcode,
+            barcode: code,
             actual_count: actualCount.value,
             reason: reason.value,
             remarks: remarks.value || null,
@@ -231,6 +309,12 @@ async function submit() {
             `Stock adjusted by ${data.adjustment > 0 ? "+" : ""}${data.adjustment}.`,
             "Adjustment applied",
         );
+        if (data.item) {
+            const index = items.value.findIndex((row) => row.id === data.item.id);
+            if (index >= 0) {
+                items.value[index] = data.item;
+            }
+        }
         clearItem();
     } catch (error) {
         notify.error(
@@ -241,4 +325,6 @@ async function submit() {
         loading.value = false;
     }
 }
+
+onMounted(loadItems);
 </script>

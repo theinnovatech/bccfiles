@@ -100,7 +100,7 @@
                             <template #body="{ data }">
                                 <div>
                                     <p class="font-medium text-[#00164d]">{{ data.item.item_name }}</p>
-                                    <p class="text-xs text-[#4a6490]">{{ data.item.barcode }}</p>
+                                    <p class="text-xs text-[#4a6490]">{{ data.item.barcode || data.item.item_number || '—' }}</p>
                                 </div>
                             </template>
                         </Column>
@@ -259,8 +259,8 @@ const filterConfig = computed(() => [
         key: 'search',
         type: 'search',
         label: 'Search',
-        placeholder: 'Item name or barcode...',
-        fields: ['item.item_name', 'item.barcode'],
+        placeholder: 'Item name, barcode, or item no....',
+        fields: ['item.item_name', 'item.barcode', 'item.item_number'],
     },
     {
         key: 'status',

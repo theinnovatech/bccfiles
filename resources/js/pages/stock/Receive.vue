@@ -2,22 +2,43 @@
     <div :class="embedded ? 'space-y-6' : 'mx-auto max-w-2xl space-y-6'">
         <div v-if="!embedded" class="shadcn-card p-6">
             <h3 class="mb-4 text-lg font-semibold">Stock Receiving</h3>
-            <BarcodeScannerInput v-model="barcode" @scan="lookupItem" />
+            <BarcodeScannerInput
+                v-model="barcode"
+                placeholder="Scan barcode / item no., or type manually, then press Enter"
+                @scan="lookupItem"
+            />
         </div>
 
         <StockOpScanner
             v-else
             v-model="barcode"
-            title="Scan to receive stock"
-            hint="Find a registered item and enter the quantity received."
+            title="Receive stock"
+            placeholder="Scan barcode / item no., or type manually, then press Enter"
             @scan="lookupItem"
-        />
+        >
+            <template #aside>
+                <label class="stock-op-scan-field-label">Or select item</label>
+                <Select
+                    v-model="selectedItemId"
+                    :options="itemOptions"
+                    optionLabel="label"
+                    optionValue="value"
+                    filter
+                    filterPlaceholder="Search item..."
+                    placeholder="Select item"
+                    class="w-full"
+                    showClear
+                    @update:model-value="onSelectItem"
+                />
+            </template>
+        </StockOpScanner>
 
         <div v-if="item" class="stock-op-workspace">
             <StockOpItemSummary
                 :item="item"
                 :fields="[
-                    { label: 'Barcode', value: item.barcode },
+                    { label: 'Barcode', value: item.barcode || '—' },
+                    { label: 'Item No.', value: item.item_number || '—' },
                     { label: 'Current stock', value: item.current_stock },
                     { label: 'Category', value: item.category?.name || '—' },
                     { label: 'Location', value: item.location?.name || '—' },
@@ -102,15 +123,16 @@
                 No item selected
             </p>
             <p class="mt-1 text-xs text-[#4a6490]">
-                Scan a registered item barcode to receive stock.
+                Enter a barcode or item number, or select an item.
             </p>
         </div>
     </div>
 </template>
 
 <script setup>
-import { computed, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import InputNumber from "primevue/inputnumber";
+import Select from "primevue/select";
 import Textarea from "primevue/textarea";
 import UiButton from "../../components/ui/UiButton.vue";
 import BarcodeScannerInput from "../../components/BarcodeScannerInput.vue";
@@ -126,9 +148,20 @@ defineProps({
 const notify = useNotify();
 const barcode = ref("");
 const item = ref(null);
+const items = ref([]);
+const selectedItemId = ref(null);
 const quantity = ref(0);
 const remarks = ref("");
 const loading = ref(false);
+
+const itemOptions = computed(() =>
+    items.value.map((row) => ({
+        value: row.id,
+        label: row.item_number
+            ? `${row.item_name} (${row.barcode || row.item_number})`
+            : row.item_name,
+    })),
+);
 
 const newStockAfterReceive = computed(() => {
     if (!item.value) {
@@ -140,6 +173,10 @@ const newStockAfterReceive = computed(() => {
     return item.value.current_stock + receivedQty;
 });
 
+function itemLookupCode(row) {
+    return row?.barcode || row?.item_number || "";
+}
+
 function onQuantityInput(event) {
     quantity.value = event.value ?? 0;
 }
@@ -147,17 +184,35 @@ function onQuantityInput(event) {
 function clearItem() {
     item.value = null;
     barcode.value = "";
+    selectedItemId.value = null;
+    quantity.value = 0;
+    remarks.value = "";
+}
+
+function applyItem(row) {
+    item.value = row;
+    selectedItemId.value = row.id;
+    barcode.value = itemLookupCode(row);
     quantity.value = 0;
     remarks.value = "";
 }
 
 watch(barcode, (next) => {
-    if (!next.trim()) {
+    if (!next.trim() && !selectedItemId.value) {
         item.value = null;
         quantity.value = 0;
         remarks.value = "";
     }
 });
+
+async function loadItems() {
+    try {
+        const { data } = await api.get("/items/list", { params: { all: 1 } });
+        items.value = data.data ?? data ?? [];
+    } catch {
+        items.value = [];
+    }
+}
 
 async function lookupItem(code) {
     try {
@@ -169,9 +224,7 @@ async function lookupItem(code) {
             clearItem();
             return;
         }
-        item.value = data.item;
-        quantity.value = 0;
-        remarks.value = "";
+        applyItem(data.item);
     } catch (error) {
         notify.error(
             error.response?.data?.message || "Unable to look up item.",
@@ -180,22 +233,55 @@ async function lookupItem(code) {
     }
 }
 
+function onSelectItem(id) {
+    if (!id) {
+        clearItem();
+        return;
+    }
+
+    const row = items.value.find((entry) => entry.id === id);
+    if (!row) {
+        notify.warn("Item not found in the list.", "Not found");
+        return;
+    }
+
+    applyItem(row);
+}
+
 async function submit() {
     const receivedQty = Number(quantity.value) || 0;
+
+    if (!item.value) {
+        notify.warn("Select an item first.", "No item");
+        return;
+    }
 
     if (receivedQty <= 0) {
         notify.warn("Enter a quantity greater than zero.", "Invalid quantity");
         return;
     }
 
+    const code = itemLookupCode(item.value);
+
+    if (!code) {
+        notify.warn("This item has no barcode or item number.", "Cannot receive");
+        return;
+    }
+
     loading.value = true;
     try {
-        await api.post("/stock/receive", {
-            barcode: item.value.barcode,
+        const { data } = await api.post("/stock/receive", {
+            barcode: code,
             quantity: receivedQty,
             remarks: remarks.value || null,
         });
         notify.success("Stock received successfully.", "Stock received");
+        if (data.item) {
+            const index = items.value.findIndex((row) => row.id === data.item.id);
+            if (index >= 0) {
+                items.value[index] = data.item;
+            }
+        }
         clearItem();
     } catch (error) {
         notify.error(
@@ -206,4 +292,6 @@ async function submit() {
         loading.value = false;
     }
 }
+
+onMounted(loadItems);
 </script>

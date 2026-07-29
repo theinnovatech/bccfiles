@@ -96,7 +96,7 @@ class InventoryService
                     $type->value,
                     abs($delta),
                     $lockedItem->item_name,
-                    $lockedItem->barcode,
+                    $lockedItem->barcode ?? $lockedItem->item_number,
                     $previousStock,
                     $actualNewStock
                 )

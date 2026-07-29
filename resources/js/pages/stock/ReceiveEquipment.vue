@@ -2,28 +2,26 @@
     <div class="space-y-6">
         <StockOpScanner
             v-model="barcode"
-            title="Scan to receive equipment"
-            hint="Scan barcode or property number, or pick registered equipment below."
+            title="Receive equipment"
+            placeholder="Scan barcode / property no., or type manually, then press Enter"
             @scan="lookupEquipment"
-        />
-
-        <div>
-            <label class="mb-1 block text-sm font-medium text-[#00164d]"
-                >Or select equipment</label
-            >
-            <Select
-                v-model="selectedEquipmentId"
-                :options="equipmentOptions"
-                optionLabel="label"
-                optionValue="value"
-                filter
-                filterPlaceholder="Search name or property no...."
-                placeholder="Select registered equipment"
-                class="w-full"
-                showClear
-                @update:model-value="onSelectEquipment"
-            />
-        </div>
+        >
+            <template #aside>
+                <label class="stock-op-scan-field-label">Or select equipment</label>
+                <Select
+                    v-model="selectedEquipmentId"
+                    :options="equipmentOptions"
+                    optionLabel="label"
+                    optionValue="value"
+                    filter
+                    filterPlaceholder="Search equipment..."
+                    placeholder="Select equipment"
+                    class="w-full"
+                    showClear
+                    @update:model-value="onSelectEquipment"
+                />
+            </template>
+        </StockOpScanner>
 
         <div v-if="equipment" class="stock-op-workspace">
             <StockOpItemSummary
@@ -131,8 +129,7 @@
                 No equipment selected
             </p>
             <p class="mt-1 text-xs text-[#4a6490]">
-                Scan a barcode/property number or select registered equipment to
-                receive more units.
+                Enter a barcode or property number, or select equipment.
             </p>
         </div>
     </div>

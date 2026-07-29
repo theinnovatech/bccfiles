@@ -26,7 +26,12 @@
                     :rows="10"
                     class="rounded-md border border-[#a8b8d4]"
                 >
-                    <Column field="barcode" header="Barcode" />
+                    <Column field="barcode" header="Barcode">
+                        <template #body="{ data }">{{
+                            data.barcode || "—"
+                        }}</template>
+                    </Column>
+                    <Column field="item_number" header="Item No." />
                     <Column field="item_name" header="Item Name" />
                     <Column field="brand" header="Brand" />
                     <Column header="Category">
@@ -97,9 +102,10 @@ const filterConfig = computed(() => [
         key: "search",
         type: "search",
         label: "Search",
-        placeholder: "Barcode, item name, brand...",
+        placeholder: "Barcode, item no., name, brand...",
         fields: [
             "barcode",
+            "item_number",
             "item_name",
             "brand",
             "category.name",

@@ -132,14 +132,20 @@
                     <div class="sm:col-span-2">
                         <label
                             class="mb-1 block text-sm font-medium text-[#00164d]"
-                            >Contact Email</label
+                            >Contact Email
+                            <span class="text-[#ce1126]">*</span></label
                         >
                         <InputText
                             v-model="form.contact_email"
                             type="email"
                             class="w-full"
                             placeholder="employee@email.com"
+                            required
                         />
+                        <p class="mt-1 text-xs text-[#4a6490]">
+                            A login password is generated and emailed to this
+                            address when the employee is created.
+                        </p>
                     </div>
 
                     <div>
@@ -247,7 +253,7 @@ function openDialog(employee = null) {
 }
 
 async function save() {
-    if (!form.name || !form.department_id) {
+    if (!form.name || !form.department_id || !form.contact_email) {
         notify.warn("Please fill in all required fields.");
         return;
     }
@@ -262,10 +268,18 @@ async function save() {
             notify.success(data.message || "Employee updated successfully.");
         } else {
             const { data } = await api.post("/employees", form);
-            notify.success(
-                data.message || "Employee created successfully.",
-                "Employee created",
-            );
+            if (data.mail_sent) {
+                notify.success(
+                    data.message || "Employee created. Login password sent.",
+                    "Employee created",
+                );
+            } else {
+                notify.warn(
+                    data.message ||
+                        "Employee created, but the password email could not be sent.",
+                    "Email not sent",
+                );
+            }
         }
         dialogVisible.value = false;
         await load();

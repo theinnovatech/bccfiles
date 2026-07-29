@@ -299,7 +299,7 @@ const transactionTypeOptions = [
 
 const itemOptions = computed(() =>
     items.value.map((item) => ({
-        label: `${item.item_name} (${item.barcode})`,
+        label: `${item.item_name} (${item.barcode || item.item_number || "—"})`,
         value: item.id,
     })),
 );

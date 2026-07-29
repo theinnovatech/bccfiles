@@ -10,9 +10,12 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\ValidationException;
 
 class UserController extends Controller
 {
+    private const ADMIN_EMAIL_DOMAIN = 'obims.admin.com';
+
     public function __construct(private readonly ActivityLogService $activityLogService) {}
 
     public function index(): JsonResponse
@@ -30,16 +33,24 @@ class UserController extends Controller
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'unique:users,email'],
+            'email' => ['required', 'string', 'max:255'],
             'password' => ['required', Password::defaults()],
             'is_active' => ['boolean'],
         ]);
 
+        $email = $this->normalizeAdminEmail($data['email']);
+
+        if (User::query()->where('email', $email)->exists()) {
+            throw ValidationException::withMessages([
+                'email' => ['This admin email is already taken.'],
+            ]);
+        }
+
         $user = User::create([
-            'name'      => $data['name'],
-            'email'     => $data['email'],
-            'password'  => Hash::make($data['password']),
-            'role'      => UserRole::Admin,
+            'name' => $data['name'],
+            'email' => $email,
+            'password' => Hash::make($data['password']),
+            'role' => UserRole::Admin,
             'is_active' => $data['is_active'] ?? true,
         ]);
 
@@ -56,15 +67,23 @@ class UserController extends Controller
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'unique:users,email,'.$user->id],
+            'email' => ['required', 'string', 'max:255'],
             'password' => ['nullable', Password::defaults()],
             'is_active' => ['boolean'],
         ]);
 
+        $email = $this->normalizeAdminEmail($data['email']);
+
+        if (User::query()->where('email', $email)->where('id', '!=', $user->id)->exists()) {
+            throw ValidationException::withMessages([
+                'email' => ['This admin email is already taken.'],
+            ]);
+        }
+
         $payload = [
-            'name'      => $data['name'],
-            'email'     => $data['email'],
-            'role'      => UserRole::Admin,
+            'name' => $data['name'],
+            'email' => $email,
+            'role' => UserRole::Admin,
             'is_active' => $data['is_active'] ?? $user->is_active,
         ];
 
@@ -94,5 +113,25 @@ class UserController extends Controller
         $this->activityLogService->log($request->user(), 'Deleted', 'Users', "Deleted admin account {$name}");
 
         return response()->json(['message' => 'Admin account moved to deleted data.']);
+    }
+
+    private function normalizeAdminEmail(string $email): string
+    {
+        $value = strtolower(trim($email));
+        $local = strstr($value, '@', true);
+
+        if ($local === false) {
+            $local = $value;
+        }
+
+        $local = preg_replace('/[^a-z0-9._+-]/', '', $local) ?? '';
+
+        if ($local === '') {
+            throw ValidationException::withMessages([
+                'email' => ['Please enter a valid email username.'],
+            ]);
+        }
+
+        return $local.'@'.self::ADMIN_EMAIL_DOMAIN;
     }
 }

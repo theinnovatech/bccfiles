@@ -8,8 +8,21 @@
         </div>
         <div class="stock-op-scan-body">
             <p class="stock-op-scan-title">{{ title }}</p>
-            <p class="stock-op-scan-hint">{{ hint }}</p>
-            <BarcodeScannerInput ref="scannerRef" v-model="barcode" class="mt-3" @scan="onScan" @clear="onClear" />
+            <p v-if="hint" class="stock-op-scan-hint">{{ hint }}</p>
+            <div class="stock-op-scan-fields">
+                <div class="stock-op-scan-field">
+                    <BarcodeScannerInput
+                        ref="scannerRef"
+                        v-model="barcode"
+                        :placeholder="placeholder"
+                        @scan="onScan"
+                        @clear="onClear"
+                    />
+                </div>
+                <div v-if="$slots.aside" class="stock-op-scan-field stock-op-scan-field--aside">
+                    <slot name="aside" />
+                </div>
+            </div>
         </div>
     </div>
 </template>
@@ -20,8 +33,12 @@ import BarcodeScannerInput from '../BarcodeScannerInput.vue';
 
 const props = defineProps({
     modelValue: { type: String, default: '' },
-    title: { type: String, default: 'Scan barcode' },
-    hint: { type: String, default: 'Use a barcode scanner, or type the code manually and press Enter.' },
+    title: { type: String, default: 'Scan' },
+    hint: { type: String, default: '' },
+    placeholder: {
+        type: String,
+        default: 'Scan barcode / item no., or type manually, then press Enter',
+    },
 });
 
 const emit = defineEmits(['update:modelValue', 'scan', 'clear']);

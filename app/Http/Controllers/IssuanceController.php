@@ -123,7 +123,7 @@ class IssuanceController extends Controller
 
         $issuance->details()->create([
             'item_id' => $item->id,
-            'barcode' => $item->barcode,
+            'barcode' => $item->barcode ?? $item->item_number,
             'quantity' => $line['quantity'],
         ]);
     }

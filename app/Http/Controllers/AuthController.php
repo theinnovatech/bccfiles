@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\PagePermissionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -71,11 +72,11 @@ class AuthController extends Controller
             ]);
         }
 
-        if (! in_array($user->role, [UserRole::Admin, UserRole::SupplyOfficer], true)) {
+        if (! in_array($user->role, [UserRole::Admin, UserRole::SupplyOfficer, UserRole::DepartmentUser], true)) {
             Auth::logout();
 
             throw ValidationException::withMessages([
-                'email' => ['Only admin and supply officer accounts can access this system.'],
+                'email' => ['This account is not allowed to access the system.'],
             ]);
         }
 
@@ -115,6 +116,10 @@ class AuthController extends Controller
 
     private function formatUser(User $user): array
     {
+        $allowedPages = $user->role === UserRole::DepartmentUser
+            ? PagePermissionService::allowedPagesForDepartmentUsers()
+            : PagePermissionService::grantableKeys();
+
         return [
             'id' => $user->id,
             'name' => $user->name,
@@ -126,6 +131,7 @@ class AuthController extends Controller
             'employee_id' => $user->employee_id,
             'employee' => $user->employee,
             'is_active' => $user->is_active,
+            'allowed_pages' => $allowedPages,
         ];
     }
 }

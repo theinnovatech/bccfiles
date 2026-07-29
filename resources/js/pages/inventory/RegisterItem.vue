@@ -49,8 +49,11 @@
             <div>
                 <p class="stock-op-alert-title">Item already registered</p>
                 <p class="stock-op-alert-text">
-                    {{ existingItem.item_name }} · Current stock:
-                    {{ existingItem.current_stock }}
+                    {{ existingItem.item_name }}
+                    <template v-if="existingItem.item_number">
+                        · {{ existingItem.item_number }}
+                    </template>
+                    · Current stock: {{ existingItem.current_stock }}
                 </p>
             </div>
         </div>
@@ -64,6 +67,15 @@
             </div>
 
             <form class="grid gap-4 md:grid-cols-2" @submit.prevent="save">
+                <div class="md:col-span-2">
+                    <p
+                        class="rounded-md border border-[#a8b8d4] bg-[#e2e8f2] px-3 py-2 text-xs text-[#4a6490]"
+                    >
+                        Item number will be generated automatically when you
+                        save this item.
+                    </p>
+                </div>
+
                 <div v-if="form.barcode">
                     <label class="mb-1 block text-sm font-medium text-[#00164d]"
                         >Barcode</label
@@ -74,7 +86,8 @@
                     <p
                         class="border border-dashed border-[#a8b8d4] bg-transparent px-3 py-2 text-xs text-[#4a6490]"
                     >
-                        No barcode assigned for this item.
+                        No barcode assigned. The generated item number will be
+                        used to identify this item.
                     </p>
                 </div>
                 <div>
@@ -291,7 +304,7 @@ async function save() {
 
     saving.value = true;
     try {
-        await api.post("/items", {
+        const { data } = await api.post("/items", {
             barcode: form.barcode || null,
             item_name: form.item_name,
             brand: form.brand || null,
@@ -301,7 +314,10 @@ async function save() {
             minimum_stock: form.minimum_stock ?? 0,
             description: form.description || null,
         });
-        notify.success("Item registered successfully.", "Item registered");
+        notify.success(
+            `Item registered with item no. ${data.item_number}.`,
+            "Item registered",
+        );
         resetForm();
     } catch (error) {
         notify.error(
