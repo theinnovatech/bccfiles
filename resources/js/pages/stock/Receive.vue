@@ -38,6 +38,7 @@
                 :item="item"
                 :fields="[
                     { label: 'Barcode', value: item.barcode || '—' },
+                    { label: 'Inventory No.', value: item.inventory_number || '—' },
                     { label: 'Item No.', value: item.item_number || '—' },
                     { label: 'Current stock', value: item.current_stock },
                     { label: 'Category', value: item.category?.name || '—' },

@@ -43,6 +43,11 @@
                             {{ data.barcode || '—' }}
                         </template>
                     </Column>
+                    <Column field="inventory_number" header="Inventory No.">
+                        <template #body="{ data }">
+                            {{ data.inventory_number || '—' }}
+                        </template>
+                    </Column>
                     <Column field="property_number" header="Property No." />
                     <Column field="name" header="Name" />
                     <Column header="Category">
@@ -142,8 +147,8 @@ const filterConfig = computed(() => [
         key: 'search',
         type: 'search',
         label: 'Search',
-        placeholder: 'Property no., name, category, type...',
-        fields: ['barcode', 'property_number', 'name', 'category.name', 'type', 'description', 'specs'],
+        placeholder: 'Inventory no., property no., name, category, type...',
+        fields: ['barcode', 'inventory_number', 'property_number', 'name', 'category.name', 'type', 'description', 'specs'],
     },
     {
         key: 'category',
@@ -206,12 +211,6 @@ onMounted(loadEquipments);
 </script>
 
 <style scoped>
-.equipment-table :deep(.p-datatable-thead > tr > th) {
-    background: #e2e8f2;
-    color: #00164d;
-    font-size: 0.8125rem;
-}
-
 .equipment-table :deep(.p-datatable-tbody > tr > td) {
     font-size: 0.875rem;
     color: #00164d;

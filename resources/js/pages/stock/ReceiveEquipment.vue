@@ -28,6 +28,10 @@
                 :item="summaryItem"
                 :fields="[
                     {
+                        label: 'Inventory No.',
+                        value: equipment.inventory_number || '—',
+                    },
+                    {
                         label: 'Property No.',
                         value: equipment.property_number || '—',
                     },

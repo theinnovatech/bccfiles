@@ -51,6 +51,41 @@ class ReferenceNumberGenerator
         return self::generateFromTable('items', 'item_number', 'ITEM');
     }
 
+    /**
+     * Shared inventory number across items and equipments (INV-YYYY-####).
+     */
+    public static function forInventory(): string
+    {
+        $year = now()->year;
+        $pattern = "INV-{$year}-%";
+
+        $latestItem = DB::table('items')
+            ->where('inventory_number', 'like', $pattern)
+            ->orderByDesc('inventory_number')
+            ->value('inventory_number');
+
+        $latestEquipment = DB::table('equipments')
+            ->where('inventory_number', 'like', $pattern)
+            ->orderByDesc('inventory_number')
+            ->value('inventory_number');
+
+        $sequence = max(
+            self::sequenceFromReference($latestItem),
+            self::sequenceFromReference($latestEquipment)
+        ) + 1;
+
+        return sprintf('INV-%d-%04d', $year, $sequence);
+    }
+
+    private static function sequenceFromReference(?string $reference): int
+    {
+        if ($reference && preg_match('/-(\d+)$/', $reference, $matches)) {
+            return (int) $matches[1];
+        }
+
+        return 0;
+    }
+
     private static function generateFromTable(string $table, string $column, string $prefix): string
     {
         $year = now()->year;
@@ -61,11 +96,7 @@ class ReferenceNumberGenerator
             ->orderByDesc($column)
             ->value($column);
 
-        $sequence = 1;
-
-        if ($latest && preg_match('/-(\d+)$/', $latest, $matches)) {
-            $sequence = (int) $matches[1] + 1;
-        }
+        $sequence = self::sequenceFromReference($latest) + 1;
 
         return sprintf('%s-%d-%04d', $prefix, $year, $sequence);
     }

@@ -50,6 +50,7 @@
                 ['label' => 'Admin Accounts', 'url' => '/users', 'icon' => 'user-edit', 'roles' => ['admin']],
                 ['label' => 'Permissions', 'url' => '/permissions/manage', 'icon' => 'shield', 'roles' => ['admin']],
                 ['label' => 'Deleted Data', 'url' => '/deleted-data', 'icon' => 'trash', 'roles' => ['admin']],
+                ['label' => 'Backup Files', 'url' => '/backup-files', 'icon' => 'database', 'roles' => ['admin']],
                 ['label' => 'Settings', 'url' => '/settings', 'icon' => 'cog', 'roles' => ['admin', 'supply_officer']],
             ],
         ],

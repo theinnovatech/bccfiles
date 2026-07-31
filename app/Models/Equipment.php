@@ -15,6 +15,7 @@ class Equipment extends Model
     protected $fillable = [
         'name',
         'property_number',
+        'inventory_number',
         'barcode',
         'equipment_category_id',
         'description',

@@ -19,4 +19,5 @@ export const pageModules = {
     users: () => import('./pages/Users.vue'),
     permissions: () => import('./pages/Permissions.vue'),
     'deleted-data': () => import('./pages/DeletedData.vue'),
+    'backup-files': () => import('./pages/BackupFiles.vue'),
 };

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BackupController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeletedDataController;
@@ -178,6 +179,11 @@ Route::middleware('auth')->group(function () {
         Route::get('/deleted-data/list', [DeletedDataController::class, 'index']);
         Route::post('/deleted-data/{type}/{id}/restore', [DeletedDataController::class, 'restore'])->whereNumber('id');
         Route::delete('/deleted-data/{type}/{id}/force', [DeletedDataController::class, 'forceDestroy'])->whereNumber('id');
+
+        Route::get('/backups/list', [BackupController::class, 'index']);
+        Route::post('/backups', [BackupController::class, 'store']);
+        Route::get('/backups/{filename}/download', [BackupController::class, 'download'])->where('filename', 'obims-[\d\-]+\.sql');
+        Route::delete('/backups/{filename}', [BackupController::class, 'destroy'])->where('filename', 'obims-[\d\-]+\.sql');
     });
 
     Route::get('/stock/operations', fn (PageController $pages) => $pages->show('stock.operations'))->middleware('staff_or_page:stock.operations');
@@ -205,4 +211,5 @@ Route::middleware('auth')->group(function () {
     Route::get('/permissions/manage', fn (PageController $pages) => $pages->show('permissions'))->middleware('role:admin');
     Route::get('/users', fn (PageController $pages) => $pages->show('users'))->middleware('role:admin');
     Route::get('/deleted-data', fn (PageController $pages) => $pages->show('deleted-data'))->middleware('role:admin');
+    Route::get('/backup-files', fn (PageController $pages) => $pages->show('backup-files'))->middleware('role:admin');
 });

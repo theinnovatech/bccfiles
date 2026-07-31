@@ -30,6 +30,7 @@ class ItemController extends Controller
                 $q->where('item_name', 'like', "%{$search}%")
                     ->orWhere('barcode', 'like', "%{$search}%")
                     ->orWhere('item_number', 'like', "%{$search}%")
+                    ->orWhere('inventory_number', 'like', "%{$search}%")
                     ->orWhere('brand', 'like', "%{$search}%");
             });
         }
@@ -75,6 +76,7 @@ class ItemController extends Controller
             return Item::create([
                 ...$data,
                 'item_number' => ReferenceNumberGenerator::forItem(),
+                'inventory_number' => ReferenceNumberGenerator::forInventory(),
             ]);
         });
 
@@ -100,7 +102,8 @@ class ItemController extends Controller
             ->with(['category', 'unit', 'location'])
             ->where(function ($query) use ($barcode) {
                 $query->where('barcode', $barcode)
-                    ->orWhere('item_number', $barcode);
+                    ->orWhere('item_number', $barcode)
+                    ->orWhere('inventory_number', $barcode);
             })
             ->first();
 

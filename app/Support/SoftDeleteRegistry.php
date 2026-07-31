@@ -53,7 +53,7 @@ class SoftDeleteRegistry
             'equipments' => [
                 'model' => Equipment::class,
                 'label' => 'Equipments',
-                'name_fields' => ['property_number', 'barcode', 'name', 'type'],
+                'name_fields' => ['inventory_number', 'property_number', 'barcode', 'name', 'type'],
             ],
             'equipment_categories' => [
                 'model' => EquipmentCategory::class,
@@ -68,7 +68,7 @@ class SoftDeleteRegistry
             'items' => [
                 'model' => Item::class,
                 'label' => 'Items',
-                'name_fields' => ['item_name', 'item_number', 'barcode'],
+                'name_fields' => ['item_name', 'inventory_number', 'item_number', 'barcode'],
             ],
             'settings' => [
                 'model' => Setting::class,

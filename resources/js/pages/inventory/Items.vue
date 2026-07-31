@@ -31,6 +31,11 @@
                             data.barcode || "—"
                         }}</template>
                     </Column>
+                    <Column field="inventory_number" header="Inventory No.">
+                        <template #body="{ data }">{{
+                            data.inventory_number || "—"
+                        }}</template>
+                    </Column>
                     <Column field="item_number" header="Item No." />
                     <Column field="item_name" header="Item Name" />
                     <Column field="brand" header="Brand" />
@@ -102,9 +107,10 @@ const filterConfig = computed(() => [
         key: "search",
         type: "search",
         label: "Search",
-        placeholder: "Barcode, item no., name, brand...",
+        placeholder: "Barcode, inventory no., item no., name, brand...",
         fields: [
             "barcode",
+            "inventory_number",
             "item_number",
             "item_name",
             "brand",

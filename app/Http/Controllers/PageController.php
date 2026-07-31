@@ -47,6 +47,7 @@ class PageController extends Controller
             'permissions' => 'Employee Permissions',
             'users' => 'Admin Accounts',
             'deleted-data' => 'Deleted Data',
+            'backup-files' => 'Backup Files',
             default => 'OBIMS',
         };
     }

@@ -50,7 +50,10 @@
                 <p class="stock-op-alert-title">Item already registered</p>
                 <p class="stock-op-alert-text">
                     {{ existingItem.item_name }}
-                    <template v-if="existingItem.item_number">
+                    <template v-if="existingItem.inventory_number">
+                        · {{ existingItem.inventory_number }}
+                    </template>
+                    <template v-else-if="existingItem.item_number">
                         · {{ existingItem.item_number }}
                     </template>
                     · Current stock: {{ existingItem.current_stock }}
@@ -71,8 +74,8 @@
                     <p
                         class="rounded-md border border-[#a8b8d4] bg-[#e2e8f2] px-3 py-2 text-xs text-[#4a6490]"
                     >
-                        Item number will be generated automatically when you
-                        save this item.
+                        Inventory number and item number will be generated
+                        automatically when you save this item.
                     </p>
                 </div>
 
@@ -315,7 +318,7 @@ async function save() {
             description: form.description || null,
         });
         notify.success(
-            `Item registered with item no. ${data.item_number}.`,
+            `Item registered with inventory no. ${data.inventory_number}.`,
             "Item registered",
         );
         resetForm();

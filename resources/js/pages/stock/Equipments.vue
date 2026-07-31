@@ -39,7 +39,10 @@
                 <p class="stock-op-alert-title">Equipment already registered</p>
                 <p class="stock-op-alert-text">
                     {{ existingEquipment.name }} ·
-                    {{ existingEquipment.property_number }}
+                    {{
+                        existingEquipment.inventory_number ||
+                        existingEquipment.property_number
+                    }}
                 </p>
             </div>
         </div>
@@ -57,6 +60,16 @@
             <form class="grid gap-4 md:grid-cols-2" @submit.prevent="save">
                 <div v-if="editingId">
                     <label class="mb-1 block text-sm font-medium text-[#00164d]"
+                        >Inventory No.</label
+                    >
+                    <InputText
+                        v-model="form.inventory_number"
+                        class="w-full"
+                        readonly
+                    />
+                </div>
+                <div v-if="editingId">
+                    <label class="mb-1 block text-sm font-medium text-[#00164d]"
                         >Property No.</label
                     >
                     <InputText
@@ -69,8 +82,8 @@
                     <p
                         class="rounded-md border border-[#a8b8d4] bg-[#e2e8f2] px-3 py-2 text-xs text-[#4a6490]"
                     >
-                        Property number will be generated automatically when you
-                        save this equipment.
+                        Inventory number and property number will be generated
+                        automatically when you save this equipment.
                     </p>
                 </div>
 
@@ -250,6 +263,7 @@ const saving = ref(false);
 const editingId = ref(null);
 const categories = ref([]);
 const form = reactive({
+    inventory_number: "",
     property_number: "",
     barcode: "",
     name: "",
@@ -267,6 +281,7 @@ function resetForm() {
     noBarcodeMode.value = false;
     existingEquipment.value = null;
     barcode.value = "";
+    form.inventory_number = "";
     form.property_number = "";
     form.barcode = "";
     form.name = "";
@@ -286,6 +301,7 @@ function startEdit(equipment) {
     editingId.value = equipment.id;
     showForm.value = true;
     noBarcodeMode.value = !equipment.barcode;
+    form.inventory_number = equipment.inventory_number || "";
     form.property_number = equipment.property_number || "";
     form.barcode = equipment.barcode || "";
     form.name = equipment.name;
@@ -379,7 +395,7 @@ async function save() {
         } else {
             const { data } = await api.post("/equipments", payload);
             notify.success(
-                `Equipment saved with property no. ${data.property_number}.`,
+                `Equipment saved with inventory no. ${data.inventory_number}.`,
             );
         }
 

@@ -28,7 +28,8 @@ class EquipmentController extends Controller
             ->with('category')
             ->where(function ($query) use ($barcode) {
                 $query->where('barcode', $barcode)
-                    ->orWhere('property_number', $barcode);
+                    ->orWhere('property_number', $barcode)
+                    ->orWhere('inventory_number', $barcode);
             })
             ->first();
 
@@ -46,7 +47,7 @@ class EquipmentController extends Controller
 
         if (empty($data['equipment_id']) && empty($data['barcode'])) {
             return response()->json([
-                'message' => 'Select an equipment or provide a barcode/property number.',
+                'message' => 'Select an equipment or provide a barcode, property number, or inventory number.',
             ], 422);
         }
 
@@ -56,7 +57,8 @@ class EquipmentController extends Controller
                 ->with('category')
                 ->where(function ($query) use ($data) {
                     $query->where('barcode', $data['barcode'])
-                        ->orWhere('property_number', $data['barcode']);
+                        ->orWhere('property_number', $data['barcode'])
+                        ->orWhere('inventory_number', $data['barcode']);
                 })
                 ->firstOrFail();
 
@@ -64,7 +66,8 @@ class EquipmentController extends Controller
         $equipment->refresh()->load('category');
 
         $remarks = trim((string) ($data['remarks'] ?? ''));
-        $message = "Received {$data['quantity']} unit(s) for equipment {$equipment->name} ({$equipment->property_number})";
+        $ref = $equipment->inventory_number ?: $equipment->property_number;
+        $message = "Received {$data['quantity']} unit(s) for equipment {$equipment->name} ({$ref})";
         if ($remarks !== '') {
             $message .= " — {$remarks}";
         }
@@ -99,6 +102,7 @@ class EquipmentController extends Controller
             return Equipment::create([
                 ...$data,
                 'property_number' => ReferenceNumberGenerator::forEquipment(),
+                'inventory_number' => ReferenceNumberGenerator::forInventory(),
             ]);
         });
 
@@ -106,7 +110,7 @@ class EquipmentController extends Controller
             $request->user(),
             'Created',
             'Equipments',
-            "Created equipment {$equipment->name} ({$equipment->property_number})"
+            "Created equipment {$equipment->name} ({$equipment->inventory_number})"
         );
 
         return response()->json($equipment->load('category'), 201);
@@ -136,7 +140,7 @@ class EquipmentController extends Controller
             $request->user(),
             'Updated',
             'Equipments',
-            "Updated equipment {$equipment->name} ({$equipment->property_number})"
+            "Updated equipment {$equipment->name} (".($equipment->inventory_number ?: $equipment->property_number).")"
         );
 
         return response()->json($equipment->load('category'));
