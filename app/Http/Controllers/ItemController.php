@@ -136,10 +136,6 @@ class ItemController extends Controller
 
     public function destroy(Request $request, Item $item): JsonResponse
     {
-        if ($item->stockMovements()->exists()) {
-            return response()->json(['message' => 'Cannot delete item with stock history.'], 422);
-        }
-
         $name = $item->item_name;
         $item->delete();
         $this->activityLogService->log($request->user(), 'Deleted', 'Items', "Deleted item {$name}");
