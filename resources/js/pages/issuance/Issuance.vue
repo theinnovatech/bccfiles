@@ -94,6 +94,43 @@
                             placeholder="Optional notes from the hard-copy form"
                         />
                     </div>
+                    <div class="md:col-span-2 space-y-3 rounded-md border border-[#a8b8d4] bg-[#f4f7fb] p-3">
+                        <div class="flex items-start gap-2">
+                            <Checkbox
+                                v-model="form.use_custom_date"
+                                binary
+                                inputId="issuance-custom-date"
+                                class="mt-0.5"
+                            />
+                            <div>
+                                <label
+                                    for="issuance-custom-date"
+                                    class="cursor-pointer text-sm font-medium text-[#00164d]"
+                                >
+                                    Use custom issuance date
+                                </label>
+                                <p class="mt-0.5 text-xs text-[#4a6490]">
+                                    Turn this on when encoding past hard-copy
+                                    records. Otherwise the system uses today's
+                                    date.
+                                </p>
+                            </div>
+                        </div>
+                        <div v-if="form.use_custom_date" class="max-w-xs">
+                            <label
+                                class="mb-1 block text-sm font-medium text-[#00164d]"
+                                >Issuance Date
+                                <span class="text-[#ce1126]">*</span></label
+                            >
+                            <InputText
+                                v-model="form.issued_date"
+                                type="date"
+                                class="w-full"
+                                :max="todayDate"
+                                required
+                            />
+                        </div>
+                    </div>
                 </div>
 
                 <div
@@ -288,7 +325,9 @@ import { useNotify } from "../../composables/useNotify";
 import Select from "primevue/select";
 import AutoComplete from "primevue/autocomplete";
 import InputNumber from "primevue/inputnumber";
+import InputText from "primevue/inputtext";
 import Textarea from "primevue/textarea";
+import Checkbox from "primevue/checkbox";
 import DataTable from "primevue/datatable";
 import Column from "primevue/column";
 import UiCard from "../../components/ui/UiCard.vue";
@@ -367,11 +406,15 @@ const form = reactive({
     issuance_type: "items",
     department_id: null,
     remarks: "",
+    use_custom_date: false,
+    issued_date: "",
     items: [emptyLine()],
 });
 
 const receivedByInput = ref(null);
 const receiverSuggestions = ref([]);
+
+const todayDate = computed(() => new Date().toISOString().slice(0, 10));
 
 function emptyLine() {
     return { item_id: null, equipment_id: null, quantity: 1 };
@@ -456,6 +499,8 @@ function resetForm() {
     receivedByInput.value = null;
     receiverSuggestions.value = [];
     form.remarks = "";
+    form.use_custom_date = false;
+    form.issued_date = "";
     form.items = [emptyLine()];
 }
 
@@ -525,11 +570,12 @@ function totalQuantity(issuance) {
 }
 
 function buildPayload() {
-    return {
+    const payload = {
         issuance_type: form.issuance_type,
         department_id: form.department_id,
         ...resolveReceiverPayload(),
         remarks: form.remarks || null,
+        use_custom_date: form.use_custom_date,
         items: form.items.map((line) => {
             if (form.issuance_type === "items") {
                 return {
@@ -544,6 +590,12 @@ function buildPayload() {
             };
         }),
     };
+
+    if (form.use_custom_date && form.issued_date) {
+        payload.issued_date = form.issued_date;
+    }
+
+    return payload;
 }
 
 async function submit() {
@@ -551,6 +603,11 @@ async function submit() {
 
     if (!form.department_id || (!receiver.received_by && !receiver.received_by_name)) {
         notify.warn("Please select a department and enter who received the items.");
+        return;
+    }
+
+    if (form.use_custom_date && !form.issued_date) {
+        notify.warn("Please select the custom issuance date.");
         return;
     }
 

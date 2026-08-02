@@ -10,6 +10,7 @@ use App\Models\Item;
 use App\Services\ActivityLogService;
 use App\Services\InventoryService;
 use App\Support\ReferenceNumberGenerator;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -43,6 +44,8 @@ class IssuanceController extends Controller
             'received_by' => ['nullable', 'exists:employees,id'],
             'received_by_name' => ['nullable', 'string', 'max:255'],
             'remarks' => ['nullable', 'string'],
+            'use_custom_date' => ['sometimes', 'boolean'],
+            'issued_date' => ['nullable', 'required_if:use_custom_date,true,1', 'date', 'before_or_equal:today'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
         ];
@@ -65,15 +68,20 @@ class IssuanceController extends Controller
             ], 422);
         }
 
+        $useCustomDate = filter_var($data['use_custom_date'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $issuedDate = $useCustomDate && filled($data['issued_date'] ?? null)
+            ? Carbon::parse($data['issued_date'])->startOfDay()
+            : now();
+
         try {
-            $issuance = DB::transaction(function () use ($data, $request, $issuanceType, $receivedBy, $receivedByName) {
+            $issuance = DB::transaction(function () use ($data, $request, $issuanceType, $receivedBy, $receivedByName, $issuedDate) {
                 $issuance = Issuance::create([
                     'issuance_number' => ReferenceNumberGenerator::forIssuance(),
                     'department_id' => $data['department_id'],
                     'issued_by' => $request->user()->id,
                     'received_by' => $receivedBy,
                     'received_by_name' => $receivedBy ? null : $receivedByName,
-                    'issued_date' => now(),
+                    'issued_date' => $issuedDate,
                 ]);
 
                 foreach ($data['items'] as $line) {
