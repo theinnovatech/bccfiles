@@ -4,6 +4,20 @@ function getValue(obj, path) {
     return String(path).split('.').reduce((acc, key) => acc?.[key], obj);
 }
 
+function toDateKey(value) {
+    const date = value instanceof Date ? value : new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+        return '';
+    }
+
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+
+    return `${year}-${month}-${day}`;
+}
+
 export function useTableFilters(items, config) {
     const resolvedConfig = computed(() => unref(config));
 
@@ -52,6 +66,33 @@ export function useTableFilters(items, config) {
                     const fieldValue = filter.match ? filter.match(row) : getValue(row, filter.field);
                     const boolValue = value === true || value === 'true';
                     return Boolean(fieldValue) === boolValue;
+                }
+
+                if (filter.type === 'date') {
+                    if (filter.predicate) {
+                        return filter.predicate(row, value);
+                    }
+
+                    const fieldValue = filter.match
+                        ? filter.match(row)
+                        : getValue(row, filter.field);
+
+                    if (!fieldValue) {
+                        return false;
+                    }
+
+                    const rowDate = toDateKey(fieldValue);
+                    const filterDate = String(value);
+
+                    if (filter.mode === 'from') {
+                        return rowDate >= filterDate;
+                    }
+
+                    if (filter.mode === 'to') {
+                        return rowDate <= filterDate;
+                    }
+
+                    return rowDate === filterDate;
                 }
 
                 if (filter.type === 'custom') {

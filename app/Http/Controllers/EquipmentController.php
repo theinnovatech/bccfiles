@@ -18,7 +18,11 @@ class EquipmentController extends Controller
     public function index(): JsonResponse
     {
         return response()->json(
-            Equipment::query()->with('category')->orderBy('name')->get()
+            Equipment::query()
+                ->with('category')
+                ->whereNull('source_return_id')
+                ->orderBy('name')
+                ->get()
         );
     }
 
@@ -26,6 +30,7 @@ class EquipmentController extends Controller
     {
         $equipment = Equipment::query()
             ->with('category')
+            ->whereNull('source_return_id')
             ->where(function ($query) use ($barcode) {
                 $query->where('barcode', $barcode)
                     ->orWhere('property_number', $barcode)

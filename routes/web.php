@@ -135,6 +135,7 @@ Route::middleware('auth')->group(function () {
 
     Route::middleware('staff_or_page:returns,person-lookup,reports')->group(function () {
         Route::get('/returns/list', [ItemReturnController::class, 'index']);
+        Route::get('/returns/returned-equipments', [ItemReturnController::class, 'returnedEquipments']);
     });
 
     Route::middleware('staff_or_page:returns')->group(function () {

@@ -17,8 +17,61 @@
                 class="min-w-0 space-y-5 p-4 sm:p-6"
                 @submit.prevent="submit"
             >
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div class="flex flex-wrap gap-2">
+                        <button
+                            type="button"
+                            class="rounded-md border px-3 py-1.5 text-sm font-medium transition"
+                            :class="
+                                !form.useCustom
+                                    ? 'border-[#00164d] bg-[#00164d] text-white'
+                                    : 'border-[#a8b8d4] bg-transparent text-[#00164d]'
+                            "
+                            @click="setUseCustom(false)"
+                        >
+                            From Supply Master
+                        </button>
+                        <button
+                            type="button"
+                            class="rounded-md border px-3 py-1.5 text-sm font-medium transition"
+                            :class="
+                                form.useCustom
+                                    ? 'border-[#00164d] bg-[#00164d] text-white'
+                                    : 'border-[#a8b8d4] bg-transparent text-[#00164d]'
+                            "
+                            @click="setUseCustom(true)"
+                        >
+                            Custom Equipment (past data)
+                        </button>
+                    </div>
+                    <p class="text-xs text-[#4a6490]">
+                        Use "Custom Equipment" to log past returns that aren't
+                        in Supply Master.
+                    </p>
+                </div>
+
                 <div class="grid gap-4 md:grid-cols-2">
                     <div class="md:col-span-2">
+                        <label
+                            class="mb-1 block text-sm font-medium text-[#00164d]"
+                        >
+                            Reference No.
+                            <span class="ml-1 text-xs font-normal text-[#4a6490]"
+                                >(optional)</span
+                            >
+                        </label>
+                        <InputText
+                            v-model="form.reference_number"
+                            class="w-full"
+                            placeholder="e.g. RTN-2024-018"
+                        />
+                        <p class="mt-1 text-xs text-[#4a6490]">
+                            Only fill this in if the hard-copy form has its own
+                            reference number.
+                        </p>
+                    </div>
+
+                    <div v-if="!form.useCustom" class="md:col-span-2">
                         <label
                             class="mb-1 block text-sm font-medium text-[#00164d]"
                             >Equipment
@@ -34,6 +87,89 @@
                             filter
                         />
                     </div>
+
+                    <template v-else>
+                        <div class="md:col-span-2">
+                            <label
+                                class="mb-1 block text-sm font-medium text-[#00164d]"
+                                >Equipment Name
+                                <span class="text-[#ce1126]">*</span></label
+                            >
+                            <InputText
+                                v-model="form.custom_equipment_name"
+                                class="w-full"
+                                placeholder="e.g. Old Dell Monitor"
+                            />
+                        </div>
+
+                        <div>
+                            <label
+                                class="mb-1 block text-sm font-medium text-[#00164d]"
+                            >
+                                Property No.
+                                <span
+                                    class="ml-1 text-xs font-normal text-[#4a6490]"
+                                    >(optional)</span
+                                >
+                            </label>
+                            <InputText
+                                v-model="form.custom_property_number"
+                                class="w-full"
+                                placeholder="e.g. PROP-2023-0125"
+                            />
+                        </div>
+
+                        <div>
+                            <label
+                                class="mb-1 block text-sm font-medium text-[#00164d]"
+                            >
+                                Inventory No.
+                                <span
+                                    class="ml-1 text-xs font-normal text-[#4a6490]"
+                                    >(optional)</span
+                                >
+                            </label>
+                            <InputText
+                                v-model="form.custom_inventory_number"
+                                class="w-full"
+                                placeholder="e.g. INV-2023-0087"
+                            />
+                        </div>
+
+                        <div>
+                            <label
+                                class="mb-1 block text-sm font-medium text-[#00164d]"
+                            >
+                                Type
+                                <span
+                                    class="ml-1 text-xs font-normal text-[#4a6490]"
+                                    >(optional)</span
+                                >
+                            </label>
+                            <InputText
+                                v-model="form.custom_equipment_type"
+                                class="w-full"
+                                placeholder="e.g. Monitor, Chair, Laptop"
+                            />
+                        </div>
+
+                        <div>
+                            <label
+                                class="mb-1 block text-sm font-medium text-[#00164d]"
+                            >
+                                Category
+                                <span
+                                    class="ml-1 text-xs font-normal text-[#4a6490]"
+                                    >(optional)</span
+                                >
+                            </label>
+                            <InputText
+                                v-model="form.custom_equipment_category"
+                                class="w-full"
+                                placeholder="e.g. IT Equipment, Furniture"
+                            />
+                        </div>
+                    </template>
 
                     <div>
                         <label
@@ -90,11 +226,36 @@
                         </p>
                     </div>
 
+                    <div>
+                        <label
+                            class="mb-1 block text-sm font-medium text-[#00164d]"
+                        >
+                            Date Returned
+                            <span class="ml-1 text-xs font-normal text-[#4a6490]"
+                                >(optional)</span
+                            >
+                        </label>
+                        <input
+                            v-model="form.date_returned"
+                            type="date"
+                            :max="todayIso"
+                            class="w-full rounded-md border border-[#a8b8d4] bg-white px-3 py-2 text-sm text-[#00164d] focus:border-[#00164d] focus:outline-none focus:ring-1 focus:ring-[#00164d]"
+                        />
+                        <p class="mt-1 text-xs text-[#4a6490]">
+                            Set this only when recording a past return.
+                            Defaults to today.
+                        </p>
+                    </div>
+
                     <div class="md:col-span-2">
                         <label
                             class="mb-1 block text-sm font-medium text-[#00164d]"
-                            >Condition / Remarks</label
                         >
+                            Condition / Remarks
+                            <span class="ml-1 text-xs font-normal text-[#4a6490]"
+                                >(optional)</span
+                            >
+                        </label>
                         <Textarea
                             v-model="form.reason"
                             class="w-full"
@@ -105,7 +266,7 @@
                 </div>
 
                 <div
-                    v-if="selectedEquipment"
+                    v-if="!form.useCustom && selectedEquipment"
                     class="border border-[#a8b8d4] bg-transparent p-4 text-sm text-[#00164d]"
                 >
                     <p class="font-medium">{{ selectedEquipment.name }}</p>
@@ -113,13 +274,11 @@
                         Property No.:
                         {{ selectedEquipment.property_number || "—" }} · Current
                         available qty: {{ selectedEquipment.quantity ?? 0 }}
-                        <span v-if="form.quantity">
-                            → after return:
-                            {{
-                                (selectedEquipment.quantity ?? 0) +
-                                (Number(form.quantity) || 0)
-                            }}
-                        </span>
+                    </p>
+                    <p class="mt-1 text-xs text-[#4a6490]">
+                        Returned units are considered used and are only logged
+                        in the Returned Equipments table — they are not added
+                        back to Supply Master.
                     </p>
                 </div>
 
@@ -140,85 +299,281 @@
         </div>
 
         <UiCard
-            title="Equipment Return History"
-            description="Recent equipment returns recorded from hard-copy forms."
+            title="Returned Equipments"
+            description="Log of used equipments that have been returned. These are not added back to Supply Master."
         >
             <TableFilters
                 v-model="filters"
                 :filters="filterConfig"
                 :has-active-filters="hasActiveFilters"
-                :result-count="filteredReturns.length"
+                :result-count="filteredReturnedEquipments.length"
                 @reset="resetFilters"
             />
 
-            <div v-if="loadingList" class="stock-op-empty">
-                <p class="text-sm text-[#4a6490]">Loading returns...</p>
+            <div v-if="loadingReturned" class="stock-op-empty">
+                <p class="text-sm text-[#4a6490]">Loading returned equipments...</p>
             </div>
 
-            <div v-else-if="!filteredReturns.length" class="stock-op-empty">
+            <div v-else-if="!filteredReturnedEquipments.length" class="stock-op-empty">
                 <p class="mt-3 text-sm font-medium text-[#00164d]">
-                    No equipment returns recorded yet
+                    No returned equipments yet
                 </p>
                 <p class="mt-1 text-xs text-[#4a6490]">
-                    Processed returns will appear here.
+                    Processed equipment returns will be listed here.
                 </p>
             </div>
 
             <div v-else class="obims-table-wrap">
                 <DataTable
-                    :value="filteredReturns"
+                    :value="filteredReturnedEquipments"
                     striped-rows
                     paginator
                     :rows="10"
                     class="rounded-md border border-[#a8b8d4]"
                 >
-                    <Column header="Date">
+                    <Column header="Ref. No.">
                         <template #body="{ data }">{{
-                            formatDate(data.date_returned)
+                            data.reference_number || "—"
+                        }}</template>
+                    </Column>
+                    <Column header="Property No.">
+                        <template #body="{ data }">{{
+                            propertyNumber(data)
+                        }}</template>
+                    </Column>
+                    <Column header="Inventory No.">
+                        <template #body="{ data }">{{
+                            inventoryNumber(data)
                         }}</template>
                     </Column>
                     <Column header="Equipment">
                         <template #body="{ data }">
                             <div>
                                 <p class="font-medium text-[#00164d]">
-                                    {{ data.equipment?.name || "—" }}
+                                    {{ equipmentName(data) }}
+                                    <span
+                                        v-if="!data.equipment_id"
+                                        class="ml-1 rounded bg-[#f2c94c] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#00164d]"
+                                        >Custom</span
+                                    >
                                 </p>
                                 <p class="text-xs text-[#4a6490]">
-                                    {{
-                                        data.equipment?.property_number ||
-                                        data.equipment?.barcode ||
-                                        "—"
-                                    }}
+                                    {{ equipmentCategory(data) }}
                                 </p>
                             </div>
                         </template>
+                    </Column>
+                    <Column header="Type">
+                        <template #body="{ data }">{{
+                            equipmentType(data)
+                        }}</template>
+                    </Column>
+                    <Column header="Qty">
+                        <template #body="{ data }">{{
+                            data.quantity ?? 0
+                        }}</template>
                     </Column>
                     <Column header="Department">
                         <template #body="{ data }">{{
                             data.department?.name || "—"
                         }}</template>
                     </Column>
-                    <Column field="quantity" header="Qty" />
                     <Column header="Returned By">
                         <template #body="{ data }">{{
                             borrowerName(data)
                         }}</template>
                     </Column>
-                    <Column header="Recorded By">
+                    <Column header="Date Returned">
                         <template #body="{ data }">{{
-                            data.returner?.name || "—"
+                            formatDate(data.date_returned)
                         }}</template>
                     </Column>
-                    <Column header="Remarks">
+                    <Column header="Condition / Remarks">
                         <template #body="{ data }">
                             <span class="text-sm text-[#4a6490]">{{
                                 data.reason || "—"
                             }}</span>
                         </template>
                     </Column>
+                    <Column header="Actions" style="width: 6rem">
+                        <template #body="{ data }">
+                            <UiButton
+                                variant="ghost"
+                                size="icon"
+                                title="View return details"
+                                @click="viewReturn(data)"
+                            >
+                                <svg
+                                    class="h-4 w-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    aria-hidden="true"
+                                >
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"
+                                    />
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                                    />
+                                </svg>
+                            </UiButton>
+                        </template>
+                    </Column>
                 </DataTable>
             </div>
         </UiCard>
+
+        <Dialog
+            v-model:visible="viewDialogVisible"
+            modal
+            header="Returned Equipment Details"
+            :style="{ width: '640px' }"
+        >
+            <div v-if="selectedReturn" class="space-y-4 pt-2 text-sm text-[#00164d]">
+                <div
+                    class="border border-[#a8b8d4] bg-[#f4f7fb] p-4"
+                >
+                    <div class="flex items-center gap-2">
+                        <p class="text-xs uppercase tracking-wide text-[#4a6490]">
+                            Equipment
+                        </p>
+                        <span
+                            v-if="!selectedReturn.equipment_id"
+                            class="rounded bg-[#f2c94c] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#00164d]"
+                            >Custom / Past Data</span
+                        >
+                    </div>
+                    <p class="mt-1 text-base font-semibold">
+                        {{ equipmentName(selectedReturn) }}
+                    </p>
+                    <p class="mt-0.5 text-xs text-[#4a6490]">
+                        {{ equipmentCategory(selectedReturn) }}
+                        <span v-if="equipmentType(selectedReturn) !== '—'">
+                            · {{ equipmentType(selectedReturn) }}
+                        </span>
+                    </p>
+                </div>
+
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div>
+                        <p class="text-xs uppercase tracking-wide text-[#4a6490]">
+                            Reference No.
+                        </p>
+                        <p class="mt-0.5 font-medium">
+                            {{ selectedReturn.reference_number || "—" }}
+                        </p>
+                    </div>
+                    <div>
+                        <p class="text-xs uppercase tracking-wide text-[#4a6490]">
+                            Property No.
+                        </p>
+                        <p class="mt-0.5 font-medium">
+                            {{ propertyNumber(selectedReturn) }}
+                        </p>
+                    </div>
+                    <div>
+                        <p class="text-xs uppercase tracking-wide text-[#4a6490]">
+                            Inventory No.
+                        </p>
+                        <p class="mt-0.5 font-medium">
+                            {{ inventoryNumber(selectedReturn) }}
+                        </p>
+                    </div>
+                    <div v-if="selectedReturn.equipment?.barcode">
+                        <p class="text-xs uppercase tracking-wide text-[#4a6490]">
+                            Barcode
+                        </p>
+                        <p class="mt-0.5 font-medium">
+                            {{ selectedReturn.equipment?.barcode || "—" }}
+                        </p>
+                    </div>
+                    <div>
+                        <p class="text-xs uppercase tracking-wide text-[#4a6490]">
+                            Quantity Returned
+                        </p>
+                        <p class="mt-0.5 font-medium">
+                            {{ selectedReturn.quantity ?? 0 }}
+                        </p>
+                    </div>
+                    <div>
+                        <p class="text-xs uppercase tracking-wide text-[#4a6490]">
+                            Department
+                        </p>
+                        <p class="mt-0.5 font-medium">
+                            {{ selectedReturn.department?.name || "—" }}
+                        </p>
+                    </div>
+                    <div>
+                        <p class="text-xs uppercase tracking-wide text-[#4a6490]">
+                            Returned By
+                        </p>
+                        <p class="mt-0.5 font-medium">
+                            {{ borrowerName(selectedReturn) }}
+                        </p>
+                    </div>
+                    <div>
+                        <p class="text-xs uppercase tracking-wide text-[#4a6490]">
+                            Recorded By
+                        </p>
+                        <p class="mt-0.5 font-medium">
+                            {{ selectedReturn.returner?.name || "—" }}
+                        </p>
+                    </div>
+                    <div>
+                        <p class="text-xs uppercase tracking-wide text-[#4a6490]">
+                            Date Returned
+                        </p>
+                        <p class="mt-0.5 font-medium">
+                            {{ formatDate(selectedReturn.date_returned) }}
+                        </p>
+                    </div>
+                </div>
+
+                <div>
+                    <p class="text-xs uppercase tracking-wide text-[#4a6490]">
+                        Condition / Remarks
+                    </p>
+                    <p
+                        class="mt-1 whitespace-pre-line border border-[#a8b8d4] bg-transparent p-3 text-sm text-[#4a6490]"
+                    >
+                        {{ selectedReturn.reason || "No remarks provided." }}
+                    </p>
+                </div>
+
+                <div
+                    v-if="selectedReturn.equipment?.specs || selectedReturn.equipment?.description"
+                    class="grid gap-4 sm:grid-cols-2"
+                >
+                    <div v-if="selectedReturn.equipment?.description">
+                        <p class="text-xs uppercase tracking-wide text-[#4a6490]">
+                            Description
+                        </p>
+                        <p class="mt-0.5 text-sm text-[#4a6490]">
+                            {{ selectedReturn.equipment.description }}
+                        </p>
+                    </div>
+                    <div v-if="selectedReturn.equipment?.specs">
+                        <p class="text-xs uppercase tracking-wide text-[#4a6490]">
+                            Specs
+                        </p>
+                        <p class="mt-0.5 text-sm text-[#4a6490]">
+                            {{ selectedReturn.equipment.specs }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <template #footer>
+                <UiButton variant="outline" @click="viewDialogVisible = false"
+                    >Close</UiButton
+                >
+            </template>
+        </Dialog>
     </div>
 </template>
 
@@ -227,9 +582,11 @@ import { computed, onMounted, reactive, ref, watch } from "vue";
 import Select from "primevue/select";
 import AutoComplete from "primevue/autocomplete";
 import InputNumber from "primevue/inputnumber";
+import InputText from "primevue/inputtext";
 import Textarea from "primevue/textarea";
 import DataTable from "primevue/datatable";
 import Column from "primevue/column";
+import Dialog from "primevue/dialog";
 import UiButton from "../../components/ui/UiButton.vue";
 import UiCard from "../../components/ui/UiCard.vue";
 import TableFilters from "../../components/TableFilters.vue";
@@ -241,17 +598,27 @@ const notify = useNotify();
 const departments = ref([]);
 const employees = ref([]);
 const equipmentRows = ref([]);
-const returns = ref([]);
+const returnedEquipments = ref([]);
 const loading = ref(false);
-const loadingList = ref(false);
+const loadingReturned = ref(false);
 const returnedByInput = ref(null);
 const borrowerSuggestions = ref([]);
+const viewDialogVisible = ref(false);
+const selectedReturn = ref(null);
 
 const form = reactive({
+    useCustom: false,
+    reference_number: "",
     equipment_id: null,
+    custom_equipment_name: "",
+    custom_property_number: "",
+    custom_inventory_number: "",
+    custom_equipment_type: "",
+    custom_equipment_category: "",
     department_id: null,
     quantity: 1,
     reason: "",
+    date_returned: "",
 });
 
 const equipments = computed(() =>
@@ -264,6 +631,12 @@ const equipments = computed(() =>
 const selectedEquipment = computed(() =>
     equipmentRows.value.find((row) => row.id === form.equipment_id) ?? null,
 );
+
+const todayIso = computed(() => {
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+});
 
 const employeeOptions = computed(() => {
     if (!form.department_id) {
@@ -284,7 +657,16 @@ const filterConfig = computed(() => [
         fields: [
             "equipment.name",
             "equipment.property_number",
+            "equipment.inventory_number",
             "equipment.barcode",
+            "equipment.type",
+            "equipment.category.name",
+            "custom_equipment_name",
+            "custom_property_number",
+            "custom_inventory_number",
+            "custom_equipment_type",
+            "custom_equipment_category",
+            "reference_number",
             "department.name",
             "borrower.name",
             "borrower_name",
@@ -296,10 +678,10 @@ const filterConfig = computed(() => [
 
 const {
     filters,
-    filteredItems: filteredReturns,
+    filteredItems: filteredReturnedEquipments,
     hasActiveFilters,
     resetFilters,
-} = useTableFilters(returns, filterConfig);
+} = useTableFilters(returnedEquipments, filterConfig);
 
 watch(
     () => form.department_id,
@@ -321,11 +703,61 @@ function searchBorrowers(event) {
 }
 
 function borrowerName(row) {
-    return row.borrower?.name || row.borrower_name || "—";
+    return row?.borrower?.name || row?.borrower_name || "—";
+}
+
+function equipmentName(row) {
+    return row?.equipment?.name || row?.custom_equipment_name || "—";
+}
+
+function equipmentCategory(row) {
+    return (
+        row?.equipment?.category?.name ||
+        row?.custom_equipment_category ||
+        "—"
+    );
+}
+
+function equipmentType(row) {
+    return row?.equipment?.type || row?.custom_equipment_type || "—";
+}
+
+function propertyNumber(row) {
+    return (
+        row?.equipment?.property_number ||
+        row?.custom_property_number ||
+        "—"
+    );
+}
+
+function inventoryNumber(row) {
+    return (
+        row?.equipment?.inventory_number ||
+        row?.custom_inventory_number ||
+        "—"
+    );
+}
+
+function viewReturn(row) {
+    selectedReturn.value = row;
+    viewDialogVisible.value = true;
 }
 
 function formatDate(value) {
     return value ? new Date(value).toLocaleString() : "—";
+}
+
+function setUseCustom(useCustom) {
+    form.useCustom = useCustom;
+    if (useCustom) {
+        form.equipment_id = null;
+    } else {
+        form.custom_equipment_name = "";
+        form.custom_property_number = "";
+        form.custom_inventory_number = "";
+        form.custom_equipment_type = "";
+        form.custom_equipment_category = "";
+    }
 }
 
 function resolveBorrowerPayload() {
@@ -347,19 +779,42 @@ function resolveBorrowerPayload() {
 }
 
 function resetForm() {
+    form.useCustom = false;
+    form.reference_number = "";
     form.equipment_id = null;
+    form.custom_equipment_name = "";
+    form.custom_property_number = "";
+    form.custom_inventory_number = "";
+    form.custom_equipment_type = "";
+    form.custom_equipment_category = "";
     form.department_id = null;
     form.quantity = 1;
     form.reason = "";
+    form.date_returned = "";
     returnedByInput.value = null;
     borrowerSuggestions.value = [];
 }
 
+function formatDateForPayload(value) {
+    if (!value) return null;
+    if (typeof value === "string") {
+        return /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value} 00:00:00` : value;
+    }
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
 async function submit() {
     const borrower = resolveBorrowerPayload();
+    const customName = (form.custom_equipment_name || "").trim();
+    const hasEquipment = form.useCustom
+        ? customName.length > 0
+        : !!form.equipment_id;
 
     if (
-        !form.equipment_id ||
+        !hasEquipment ||
         !form.department_id ||
         !form.quantity ||
         form.quantity < 1 ||
@@ -373,11 +828,29 @@ async function submit() {
 
     loading.value = true;
     try {
+        const payload = form.useCustom
+            ? {
+                  equipment_id: null,
+                  custom_equipment_name: customName,
+                  custom_property_number:
+                      (form.custom_property_number || "").trim() || null,
+                  custom_inventory_number:
+                      (form.custom_inventory_number || "").trim() || null,
+                  custom_equipment_type:
+                      (form.custom_equipment_type || "").trim() || null,
+                  custom_equipment_category:
+                      (form.custom_equipment_category || "").trim() || null,
+              }
+            : { equipment_id: form.equipment_id };
+
         await api.post("/returns", {
-            equipment_id: form.equipment_id,
+            ...payload,
+            reference_number:
+                (form.reference_number || "").trim() || null,
             department_id: form.department_id,
             quantity: form.quantity,
             reason: form.reason || null,
+            date_returned: formatDateForPayload(form.date_returned),
             ...borrower,
         });
         notify.success(
@@ -385,7 +858,7 @@ async function submit() {
             "Return completed",
         );
         resetForm();
-        await Promise.all([loadLookups(), loadReturns()]);
+        await Promise.all([loadLookups(), loadReturnedEquipments()]);
     } catch (error) {
         notify.error(
             error.response?.data?.message || "Unable to process return.",
@@ -414,22 +887,23 @@ async function loadLookups() {
     }
 }
 
-async function loadReturns() {
-    loadingList.value = true;
+async function loadReturnedEquipments() {
+    loadingReturned.value = true;
     try {
-        const { data } = await api.get("/returns/list");
-        returns.value = data.data ?? data;
+        const { data } = await api.get("/returns/returned-equipments");
+        returnedEquipments.value = data ?? [];
     } catch (error) {
         notify.error(
-            error.response?.data?.message || "Unable to load returns.",
+            error.response?.data?.message ||
+                "Unable to load returned equipments.",
         );
     } finally {
-        loadingList.value = false;
+        loadingReturned.value = false;
     }
 }
 
 onMounted(async () => {
     await loadLookups();
-    await loadReturns();
+    await loadReturnedEquipments();
 });
 </script>

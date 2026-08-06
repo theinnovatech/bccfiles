@@ -26,6 +26,16 @@
                     @input="update(filter.key, $event.target.value)"
                 />
 
+                <input
+                    v-else-if="filter.type === 'date'"
+                    :value="modelValue[filter.key]"
+                    type="date"
+                    class="shadcn-input"
+                    :max="filter.max || undefined"
+                    :min="filter.min || undefined"
+                    @input="update(filter.key, $event.target.value)"
+                />
+
                 <select
                     v-else-if="filter.type === 'select' || filter.type === 'boolean' || filter.type === 'custom'"
                     :value="modelValue[filter.key]"

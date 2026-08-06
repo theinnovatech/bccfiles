@@ -445,6 +445,20 @@ const filterConfig = computed(() => [
             "issuer.name",
         ],
     },
+    {
+        key: "dateFrom",
+        type: "date",
+        label: "Date From",
+        field: "issued_date",
+        mode: "from",
+    },
+    {
+        key: "dateTo",
+        type: "date",
+        label: "Date To",
+        field: "issued_date",
+        mode: "to",
+    },
 ]);
 
 const {

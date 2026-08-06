@@ -13,9 +13,15 @@ class ItemReturn extends Model
     protected $table = 'returns';
 
     protected $fillable = [
+        'reference_number',
         'issuance_id',
         'item_id',
         'equipment_id',
+        'custom_equipment_name',
+        'custom_property_number',
+        'custom_inventory_number',
+        'custom_equipment_type',
+        'custom_equipment_category',
         'department_id',
         'borrower_employee_id',
         'borrower_name',

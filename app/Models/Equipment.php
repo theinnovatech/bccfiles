@@ -23,6 +23,7 @@ class Equipment extends Model
         'quantity',
         'life_span_years',
         'specs',
+        'source_return_id',
     ];
 
     protected function casts(): array
@@ -36,5 +37,10 @@ class Equipment extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(EquipmentCategory::class, 'equipment_category_id');
+    }
+
+    public function sourceReturn(): BelongsTo
+    {
+        return $this->belongsTo(ItemReturn::class, 'source_return_id');
     }
 }
