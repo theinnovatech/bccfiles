@@ -143,7 +143,10 @@ Route::middleware('auth')->group(function () {
     });
 
     Route::middleware('staff_or_page:person-lookup')->group(function () {
+        Route::get('/lookups/suggestions', [PersonLookupController::class, 'suggestions']);
         Route::get('/lookups/by-person', [PersonLookupController::class, 'show']);
+        Route::get('/lookups/by-item', [PersonLookupController::class, 'byItem']);
+        Route::get('/lookups/by-equipment', [PersonLookupController::class, 'byEquipment']);
     });
 
     Route::middleware('staff_or_page:activity-logs')->group(function () {

@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Employee;
+use App\Models\Equipment;
 use App\Models\Issuance;
+use App\Models\Item;
 use App\Models\ItemReturn;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -11,6 +13,100 @@ use Illuminate\Support\Collection;
 
 class PersonLookupController extends Controller
 {
+    public function suggestions(Request $request): JsonResponse
+    {
+        $query = trim((string) $request->query('q', ''));
+        if ($query === '') {
+            return response()->json([]);
+        }
+
+        $like = '%'.$query.'%';
+        $results = [];
+
+        Employee::query()
+            ->with('department')
+            ->where(function ($q) use ($like) {
+                $q->where('name', 'like', $like)
+                    ->orWhere('employee_number', 'like', $like);
+            })
+            ->orderBy('name')
+            ->limit(10)
+            ->get()
+            ->each(function (Employee $employee) use (&$results) {
+                $subtitle = collect([
+                    $employee->employee_number ? 'ID: '.$employee->employee_number : null,
+                    $employee->department?->name,
+                    $employee->position,
+                ])->filter()->implode(' · ');
+
+                $results[] = [
+                    'type' => 'person',
+                    'key' => 'person:'.$employee->id,
+                    'employee_id' => $employee->id,
+                    'name' => $employee->name,
+                    'label' => $employee->name,
+                    'subtitle' => $subtitle,
+                ];
+            });
+
+        Item::query()
+            ->with('unit')
+            ->where(function ($q) use ($like) {
+                $q->where('item_name', 'like', $like)
+                    ->orWhere('barcode', 'like', $like)
+                    ->orWhere('item_number', 'like', $like)
+                    ->orWhere('inventory_number', 'like', $like);
+            })
+            ->orderBy('item_name')
+            ->limit(10)
+            ->get()
+            ->each(function (Item $item) use (&$results) {
+                $subtitle = collect([
+                    $item->barcode ? 'Barcode: '.$item->barcode : null,
+                    $item->unit?->abbreviation ?? $item->unit?->name,
+                ])->filter()->implode(' · ');
+
+                $results[] = [
+                    'type' => 'item',
+                    'key' => 'item:'.$item->id,
+                    'item_id' => $item->id,
+                    'name' => $item->item_name,
+                    'label' => $item->item_name,
+                    'subtitle' => $subtitle,
+                ];
+            });
+
+        Equipment::query()
+            ->with('category')
+            ->where(function ($q) use ($like) {
+                $q->where('name', 'like', $like)
+                    ->orWhere('property_number', 'like', $like)
+                    ->orWhere('inventory_number', 'like', $like)
+                    ->orWhere('barcode', 'like', $like);
+            })
+            ->orderBy('name')
+            ->limit(10)
+            ->get()
+            ->each(function (Equipment $equipment) use (&$results) {
+                $subtitle = collect([
+                    $equipment->property_number ? 'Property: '.$equipment->property_number : null,
+                    $equipment->category?->name,
+                    $equipment->type,
+                ])->filter()->implode(' · ');
+
+                $results[] = [
+                    'type' => 'equipment',
+                    'key' => 'equipment:'.$equipment->id,
+                    'equipment_id' => $equipment->id,
+                    'name' => $equipment->name,
+                    'label' => $equipment->name,
+                    'subtitle' => $subtitle,
+                ];
+            });
+
+        return response()->json($results);
+    }
+
     public function show(Request $request): JsonResponse
     {
         $data = $request->validate([
@@ -95,7 +191,8 @@ class PersonLookupController extends Controller
                 ?? 'Unknown'));
 
         return response()->json([
-            'person' => [
+            'target' => [
+                'type' => 'person',
                 'employee_id' => $employee?->id,
                 'name' => $displayName,
                 'employee_number' => $employee?->employee_number,
@@ -116,6 +213,141 @@ class PersonLookupController extends Controller
             'equipment_borrowed' => $equipmentBorrowed->values(),
             'equipment_returned' => $equipmentReturned->values(),
             'equipment_outstanding' => $equipmentOutstanding->values(),
+        ]);
+    }
+
+    public function byItem(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'item_id' => ['required', 'integer', 'exists:items,id'],
+        ]);
+
+        $item = Item::query()->with(['unit', 'category'])->findOrFail($data['item_id']);
+
+        $issuances = Issuance::query()
+            ->with([
+                'department',
+                'receiver',
+                'details' => fn ($q) => $q->where('item_id', $item->id),
+                'details.item.unit',
+            ])
+            ->whereHas('details', fn ($q) => $q->where('item_id', $item->id))
+            ->orderByDesc('issued_date')
+            ->get();
+
+        $recipients = $issuances->flatMap(function (Issuance $issuance) use ($item) {
+            return $issuance->details
+                ->filter(fn ($detail) => (int) $detail->item_id === (int) $item->id)
+                ->map(fn ($detail) => [
+                    'issuance_number' => $issuance->issuance_number,
+                    'issued_date' => optional($issuance->issued_date)?->toDateString(),
+                    'person_name' => $issuance->receiver?->name
+                        ?? $issuance->received_by_name
+                        ?? '—',
+                    'department' => $issuance->department?->name ?? '—',
+                    'barcode' => $detail->barcode ?: ($item->barcode ?? '—'),
+                    'quantity' => (int) $detail->quantity,
+                    'unit' => $item->unit?->abbreviation ?? $item->unit?->name ?? '—',
+                ]);
+        })->values();
+
+        return response()->json([
+            'target' => [
+                'type' => 'item',
+                'name' => $item->item_name,
+                'barcode' => $item->barcode,
+                'item_number' => $item->item_number,
+                'inventory_number' => $item->inventory_number,
+                'category' => $item->category?->name,
+                'unit' => $item->unit?->abbreviation ?? $item->unit?->name,
+                'current_stock' => (int) $item->current_stock,
+            ],
+            'summary' => [
+                'total_quantity_issued' => (int) $recipients->sum('quantity'),
+                'unique_recipients' => $recipients
+                    ->pluck('person_name')
+                    ->filter(fn ($n) => $n && $n !== '—')
+                    ->unique()
+                    ->count(),
+                'issuance_records' => $issuances->count(),
+            ],
+            'recipients' => $recipients,
+        ]);
+    }
+
+    public function byEquipment(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'equipment_id' => ['required', 'integer', 'exists:equipments,id'],
+        ]);
+
+        $equipment = Equipment::query()->with('category')->findOrFail($data['equipment_id']);
+
+        $issuances = Issuance::query()
+            ->with([
+                'department',
+                'receiver',
+                'details' => fn ($q) => $q->where('equipment_id', $equipment->id),
+            ])
+            ->whereHas('details', fn ($q) => $q->where('equipment_id', $equipment->id))
+            ->orderByDesc('issued_date')
+            ->get();
+
+        $borrowers = $issuances->flatMap(function (Issuance $issuance) use ($equipment) {
+            return $issuance->details
+                ->filter(fn ($detail) => (int) $detail->equipment_id === (int) $equipment->id)
+                ->map(fn ($detail) => [
+                    'issuance_number' => $issuance->issuance_number,
+                    'issued_date' => optional($issuance->issued_date)?->toDateString(),
+                    'person_name' => $issuance->receiver?->name
+                        ?? $issuance->received_by_name
+                        ?? '—',
+                    'department' => $issuance->department?->name ?? '—',
+                    'quantity' => (int) $detail->quantity,
+                ]);
+        })->values();
+
+        $returnsRaw = ItemReturn::query()
+            ->with(['department', 'borrower'])
+            ->where('equipment_id', $equipment->id)
+            ->orderByDesc('date_returned')
+            ->get();
+
+        $returns = $returnsRaw->map(fn (ItemReturn $return) => [
+            'date_returned' => optional($return->date_returned)?->toDateString(),
+            'person_name' => $return->borrower?->name
+                ?? $return->borrower_name
+                ?? '—',
+            'department' => $return->department?->name ?? '—',
+            'quantity' => (int) $return->quantity,
+            'remarks' => $return->reason,
+        ])->values();
+
+        $issued = (int) $borrowers->sum('quantity');
+        $returned = (int) $returns->sum('quantity');
+
+        return response()->json([
+            'target' => [
+                'type' => 'equipment',
+                'name' => $equipment->name,
+                'property_number' => $equipment->property_number,
+                'inventory_number' => $equipment->inventory_number,
+                'barcode' => $equipment->barcode,
+                'category' => $equipment->category?->name,
+                'type_label' => $equipment->type,
+            ],
+            'summary' => [
+                'total_issued' => $issued,
+                'total_returned' => $returned,
+                'outstanding' => max(0, $issued - $returned),
+                'unique_borrowers' => $borrowers
+                    ->pluck('person_name')
+                    ->filter(fn ($n) => $n && $n !== '—')
+                    ->unique()
+                    ->count(),
+            ],
+            'borrowers' => $borrowers,
+            'returns' => $returns,
         ]);
     }
 
