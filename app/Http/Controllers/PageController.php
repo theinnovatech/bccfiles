@@ -38,7 +38,8 @@ class PageController extends Controller
             'locations' => 'Storage Locations',
             'issuance' => 'Item Issuance',
             'returns' => 'Equipment Returns',
-            'person-lookup' => 'Person Lookup',
+            'person-lookup' => 'Records Lookup',
+            'catalog-details' => 'Catalog Details',
             'departments' => 'Departments',
             'employees' => 'Employees',
             'reports' => 'Reports',
@@ -48,6 +49,7 @@ class PageController extends Controller
             'users' => 'Admin Accounts',
             'deleted-data' => 'Deleted Data',
             'backup-files' => 'Backup Files',
+            'profile' => 'My Profile',
             default => 'OBIMS',
         };
     }

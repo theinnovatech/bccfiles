@@ -20,6 +20,7 @@
                 ['label' => 'Estimated Stock', 'url' => '/inventory/predictions', 'icon' => 'chart-line', 'page' => 'inventory.predictions', 'roles' => ['admin', 'supply_officer']],
                 ['label' => 'Stock Operations', 'url' => '/stock/operations', 'icon' => 'barcode', 'page' => 'stock.operations', 'roles' => ['admin', 'supply_officer']],
                 ['label' => 'Registration', 'url' => '/stock/registration', 'icon' => 'plus-square', 'page' => 'stock.registration', 'roles' => ['admin', 'supply_officer']],
+                ['label' => 'Catalog Details', 'url' => '/catalog-details', 'icon' => 'search', 'page' => 'catalog-details', 'roles' => ['admin', 'supply_officer']],
             ],
         ],
         [
@@ -27,7 +28,7 @@
             'items' => [
                 ['label' => 'Item Issuance', 'url' => '/issuance', 'icon' => 'send', 'page' => 'issuance', 'roles' => ['admin', 'supply_officer']],
                 ['label' => 'Equipment Returns', 'url' => '/returns', 'icon' => 'replay', 'page' => 'returns', 'roles' => ['admin', 'supply_officer']],
-                ['label' => 'Person Lookup', 'url' => '/person-lookup', 'icon' => 'search', 'page' => 'person-lookup', 'roles' => ['admin', 'supply_officer']],
+                ['label' => 'Records Lookup', 'url' => '/person-lookup', 'icon' => 'search', 'page' => 'person-lookup', 'roles' => ['admin', 'supply_officer']],
             ],
         ],
         [

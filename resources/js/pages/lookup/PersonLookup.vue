@@ -8,9 +8,31 @@
                     Records Lookup
                 </h3>
                 <p class="mt-1 text-sm text-[#4a6490]">
-                    Search a person, item, or equipment to see related issuance
-                    and return history.
+                    Choose a lookup type, then search for related issuance and
+                    return history.
                 </p>
+
+                <div class="mt-4 grid gap-2 sm:grid-cols-3">
+                    <button
+                        v-for="tab in lookupTabs"
+                        :key="tab.key"
+                        type="button"
+                        class="stock-op-tab-card"
+                        :class="{
+                            'stock-op-tab-card-active':
+                                activeLookup === tab.key,
+                        }"
+                        @click="setLookupType(tab.key)"
+                    >
+                        <span class="stock-op-tab-icon" aria-hidden="true">
+                            <component :is="tab.icon" />
+                        </span>
+                        <span class="stock-op-tab-label">{{ tab.label }}</span>
+                        <span class="stock-op-tab-desc">{{
+                            tab.description
+                        }}</span>
+                    </button>
+                </div>
 
                 <form
                     class="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start"
@@ -19,8 +41,9 @@
                     <div>
                         <label
                             class="mb-1 block text-sm font-medium text-[#00164d]"
-                            >Search by person, item, or equipment</label
                         >
+                            {{ activeMeta.searchLabel }}
+                        </label>
                         <AutoComplete
                             v-model="searchInput"
                             :suggestions="groupedSuggestions"
@@ -29,7 +52,7 @@
                             optionLabel="label"
                             dropdown
                             :forceSelection="false"
-                            placeholder="Type a name, item, barcode, or property number..."
+                            :placeholder="activeMeta.placeholder"
                             class="w-full"
                             inputClass="w-full"
                             :delay="250"
@@ -66,14 +89,12 @@
                             <template #empty>
                                 <div class="p-3 text-sm text-[#4a6490]">
                                     No matches found. Press "Look up" to search
-                                    by name.
+                                    with what you typed.
                                 </div>
                             </template>
                         </AutoComplete>
                         <p class="mt-1 text-xs text-[#4a6490]">
-                            Suggestions include employees, items (by name or
-                            barcode), and equipment (by name, property, or
-                            inventory number).
+                            {{ activeMeta.helpText }}
                         </p>
                     </div>
                     <div>
@@ -91,20 +112,76 @@
                         </UiButton>
                     </div>
                 </form>
+
+                <div
+                    v-if="filteredRecentLookups.length"
+                    class="mt-4 border border-[#a8b8d4] bg-transparent p-3"
+                >
+                    <div
+                        class="mb-2 flex flex-wrap items-center justify-between gap-2"
+                    >
+                        <div>
+                            <p
+                                class="text-sm font-semibold text-[#00164d]"
+                            >
+                                Recent Lookups
+                            </p>
+                            <p class="text-xs text-[#4a6490]">
+                                Click a recent
+                                {{ activeMeta.groupLabel.toLowerCase() }}
+                                lookup to open it again.
+                            </p>
+                        </div>
+                        <UiButton
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            @click="clearRecentLookups"
+                        >
+                            Clear
+                        </UiButton>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-x-2 gap-y-2">
+                        <template
+                            v-for="(entry, index) in filteredRecentLookups"
+                            :key="entry.key"
+                        >
+                            <span
+                                v-if="index > 0"
+                                class="recent-lookup-separator"
+                                aria-hidden="true"
+                                >|</span
+                            >
+                            <button
+                                type="button"
+                                class="recent-lookup-link"
+                                :disabled="loading"
+                                @click="openRecentLookup(entry)"
+                            >
+                                <span class="recent-lookup-link-label">{{
+                                    entry.label
+                                }}</span>
+                                <span
+                                    v-if="entry.subtitle"
+                                    class="recent-lookup-link-sub"
+                                >
+                                    — {{ entry.subtitle }}
+                                </span>
+                            </button>
+                        </template>
+                    </div>
+                </div>
             </div>
 
             <div class="stock-op-content space-y-6 p-4 sm:p-6">
                 <div v-if="!hasSearched" class="stock-op-empty">
                     <p class="text-sm text-[#4a6490]">
-                        Start typing above to search for a person, item, or
-                        equipment.
+                        {{ activeMeta.emptyText }}
                     </p>
                 </div>
 
                 <!-- PERSON MODE -->
-                <template
-                    v-else-if="result.target?.type === 'person'"
-                >
+                <template v-else-if="result.target?.type === 'person'">
                     <div class="border border-[#a8b8d4] bg-transparent p-4">
                         <div
                             class="flex flex-wrap items-start justify-between gap-3"
@@ -265,8 +342,8 @@
                                 Still outstanding
                             </h4>
                             <p class="text-xs text-[#4a6490]">
-                                Equipment issued to them that has not been
-                                fully returned yet.
+                                Equipment issued to them that has not been fully
+                                returned yet.
                             </p>
                         </div>
                         <div
@@ -368,11 +445,11 @@
                 </template>
 
                 <!-- ITEM MODE -->
-                <template
-                    v-else-if="result.target?.type === 'item'"
-                >
+                <template v-else-if="result.target?.type === 'item'">
                     <div class="border border-[#a8b8d4] bg-transparent p-4">
-                        <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div
+                            class="flex flex-wrap items-start justify-between gap-3"
+                        >
                             <div>
                                 <p
                                     class="text-xs font-medium uppercase tracking-wide text-[#4a6490]"
@@ -399,7 +476,9 @@
                             </div>
                         </div>
 
-                        <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                        <div
+                            class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+                        >
                             <div
                                 v-for="card in itemSummaryCards"
                                 :key="card.label"
@@ -472,11 +551,11 @@
                 </template>
 
                 <!-- EQUIPMENT MODE -->
-                <template
-                    v-else-if="result.target?.type === 'equipment'"
-                >
+                <template v-else-if="result.target?.type === 'equipment'">
                     <div class="border border-[#a8b8d4] bg-transparent p-4">
-                        <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div
+                            class="flex flex-wrap items-start justify-between gap-3"
+                        >
                             <div>
                                 <p
                                     class="text-xs font-medium uppercase tracking-wide text-[#4a6490]"
@@ -489,11 +568,15 @@
                                     {{ result.target?.name || "—" }}
                                 </h4>
                                 <p class="mt-1 text-sm text-[#4a6490]">
-                                    <span v-if="result.target?.property_number">
+                                    <span
+                                        v-if="result.target?.property_number"
+                                    >
                                         Property:
                                         {{ result.target.property_number }} ·
                                     </span>
-                                    <span v-if="result.target?.inventory_number">
+                                    <span
+                                        v-if="result.target?.inventory_number"
+                                    >
                                         Inventory:
                                         {{ result.target.inventory_number }} ·
                                     </span>
@@ -507,7 +590,9 @@
                             </div>
                         </div>
 
-                        <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                        <div
+                            class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+                        >
                             <div
                                 v-for="card in equipmentSummaryCards"
                                 :key="card.label"
@@ -633,7 +718,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from "vue";
+import { computed, h, onMounted, ref, watch } from "vue";
 import AutoComplete from "primevue/autocomplete";
 import DataTable from "primevue/datatable";
 import Column from "primevue/column";
@@ -642,17 +727,144 @@ import { useNotify } from "../../composables/useNotify";
 import api from "../../services/api";
 
 const notify = useNotify();
+const RECENT_LOOKUPS_KEY = "obims.recentLookups";
+const MAX_RECENT_LOOKUPS = 8;
 
+const IconPerson = {
+    render() {
+        return h(
+            "svg",
+            {
+                fill: "none",
+                viewBox: "0 0 24 24",
+                stroke: "currentColor",
+                "stroke-width": "2",
+            },
+            [
+                h("path", {
+                    "stroke-linecap": "round",
+                    "stroke-linejoin": "round",
+                    d: "M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z",
+                }),
+            ],
+        );
+    },
+};
+
+const IconItems = {
+    render() {
+        return h(
+            "svg",
+            {
+                fill: "none",
+                viewBox: "0 0 24 24",
+                stroke: "currentColor",
+                "stroke-width": "2",
+            },
+            [
+                h("path", {
+                    "stroke-linecap": "round",
+                    "stroke-linejoin": "round",
+                    d: "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4",
+                }),
+            ],
+        );
+    },
+};
+
+const IconEquipments = {
+    render() {
+        return h(
+            "svg",
+            {
+                fill: "none",
+                viewBox: "0 0 24 24",
+                stroke: "currentColor",
+                "stroke-width": "2",
+            },
+            [
+                h("path", {
+                    "stroke-linecap": "round",
+                    "stroke-linejoin": "round",
+                    d: "M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5",
+                }),
+            ],
+        );
+    },
+};
+
+const lookupTabs = [
+    {
+        key: "person",
+        label: "Person",
+        description: "Issuance and return history by employee",
+        icon: IconPerson,
+    },
+    {
+        key: "item",
+        label: "Items",
+        description: "Who received a supply item",
+        icon: IconItems,
+    },
+    {
+        key: "equipment",
+        label: "Equipment",
+        description: "Borrowers and return history by property",
+        icon: IconEquipments,
+    },
+];
+
+const lookupMeta = {
+    person: {
+        searchLabel: "Search by employee name or ID",
+        placeholder: "Type a name or employee number...",
+        helpText: "Shows items received, equipment borrowed, outstanding, and returns for that person.",
+        emptyText: "Start typing above to look up a person.",
+        groupLabel: "People",
+    },
+    item: {
+        searchLabel: "Search by item name or barcode",
+        placeholder: "Type an item name, barcode, or item number...",
+        helpText: "Shows who received this consumable/supply item and how much was issued.",
+        emptyText: "Start typing above to look up an item.",
+        groupLabel: "Items",
+    },
+    equipment: {
+        searchLabel: "Search by equipment name or property number",
+        placeholder: "Type a name, property, inventory, or barcode...",
+        helpText: "Shows borrowers and return history for this property-tagged equipment.",
+        emptyText: "Start typing above to look up equipment.",
+        groupLabel: "Equipment",
+    },
+};
+
+const activeLookup = ref("person");
 const searchInput = ref(null);
 const rawSuggestions = ref([]);
 const loading = ref(false);
 const hasSearched = ref(false);
-
 const result = ref({});
+const recentLookups = ref([]);
+
+const activeMeta = computed(
+    () => lookupMeta[activeLookup.value] || lookupMeta.person,
+);
+
+const filteredRecentLookups = computed(() =>
+    recentLookups.value.filter((entry) => entry.type === activeLookup.value),
+);
 
 function clearResults() {
     hasSearched.value = false;
     result.value = {};
+}
+
+function setLookupType(type) {
+    if (activeLookup.value === type) return;
+    activeLookup.value = type;
+    searchInput.value = null;
+    rawSuggestions.value = [];
+    clearResults();
 }
 
 watch(searchInput, (value) => {
@@ -663,20 +875,11 @@ watch(searchInput, (value) => {
 });
 
 const groupedSuggestions = computed(() => {
-    const groups = { person: [], item: [], equipment: [] };
-    for (const suggestion of rawSuggestions.value) {
-        if (groups[suggestion.type]) {
-            groups[suggestion.type].push(suggestion);
-        }
-    }
-    const output = [];
-    if (groups.person.length)
-        output.push({ group: "People", items: groups.person });
-    if (groups.item.length)
-        output.push({ group: "Items", items: groups.item });
-    if (groups.equipment.length)
-        output.push({ group: "Equipment", items: groups.equipment });
-    return output;
+    const items = rawSuggestions.value.filter(
+        (suggestion) => suggestion.type === activeLookup.value,
+    );
+    if (!items.length) return [];
+    return [{ group: activeMeta.value.groupLabel, items }];
 });
 
 const personSummaryCards = computed(() => [
@@ -736,6 +939,104 @@ const equipmentSummaryCards = computed(() => [
     },
 ]);
 
+function loadRecentLookups() {
+    try {
+        const raw = localStorage.getItem(RECENT_LOOKUPS_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        recentLookups.value = Array.isArray(parsed) ? parsed : [];
+    } catch {
+        recentLookups.value = [];
+    }
+}
+
+function persistRecentLookups() {
+    localStorage.setItem(
+        RECENT_LOOKUPS_KEY,
+        JSON.stringify(recentLookups.value.slice(0, MAX_RECENT_LOOKUPS)),
+    );
+}
+
+function buildRecentEntry(option, target) {
+    const type = target?.type || option.type;
+    const name = target?.name || option.name || option.label || option.q || "";
+    const employeeId = target?.employee_id ?? option.employee_id ?? null;
+    const itemId = target?.item_id ?? option.item_id ?? null;
+    const equipmentId = target?.equipment_id ?? option.equipment_id ?? null;
+
+    let subtitle = option.subtitle || "";
+    if (!subtitle && type === "person") {
+        subtitle = [
+            target?.employee_number ? `ID: ${target.employee_number}` : null,
+            target?.department,
+        ]
+            .filter(Boolean)
+            .join(" · ");
+    } else if (!subtitle && type === "item") {
+        subtitle = [
+            target?.barcode ? `Barcode: ${target.barcode}` : null,
+            target?.item_number || null,
+            target?.unit || null,
+        ]
+            .filter(Boolean)
+            .join(" · ");
+    } else if (!subtitle && type === "equipment") {
+        subtitle = [
+            target?.property_number
+                ? `Property: ${target.property_number}`
+                : null,
+            target?.category || null,
+        ]
+            .filter(Boolean)
+            .join(" · ");
+    }
+
+    const keyParts = [type, employeeId, itemId, equipmentId, name.toLowerCase()];
+    return {
+        key: keyParts.filter((part) => part !== null && part !== undefined && part !== "").join(":"),
+        type,
+        label: name,
+        subtitle,
+        employee_id: employeeId,
+        item_id: itemId,
+        equipment_id: equipmentId,
+        name,
+        looked_up_at: new Date().toISOString(),
+    };
+}
+
+function rememberLookup(option, target) {
+    const entry = buildRecentEntry(option, target);
+    if (!entry.label) return;
+
+    recentLookups.value = [
+        entry,
+        ...recentLookups.value.filter((row) => row.key !== entry.key),
+    ].slice(0, MAX_RECENT_LOOKUPS);
+
+    persistRecentLookups();
+}
+
+function clearRecentLookups() {
+    recentLookups.value = recentLookups.value.filter(
+        (entry) => entry.type !== activeLookup.value,
+    );
+    persistRecentLookups();
+}
+
+function openRecentLookup(entry) {
+    activeLookup.value = entry.type;
+    searchInput.value = {
+        type: entry.type,
+        label: entry.label,
+        name: entry.name,
+        subtitle: entry.subtitle,
+        employee_id: entry.employee_id,
+        item_id: entry.item_id,
+        equipment_id: entry.equipment_id,
+    };
+    lookupBy(searchInput.value);
+}
+
 let searchAbort = null;
 
 async function onComplete(event) {
@@ -750,7 +1051,7 @@ async function onComplete(event) {
 
     try {
         const { data } = await api.get("/lookups/suggestions", {
-            params: { q: query },
+            params: { q: query, type: activeLookup.value },
             signal: searchAbort.signal,
         });
         rawSuggestions.value = Array.isArray(data) ? data : [];
@@ -764,6 +1065,9 @@ async function onComplete(event) {
 function onItemSelect(event) {
     const option = event.value;
     if (option && typeof option === "object" && option.type) {
+        if (option.type !== activeLookup.value) {
+            activeLookup.value = option.type;
+        }
         lookupBy(option);
     }
 }
@@ -774,13 +1078,23 @@ async function lookup() {
         return;
     }
 
-    const name = String(searchInput.value || "").trim();
-    if (!name) {
-        notify.error("Type a name, item, or equipment to search.");
+    const query = String(searchInput.value || "").trim();
+    if (!query) {
+        notify.error(activeMeta.value.placeholder);
         return;
     }
 
-    await lookupBy({ type: "person", name });
+    if (activeLookup.value === "person") {
+        await lookupBy({ type: "person", name: query });
+        return;
+    }
+
+    if (activeLookup.value === "item") {
+        await lookupBy({ type: "item", q: query });
+        return;
+    }
+
+    await lookupBy({ type: "equipment", q: query });
 }
 
 async function lookupBy(option) {
@@ -796,11 +1110,17 @@ async function lookupBy(option) {
             });
         } else if (option.type === "item") {
             response = await api.get("/lookups/by-item", {
-                params: { item_id: option.item_id },
+                params: {
+                    item_id: option.item_id ?? undefined,
+                    q: option.q ?? option.name ?? undefined,
+                },
             });
         } else if (option.type === "equipment") {
             response = await api.get("/lookups/by-equipment", {
-                params: { equipment_id: option.equipment_id },
+                params: {
+                    equipment_id: option.equipment_id ?? undefined,
+                    q: option.q ?? option.name ?? undefined,
+                },
             });
         } else {
             notify.error("Unsupported search target.");
@@ -809,6 +1129,10 @@ async function lookupBy(option) {
 
         result.value = response.data ?? {};
         hasSearched.value = true;
+        if (result.value.target?.type) {
+            activeLookup.value = result.value.target.type;
+        }
+        rememberLookup(option, result.value.target);
     } catch (error) {
         notify.error(
             error.response?.data?.message || "Unable to complete the lookup.",
@@ -817,4 +1141,85 @@ async function lookupBy(option) {
         loading.value = false;
     }
 }
+
+onMounted(async () => {
+    loadRecentLookups();
+
+    const params = new URLSearchParams(window.location.search);
+    const type = params.get("type");
+    if (type !== "person" && type !== "item" && type !== "equipment") {
+        return;
+    }
+
+    activeLookup.value = type;
+
+    const option = {
+        type,
+        label: params.get("name") || "",
+        name: params.get("name") || undefined,
+        employee_id: params.get("employee_id")
+            ? Number(params.get("employee_id"))
+            : undefined,
+        item_id: params.get("item_id") ? Number(params.get("item_id")) : undefined,
+        equipment_id: params.get("equipment_id")
+            ? Number(params.get("equipment_id"))
+            : undefined,
+    };
+
+    const hasTarget =
+        (type === "person" && (option.employee_id || option.name)) ||
+        (type === "item" && (option.item_id || option.name)) ||
+        (type === "equipment" && (option.equipment_id || option.name));
+
+    if (!hasTarget) {
+        return;
+    }
+
+    searchInput.value = {
+        ...option,
+        label: option.label || option.name || `${type} lookup`,
+    };
+    await lookupBy(option);
+});
 </script>
+
+<style scoped>
+.recent-lookup-separator {
+    color: #a8b8d4;
+    font-size: 0.875rem;
+    user-select: none;
+}
+
+.recent-lookup-link {
+    display: inline;
+    max-width: 100%;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    text-align: left;
+    color: #001f6b;
+    transition: color 0.15s ease, opacity 0.15s ease;
+}
+
+.recent-lookup-link:hover:not(:disabled) {
+    color: #0033a0;
+    text-decoration: underline;
+}
+
+.recent-lookup-link:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.recent-lookup-link-label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: inherit;
+}
+
+.recent-lookup-link-sub {
+    font-size: 0.8125rem;
+    font-weight: 400;
+    color: #4a6490;
+}
+</style>

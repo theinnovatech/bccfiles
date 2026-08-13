@@ -95,7 +95,8 @@
                 </div>
                 <div>
                     <label class="mb-1 block text-sm font-medium text-[#00164d]"
-                        >Item Name</label
+                        >Item Name
+                        <span class="text-[#ce1126]">*</span></label
                     >
                     <InputText
                         v-model="form.item_name"
@@ -111,7 +112,8 @@
                 </div>
                 <div>
                     <label class="mb-1 block text-sm font-medium text-[#00164d]"
-                        >Category</label
+                        >Category
+                        <span class="text-[#ce1126]">*</span></label
                     >
                     <Select
                         v-model="form.category_id"
@@ -119,11 +121,13 @@
                         optionLabel="name"
                         optionValue="id"
                         class="w-full"
+                        placeholder="Select category"
                     />
                 </div>
                 <div>
                     <label class="mb-1 block text-sm font-medium text-[#00164d]"
-                        >Unit</label
+                        >Unit
+                        <span class="text-[#ce1126]">*</span></label
                     >
                     <Select
                         v-model="form.unit_id"
@@ -131,11 +135,13 @@
                         optionLabel="name"
                         optionValue="id"
                         class="w-full"
+                        placeholder="Select unit"
                     />
                 </div>
                 <div>
                     <label class="mb-1 block text-sm font-medium text-[#00164d]"
-                        >Storage Location</label
+                        >Storage Location
+                        <span class="text-[#ce1126]">*</span></label
                     >
                     <Select
                         v-model="form.location_id"
@@ -143,11 +149,13 @@
                         optionLabel="name"
                         optionValue="id"
                         class="w-full"
+                        placeholder="Select location"
                     />
                 </div>
                 <div>
                     <label class="mb-1 block text-sm font-medium text-[#00164d]"
-                        >Minimum Stock</label
+                        >Minimum Stock
+                        <span class="text-[#ce1126]">*</span></label
                     >
                     <InputNumber
                         v-model="form.minimum_stock"
@@ -302,6 +310,11 @@ async function save() {
 
     if (!form.category_id || !form.unit_id || !form.location_id) {
         notify.warn("Please select category, unit, and storage location.");
+        return;
+    }
+
+    if (form.minimum_stock === null || form.minimum_stock === undefined || form.minimum_stock < 0) {
+        notify.warn("Please enter the minimum stock.");
         return;
     }
 

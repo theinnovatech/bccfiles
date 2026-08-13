@@ -106,13 +106,15 @@
 
                 <div>
                     <label class="mb-1 block text-sm font-medium text-[#00164d]"
-                        >Name</label
+                        >Name
+                        <span class="text-[#ce1126]">*</span></label
                     >
                     <InputText v-model="form.name" class="w-full" required />
                 </div>
                 <div>
                     <label class="mb-1 block text-sm font-medium text-[#00164d]"
-                        >Category</label
+                        >Category
+                        <span class="text-[#ce1126]">*</span></label
                     >
                     <Select
                         v-model="form.equipment_category_id"
@@ -133,13 +135,15 @@
                 </div>
                 <div>
                     <label class="mb-1 block text-sm font-medium text-[#00164d]"
-                        >Type</label
+                        >Type
+                        <span class="text-[#ce1126]">*</span></label
                     >
                     <InputText v-model="form.type" class="w-full" required />
                 </div>
                 <div>
                     <label class="mb-1 block text-sm font-medium text-[#00164d]"
-                        >Qty</label
+                        >Qty
+                        <span class="text-[#ce1126]">*</span></label
                     >
                     <InputNumber
                         v-model="form.quantity"
@@ -369,15 +373,34 @@ async function loadCategories() {
 }
 
 async function save() {
+    if (!form.name?.trim()) {
+        notify.warn("Please enter the equipment name.");
+        return;
+    }
+
+    if (!form.equipment_category_id) {
+        notify.warn("Please select an equipment category.");
+        return;
+    }
+
+    if (!form.type?.trim()) {
+        notify.warn("Please enter the equipment type.");
+        return;
+    }
+
+    if (!form.quantity || form.quantity < 1) {
+        notify.warn("Please enter a quantity of at least 1.");
+        return;
+    }
+
+    if (!form.life_span_years || form.life_span_years < 1) {
+        notify.warn("Please enter the equipment life span in years.");
+        return;
+    }
+
     saving.value = true;
 
     try {
-        if (!form.life_span_years || form.life_span_years < 1) {
-            notify.warn("Please enter the equipment life span in years.");
-            saving.value = false;
-            return;
-        }
-
         const payload = {
             barcode: form.barcode || null,
             name: form.name,

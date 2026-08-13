@@ -725,6 +725,88 @@ select.shadcn-input {
     transform: scale(0.96) translateY(8px);
 }
 
+.global-search {
+    position: relative;
+    width: 100%;
+    max-width: 28rem;
+}
+
+.global-search-field {
+    @apply relative flex h-9 items-center gap-2 rounded-md border border-[#a8b8d4] bg-white px-2.5 transition-colors;
+}
+
+.global-search-field.is-open,
+.global-search-field:focus-within {
+    @apply border-[#001f6b] ring-1 ring-[#001f6b]/20;
+}
+
+.global-search-icon {
+    @apply h-4 w-4 shrink-0 text-[#4a6490];
+}
+
+.global-search-input {
+    @apply min-w-0 flex-1 border-0 bg-transparent p-0 text-sm text-[#00164d] outline-none placeholder:text-[#4a6490]/80;
+}
+
+.global-search-input::-webkit-search-cancel-button {
+    display: none;
+}
+
+.global-search-kbd {
+    @apply hidden shrink-0 rounded border border-[#a8b8d4] bg-[#f4f7fb] px-1.5 py-0.5 text-[10px] font-medium text-[#4a6490] sm:inline;
+}
+
+.global-search-clear {
+    @apply flex h-6 w-6 shrink-0 items-center justify-center rounded text-[#4a6490] transition-colors hover:bg-[#e2e8f2] hover:text-[#001f6b];
+}
+
+.global-search-panel {
+    @apply absolute left-0 right-0 top-[calc(100%+0.4rem)] z-50 max-h-[min(24rem,70dvh)] overflow-y-auto rounded-lg border border-[#a8b8d4] bg-white shadow-xl;
+}
+
+@media (max-width: 639px) {
+    .global-search-panel {
+        position: fixed;
+        top: calc(3.5rem + env(safe-area-inset-top, 0px));
+        left: 0.75rem;
+        right: 0.75rem;
+        width: auto;
+        max-height: min(22rem, 55dvh);
+    }
+}
+
+.global-search-empty {
+    @apply px-4 py-6 text-center text-sm text-[#4a6490];
+}
+
+.global-search-group + .global-search-group {
+    @apply border-t border-[#e2e8f2];
+}
+
+.global-search-group-label {
+    @apply sticky top-0 bg-[#f4f7fb] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-[#00164d];
+}
+
+.global-search-item {
+    @apply flex w-full cursor-pointer items-start gap-2 px-3 py-2.5 text-left transition-colors hover:bg-[#e8edf5];
+}
+
+.global-search-item.is-active {
+    @apply bg-[#e2e8f2];
+}
+
+.global-search-item-type {
+    @apply mt-0.5 shrink-0 rounded bg-[#e8edf5] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#001f6b];
+}
+
+.global-search-item-label {
+    @apply block truncate text-sm font-medium text-[#00164d];
+}
+
+.global-search-item-subtitle {
+    @apply mt-0.5 block truncate text-xs text-[#4a6490];
+}
+
 .notification-center {
     position: relative;
 }

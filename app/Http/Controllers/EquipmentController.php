@@ -151,6 +151,33 @@ class EquipmentController extends Controller
         return response()->json($equipment->load('category'));
     }
 
+    public function updatePropertyNumber(Request $request, Equipment $equipment): JsonResponse
+    {
+        $data = $request->validate([
+            'property_number' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('equipments', 'property_number')->ignore($equipment->id),
+            ],
+        ]);
+
+        $propertyNumber = trim($data['property_number']);
+
+        $equipment->update([
+            'property_number' => $propertyNumber,
+        ]);
+
+        $this->activityLogService->log(
+            $request->user(),
+            'Updated',
+            'Equipments',
+            "Linked hard-copy property number {$propertyNumber} to equipment {$equipment->name}"
+        );
+
+        return response()->json($equipment->fresh()->load('category'));
+    }
+
     public function destroy(Request $request, Equipment $equipment): JsonResponse
     {
         $name = $equipment->name;

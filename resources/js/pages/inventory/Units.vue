@@ -8,8 +8,8 @@
             { field: 'abbreviation', header: 'Abbreviation' },
         ]"
         :fields="[
-            { key: 'name', label: 'Name' },
-            { key: 'abbreviation', label: 'Abbreviation' },
+            { key: 'name', label: 'Name', required: true },
+            { key: 'abbreviation', label: 'Abbreviation', required: true },
         ]"
     />
 </template>

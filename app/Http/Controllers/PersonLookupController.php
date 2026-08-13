@@ -20,89 +20,100 @@ class PersonLookupController extends Controller
             return response()->json([]);
         }
 
+        $type = strtolower(trim((string) $request->query('type', 'all')));
+        if (! in_array($type, ['all', 'person', 'item', 'equipment', 'catalog'], true)) {
+            $type = 'all';
+        }
+
         $like = '%'.$query.'%';
         $results = [];
 
-        Employee::query()
-            ->with('department')
-            ->where(function ($q) use ($like) {
-                $q->where('name', 'like', $like)
-                    ->orWhere('employee_number', 'like', $like);
-            })
-            ->orderBy('name')
-            ->limit(10)
-            ->get()
-            ->each(function (Employee $employee) use (&$results) {
-                $subtitle = collect([
-                    $employee->employee_number ? 'ID: '.$employee->employee_number : null,
-                    $employee->department?->name,
-                    $employee->position,
-                ])->filter()->implode(' · ');
+        if ($type === 'all' || $type === 'person') {
+            Employee::query()
+                ->with('department')
+                ->where(function ($q) use ($like) {
+                    $q->where('name', 'like', $like)
+                        ->orWhere('employee_number', 'like', $like);
+                })
+                ->orderBy('name')
+                ->limit(10)
+                ->get()
+                ->each(function (Employee $employee) use (&$results) {
+                    $subtitle = collect([
+                        $employee->employee_number ? 'ID: '.$employee->employee_number : null,
+                        $employee->department?->name,
+                        $employee->position,
+                    ])->filter()->implode(' · ');
 
-                $results[] = [
-                    'type' => 'person',
-                    'key' => 'person:'.$employee->id,
-                    'employee_id' => $employee->id,
-                    'name' => $employee->name,
-                    'label' => $employee->name,
-                    'subtitle' => $subtitle,
-                ];
-            });
+                    $results[] = [
+                        'type' => 'person',
+                        'key' => 'person:'.$employee->id,
+                        'employee_id' => $employee->id,
+                        'name' => $employee->name,
+                        'label' => $employee->name,
+                        'subtitle' => $subtitle,
+                    ];
+                });
+        }
 
-        Item::query()
-            ->with('unit')
-            ->where(function ($q) use ($like) {
-                $q->where('item_name', 'like', $like)
-                    ->orWhere('barcode', 'like', $like)
-                    ->orWhere('item_number', 'like', $like)
-                    ->orWhere('inventory_number', 'like', $like);
-            })
-            ->orderBy('item_name')
-            ->limit(10)
-            ->get()
-            ->each(function (Item $item) use (&$results) {
-                $subtitle = collect([
-                    $item->barcode ? 'Barcode: '.$item->barcode : null,
-                    $item->unit?->abbreviation ?? $item->unit?->name,
-                ])->filter()->implode(' · ');
+        if ($type === 'all' || $type === 'item' || $type === 'catalog') {
+            Item::query()
+                ->with('unit')
+                ->where(function ($q) use ($like) {
+                    $q->where('item_name', 'like', $like)
+                        ->orWhere('barcode', 'like', $like)
+                        ->orWhere('item_number', 'like', $like)
+                        ->orWhere('inventory_number', 'like', $like);
+                })
+                ->orderBy('item_name')
+                ->limit(10)
+                ->get()
+                ->each(function (Item $item) use (&$results) {
+                    $subtitle = collect([
+                        $item->barcode ? 'Barcode: '.$item->barcode : null,
+                        $item->unit?->abbreviation ?? $item->unit?->name,
+                    ])->filter()->implode(' · ');
 
-                $results[] = [
-                    'type' => 'item',
-                    'key' => 'item:'.$item->id,
-                    'item_id' => $item->id,
-                    'name' => $item->item_name,
-                    'label' => $item->item_name,
-                    'subtitle' => $subtitle,
-                ];
-            });
+                    $results[] = [
+                        'type' => 'item',
+                        'key' => 'item:'.$item->id,
+                        'item_id' => $item->id,
+                        'name' => $item->item_name,
+                        'label' => $item->item_name,
+                        'subtitle' => $subtitle,
+                    ];
+                });
+        }
 
-        Equipment::query()
-            ->with('category')
-            ->where(function ($q) use ($like) {
-                $q->where('name', 'like', $like)
-                    ->orWhere('property_number', 'like', $like)
-                    ->orWhere('inventory_number', 'like', $like)
-                    ->orWhere('barcode', 'like', $like);
-            })
-            ->orderBy('name')
-            ->limit(10)
-            ->get()
-            ->each(function (Equipment $equipment) use (&$results) {
-                $subtitle = collect([
-                    $equipment->property_number ? 'Property: '.$equipment->property_number : null,
-                    $equipment->category?->name,
-                    $equipment->type,
-                ])->filter()->implode(' · ');
+        if ($type === 'all' || $type === 'equipment' || $type === 'catalog') {
+            Equipment::query()
+                ->with('category')
+                ->where(function ($q) use ($like) {
+                    $q->where('name', 'like', $like)
+                        ->orWhere('property_number', 'like', $like)
+                        ->orWhere('inventory_number', 'like', $like)
+                        ->orWhere('barcode', 'like', $like);
+                })
+                ->orderBy('name')
+                ->limit(10)
+                ->get()
+                ->each(function (Equipment $equipment) use (&$results) {
+                    $subtitle = collect([
+                        $equipment->property_number ? 'Property: '.$equipment->property_number : null,
+                        $equipment->category?->name,
+                        $equipment->type,
+                    ])->filter()->implode(' · ');
 
-                $results[] = [
-                    'type' => 'equipment',
-                    'key' => 'equipment:'.$equipment->id,
-                    'equipment_id' => $equipment->id,
-                    'name' => $equipment->name,
-                    'label' => $equipment->name,
-                    'subtitle' => $subtitle,
-                ];
-            });
+                    $results[] = [
+                        'type' => 'equipment',
+                        'key' => 'equipment:'.$equipment->id,
+                        'equipment_id' => $equipment->id,
+                        'name' => $equipment->name,
+                        'label' => $equipment->name,
+                        'subtitle' => $subtitle,
+                    ];
+                });
+        }
 
         return response()->json($results);
     }
@@ -219,10 +230,39 @@ class PersonLookupController extends Controller
     public function byItem(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'item_id' => ['required', 'integer', 'exists:items,id'],
+            'item_id' => ['nullable', 'integer', 'exists:items,id'],
+            'q' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $item = Item::query()->with(['unit', 'category'])->findOrFail($data['item_id']);
+        $itemId = $data['item_id'] ?? null;
+        $query = trim((string) ($data['q'] ?? ''));
+
+        if (! $itemId && $query === '') {
+            return response()->json([
+                'message' => 'Select an item or enter a name/barcode to look up.',
+            ], 422);
+        }
+
+        $item = $itemId
+            ? Item::query()->with(['unit', 'category'])->findOrFail($itemId)
+            : Item::query()
+                ->with(['unit', 'category'])
+                ->where(function ($q) use ($query) {
+                    $like = '%'.$query.'%';
+                    $q->where('item_name', 'like', $like)
+                        ->orWhere('barcode', 'like', $like)
+                        ->orWhere('item_number', 'like', $like)
+                        ->orWhere('inventory_number', 'like', $like);
+                })
+                ->orderByRaw('CASE WHEN barcode = ? THEN 0 WHEN item_name = ? THEN 1 ELSE 2 END', [$query, $query])
+                ->orderBy('item_name')
+                ->first();
+
+        if (! $item) {
+            return response()->json([
+                'message' => 'No item matched that search.',
+            ], 404);
+        }
 
         $issuances = Issuance::query()
             ->with([
@@ -254,6 +294,7 @@ class PersonLookupController extends Controller
         return response()->json([
             'target' => [
                 'type' => 'item',
+                'item_id' => $item->id,
                 'name' => $item->item_name,
                 'barcode' => $item->barcode,
                 'item_number' => $item->item_number,
@@ -278,10 +319,42 @@ class PersonLookupController extends Controller
     public function byEquipment(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'equipment_id' => ['required', 'integer', 'exists:equipments,id'],
+            'equipment_id' => ['nullable', 'integer', 'exists:equipments,id'],
+            'q' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $equipment = Equipment::query()->with('category')->findOrFail($data['equipment_id']);
+        $equipmentId = $data['equipment_id'] ?? null;
+        $query = trim((string) ($data['q'] ?? ''));
+
+        if (! $equipmentId && $query === '') {
+            return response()->json([
+                'message' => 'Select equipment or enter a name/property number to look up.',
+            ], 422);
+        }
+
+        $equipment = $equipmentId
+            ? Equipment::query()->with('category')->findOrFail($equipmentId)
+            : Equipment::query()
+                ->with('category')
+                ->where(function ($q) use ($query) {
+                    $like = '%'.$query.'%';
+                    $q->where('name', 'like', $like)
+                        ->orWhere('property_number', 'like', $like)
+                        ->orWhere('inventory_number', 'like', $like)
+                        ->orWhere('barcode', 'like', $like);
+                })
+                ->orderByRaw(
+                    'CASE WHEN property_number = ? THEN 0 WHEN barcode = ? THEN 1 WHEN name = ? THEN 2 ELSE 3 END',
+                    [$query, $query, $query]
+                )
+                ->orderBy('name')
+                ->first();
+
+        if (! $equipment) {
+            return response()->json([
+                'message' => 'No equipment matched that search.',
+            ], 404);
+        }
 
         $issuances = Issuance::query()
             ->with([
@@ -329,6 +402,7 @@ class PersonLookupController extends Controller
         return response()->json([
             'target' => [
                 'type' => 'equipment',
+                'equipment_id' => $equipment->id,
                 'name' => $equipment->name,
                 'property_number' => $equipment->property_number,
                 'inventory_number' => $equipment->inventory_number,

@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Models\Setting;
 use App\Services\ActivityLogService;
+use App\Services\PagePermissionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class SettingController extends Controller
 {
@@ -23,6 +25,12 @@ class SettingController extends Controller
             'description' => 'When enabled, issuing items can reduce stock below zero. When disabled, the system blocks issuance if there is not enough stock.',
             'group' => 'inventory',
             'type' => 'boolean',
+        ],
+        'department_user_pages' => [
+            'label' => 'Pages employees can open',
+            'description' => 'Turn on the screens that department user accounts may access after login. Dashboard stays on for everyone.',
+            'group' => 'permissions',
+            'type' => 'page_list',
         ],
     ];
 
@@ -55,6 +63,14 @@ class SettingController extends Controller
                 $value = filter_var($value, FILTER_VALIDATE_BOOLEAN) ? 'true' : 'false';
             }
 
+            if ($setting['key'] === PagePermissionService::SETTING_KEY
+                || ($definition['type'] ?? null) === 'page_list') {
+                $pages = $this->decodePageList($value);
+                $allowed = PagePermissionService::setDepartmentUserPages($pages);
+                $value = json_encode($allowed);
+                $group = 'permissions';
+            }
+
             Setting::setValue($setting['key'], $value, $group);
         }
 
@@ -85,6 +101,29 @@ class SettingController extends Controller
             'description' => $definition['description'],
             'type' => $definition['type'],
             'placeholder' => $definition['placeholder'] ?? null,
+            'options' => ($definition['type'] ?? null) === 'page_list'
+                ? PagePermissionService::grantablePages()
+                : null,
         ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function decodePageList(?string $value): array
+    {
+        if ($value === null || trim($value) === '') {
+            return PagePermissionService::DEFAULT_PAGES;
+        }
+
+        $decoded = json_decode($value, true);
+
+        if (! is_array($decoded)) {
+            throw ValidationException::withMessages([
+                'settings' => ['Employee page permissions must be a valid page list.'],
+            ]);
+        }
+
+        return array_values(array_map('strval', $decoded));
     }
 }

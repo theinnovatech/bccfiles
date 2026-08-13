@@ -44,6 +44,26 @@
                 @submit.prevent="submit"
             >
                 <div class="grid gap-4 md:grid-cols-2">
+                    <div class="md:col-span-2">
+                        <label
+                            class="mb-1 block text-sm font-medium text-[#00164d]"
+                        >
+                            Reference No.
+                            <span class="ml-1 text-xs font-normal text-[#4a6490]"
+                                >(optional)</span
+                            >
+                        </label>
+                        <InputText
+                            v-model="form.issuance_number"
+                            class="w-full"
+                            placeholder="e.g. ISS-2024-018"
+                        />
+                        <p class="mt-1 text-xs text-[#4a6490]">
+                            Only fill this in if the hard-copy form has its own
+                            reference number. Otherwise the system generates
+                            one.
+                        </p>
+                    </div>
                     <div>
                         <label
                             class="mb-1 block text-sm font-medium text-[#00164d]"
@@ -184,35 +204,55 @@
                         <div
                             v-for="(line, index) in form.items"
                             :key="index"
-                            class="grid gap-3 border border-[#a8b8d4] bg-transparent p-3 md:grid-cols-[minmax(0,1fr)_160px_auto] md:items-center"
+                            class="grid gap-3 border border-[#a8b8d4] bg-transparent p-3 md:grid-cols-[minmax(0,1fr)_160px_auto] md:items-end"
                         >
-                            <Select
-                                v-if="form.issuance_type === 'items'"
-                                v-model="line.item_id"
-                                :options="items"
-                                optionLabel="label"
-                                optionValue="id"
-                                placeholder="Select item"
-                                class="min-w-0 w-full"
-                                filter
-                            />
-                            <Select
-                                v-else
-                                v-model="line.equipment_id"
-                                :options="equipments"
-                                optionLabel="label"
-                                optionValue="id"
-                                placeholder="Select equipment"
-                                class="min-w-0 w-full"
-                                filter
-                            />
-                            <InputNumber
-                                v-model="line.quantity"
-                                :min="1"
-                                placeholder="Qty"
-                                class="min-w-0 w-full"
-                                inputClass="w-full"
-                            />
+                            <div class="min-w-0">
+                                <label
+                                    class="mb-1 block text-sm font-medium text-[#00164d]"
+                                >
+                                    {{
+                                        form.issuance_type === "items"
+                                            ? "Item"
+                                            : "Equipment"
+                                    }}
+                                    <span class="text-[#ce1126]">*</span>
+                                </label>
+                                <Select
+                                    v-if="form.issuance_type === 'items'"
+                                    v-model="line.item_id"
+                                    :options="items"
+                                    optionLabel="label"
+                                    optionValue="id"
+                                    placeholder="Select item"
+                                    class="min-w-0 w-full"
+                                    filter
+                                />
+                                <Select
+                                    v-else
+                                    v-model="line.equipment_id"
+                                    :options="equipments"
+                                    optionLabel="label"
+                                    optionValue="id"
+                                    placeholder="Select equipment"
+                                    class="min-w-0 w-full"
+                                    filter
+                                />
+                            </div>
+                            <div class="min-w-0">
+                                <label
+                                    class="mb-1 block text-sm font-medium text-[#00164d]"
+                                >
+                                    Qty
+                                    <span class="text-[#ce1126]">*</span>
+                                </label>
+                                <InputNumber
+                                    v-model="line.quantity"
+                                    :min="1"
+                                    placeholder="Qty"
+                                    class="min-w-0 w-full"
+                                    inputClass="w-full"
+                                />
+                            </div>
                             <UiButton
                                 type="button"
                                 variant="ghost"
@@ -255,21 +295,44 @@
             </form>
         </div>
 
-        <UiCard
-            title="Issuance History"
-            description="Recent issuances recorded from hard-copy forms."
-        >
+        <UiCard>
+            <template #header>
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <h3 class="shadcn-card-title">Issuance History</h3>
+                        <p class="shadcn-card-description">
+                            Recent issuances recorded from hard-copy forms.
+                        </p>
+                    </div>
+                    <div class="history-type-tabs w-full sm:w-auto">
+                        <button
+                            v-for="tab in historyTypeTabs"
+                            :key="tab.key"
+                            type="button"
+                            class="history-type-tab"
+                            :class="{
+                                'history-type-tab-active':
+                                    historyType === tab.key,
+                            }"
+                            @click="historyType = tab.key"
+                        >
+                            {{ tab.label }}
+                        </button>
+                    </div>
+                </div>
+            </template>
+
             <TableFilters
                 v-model="filters"
                 :filters="filterConfig"
                 :has-active-filters="hasActiveFilters"
-                :result-count="filteredIssuances.length"
+                :result-count="visibleIssuances.length"
                 @reset="resetFilters"
             />
 
             <div class="obims-table-wrap">
                 <DataTable
-                    :value="filteredIssuances"
+                    :value="visibleIssuances"
                     :loading="loadingList"
                     paginator
                     :rows="10"
@@ -303,6 +366,13 @@
                             }}</span>
                         </template>
                     </Column>
+                    <Column v-if="historyType === 'equipments'" header="Specs">
+                        <template #body="{ data }">
+                            <span class="line-clamp-2 text-sm text-[#00164d]">{{
+                                formatIssuedSpecs(data)
+                            }}</span>
+                        </template>
+                    </Column>
                     <Column header="Total Qty">
                         <template #body="{ data }">{{
                             totalQuantity(data)
@@ -313,9 +383,167 @@
                             formatDate(data.issued_date)
                         }}</template>
                     </Column>
+                    <Column header="Actions" style="width: 5rem">
+                        <template #body="{ data }">
+                            <UiButton
+                                variant="ghost"
+                                size="icon"
+                                title="View issuance details"
+                                @click="viewIssuance(data)"
+                            >
+                                <svg
+                                    class="h-4 w-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    aria-hidden="true"
+                                >
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"
+                                    />
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                                    />
+                                </svg>
+                            </UiButton>
+                        </template>
+                    </Column>
                 </DataTable>
             </div>
         </UiCard>
+
+        <Dialog
+            v-model:visible="viewDialogVisible"
+            modal
+            header="Issuance Details"
+            :style="{ width: '720px' }"
+        >
+            <div
+                v-if="selectedIssuance"
+                class="space-y-4 pt-2 text-sm text-[#00164d]"
+            >
+                <div class="border border-[#a8b8d4] bg-[#f4f7fb] p-4">
+                    <p class="text-xs uppercase tracking-wide text-[#4a6490]">
+                        Issuance No.
+                    </p>
+                    <p class="mt-1 text-base font-semibold">
+                        {{ selectedIssuance.issuance_number || "—" }}
+                    </p>
+                    <p class="mt-0.5 text-xs text-[#4a6490]">
+                        {{ issuanceTypeLabel(selectedIssuance) }}
+                        · {{ formatDate(selectedIssuance.issued_date) }}
+                    </p>
+                </div>
+
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div>
+                        <p class="text-xs uppercase tracking-wide text-[#4a6490]">
+                            Department
+                        </p>
+                        <p class="mt-0.5 font-medium">
+                            {{ departmentName(selectedIssuance) }}
+                        </p>
+                    </div>
+                    <div>
+                        <p class="text-xs uppercase tracking-wide text-[#4a6490]">
+                            Received By
+                        </p>
+                        <p class="mt-0.5 font-medium">
+                            {{ receiverName(selectedIssuance) }}
+                        </p>
+                    </div>
+                    <div>
+                        <p class="text-xs uppercase tracking-wide text-[#4a6490]">
+                            Issued By
+                        </p>
+                        <p class="mt-0.5 font-medium">
+                            {{ selectedIssuance.issuer?.name || "—" }}
+                        </p>
+                    </div>
+                    <div>
+                        <p class="text-xs uppercase tracking-wide text-[#4a6490]">
+                            Total Qty
+                        </p>
+                        <p class="mt-0.5 font-medium">
+                            {{ totalQuantity(selectedIssuance) }}
+                        </p>
+                    </div>
+                </div>
+
+                <div>
+                    <p class="mb-2 text-xs uppercase tracking-wide text-[#4a6490]">
+                        Issued Lines
+                    </p>
+                    <div class="obims-table-wrap">
+                        <DataTable
+                            :value="selectedIssuance.details ?? []"
+                            class="rounded-md border border-[#a8b8d4]"
+                        >
+                            <Column header="Name">
+                                <template #body="{ data }">
+                                    {{
+                                        data.equipment?.name ||
+                                        data.item?.item_name ||
+                                        "—"
+                                    }}
+                                </template>
+                            </Column>
+                            <Column
+                                v-if="
+                                    issuanceTypeKey(selectedIssuance) !==
+                                    'items'
+                                "
+                                header="Property No."
+                            >
+                                <template #body="{ data }">
+                                    {{ data.equipment?.property_number || "—" }}
+                                </template>
+                            </Column>
+                            <Column
+                                v-if="
+                                    issuanceTypeKey(selectedIssuance) !==
+                                    'equipments'
+                                "
+                                header="Barcode / Item No."
+                            >
+                                <template #body="{ data }">
+                                    {{
+                                        data.item?.barcode ||
+                                        data.item?.item_number ||
+                                        data.barcode ||
+                                        "—"
+                                    }}
+                                </template>
+                            </Column>
+                            <Column
+                                v-if="
+                                    issuanceTypeKey(selectedIssuance) !==
+                                    'items'
+                                "
+                                header="Specs"
+                            >
+                                <template #body="{ data }">
+                                    <span class="line-clamp-3">{{
+                                        data.equipment?.specs || "—"
+                                    }}</span>
+                                </template>
+                            </Column>
+                            <Column field="quantity" header="Qty" />
+                        </DataTable>
+                    </div>
+                </div>
+            </div>
+            <template #footer>
+                <UiButton variant="outline" @click="viewDialogVisible = false"
+                    >Close</UiButton
+                >
+            </template>
+        </Dialog>
     </div>
 </template>
 
@@ -330,6 +558,7 @@ import Textarea from "primevue/textarea";
 import Checkbox from "primevue/checkbox";
 import DataTable from "primevue/datatable";
 import Column from "primevue/column";
+import Dialog from "primevue/dialog";
 import UiCard from "../../components/ui/UiCard.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import TableFilters from "../../components/TableFilters.vue";
@@ -393,6 +622,11 @@ const issuanceTypeTabs = [
     },
 ];
 
+const historyTypeTabs = [
+    { key: "items", label: "Items" },
+    { key: "equipments", label: "Equipments" },
+];
+
 const notify = useNotify();
 const departments = ref([]);
 const employees = ref([]);
@@ -401,9 +635,13 @@ const equipments = ref([]);
 const issuances = ref([]);
 const loading = ref(false);
 const loadingList = ref(false);
+const historyType = ref("items");
+const viewDialogVisible = ref(false);
+const selectedIssuance = ref(null);
 
 const form = reactive({
     issuance_type: "items",
+    issuance_number: "",
     department_id: null,
     remarks: "",
     use_custom_date: false,
@@ -468,11 +706,28 @@ const {
     resetFilters,
 } = useTableFilters(issuances, filterConfig);
 
+const visibleIssuances = computed(() =>
+    filteredIssuances.value.filter((issuance) => {
+        const type = issuanceTypeKey(issuance);
+        if (historyType.value === "items") {
+            return type === "items" || type === "mixed";
+        }
+        return type === "equipments" || type === "mixed";
+    }),
+);
+
 watch(
     () => form.department_id,
     () => {
         receivedByInput.value = null;
         receiverSuggestions.value = [];
+    },
+);
+
+watch(
+    () => form.issuance_type,
+    (type) => {
+        historyType.value = type;
     },
 );
 
@@ -509,6 +764,7 @@ function removeLine(index) {
 }
 
 function resetForm() {
+    form.issuance_number = "";
     form.department_id = null;
     receivedByInput.value = null;
     receiverSuggestions.value = [];
@@ -548,7 +804,7 @@ function resolveReceiverPayload() {
     };
 }
 
-function issuanceTypeLabel(issuance) {
+function issuanceTypeKey(issuance) {
     const hasEquipment = (issuance.details ?? []).some(
         (detail) => detail.equipment_id || detail.equipment,
     );
@@ -556,9 +812,17 @@ function issuanceTypeLabel(issuance) {
         (detail) => detail.item_id || detail.item,
     );
 
-    if (hasEquipment && !hasItem) return "Equipments";
-    if (hasItem && !hasEquipment) return "Items";
-    if (hasEquipment && hasItem) return "Mixed";
+    if (hasEquipment && !hasItem) return "equipments";
+    if (hasItem && !hasEquipment) return "items";
+    if (hasEquipment && hasItem) return "mixed";
+    return "unknown";
+}
+
+function issuanceTypeLabel(issuance) {
+    const key = issuanceTypeKey(issuance);
+    if (key === "equipments") return "Equipments";
+    if (key === "items") return "Items";
+    if (key === "mixed") return "Mixed";
     return "—";
 }
 
@@ -574,6 +838,23 @@ function formatIssuedLines(issuance) {
             return `${name} (${detail.quantity})`;
         })
         .join(", ");
+}
+
+function formatIssuedSpecs(issuance) {
+    const specs = (issuance.details ?? [])
+        .map((detail) => detail.equipment?.specs)
+        .filter((value) => String(value || "").trim() !== "");
+
+    if (!specs.length) {
+        return "—";
+    }
+
+    return [...new Set(specs)].join("; ");
+}
+
+function viewIssuance(issuance) {
+    selectedIssuance.value = issuance;
+    viewDialogVisible.value = true;
 }
 
 function totalQuantity(issuance) {
@@ -604,6 +885,11 @@ function buildPayload() {
             };
         }),
     };
+
+    const referenceNumber = (form.issuance_number || "").trim();
+    if (referenceNumber) {
+        payload.issuance_number = referenceNumber;
+    }
 
     if (form.use_custom_date && form.issued_date) {
         payload.issued_date = form.issued_date;
@@ -703,3 +989,53 @@ onMounted(async () => {
     await loadIssuances();
 });
 </script>
+
+<style scoped>
+.history-type-tabs {
+    display: flex;
+    width: 100%;
+    gap: 0;
+    border: 1px solid #a8b8d4;
+    background: transparent;
+    padding: 0;
+}
+
+@media (min-width: 640px) {
+    .history-type-tabs {
+        display: inline-flex;
+        width: auto;
+    }
+}
+
+.history-type-tab {
+    flex: 1;
+    border-radius: 0;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #4a6490;
+    transition: all 0.15s ease;
+    text-align: center;
+    border-right: 1px solid #a8b8d4;
+}
+
+.history-type-tab:last-child {
+    border-right: 0;
+}
+
+@media (min-width: 640px) {
+    .history-type-tab {
+        flex: none;
+        padding: 0.5rem 1rem;
+    }
+}
+
+.history-type-tab:hover {
+    color: #001f6b;
+}
+
+.history-type-tab-active {
+    background: #001f6b;
+    color: white;
+}
+</style>

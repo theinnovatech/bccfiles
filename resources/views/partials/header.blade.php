@@ -25,14 +25,21 @@
             <img src="{{ asset('images/logo1.png') }}" alt="Kagawaran ng Edukasyon" class="deped-header-logo" />
             <img src="{{ asset('images/logo2.png') }}" alt="Iriga City Division" class="deped-header-logo" />
         </div>
-        <div class="min-w-0 border-l border-[#a8b8d4] pl-2 sm:pl-3">
+        <div class="hidden min-w-0 border-l border-[#a8b8d4] pl-2 sm:block sm:pl-3 md:max-w-[10rem] lg:max-w-none">
             <h2 class="deped-header-title truncate">{{ $title ?? 'OBIMS' }}</h2>
             <p class="deped-header-subtitle truncate">{{ auth()->user()->role->label() }}</p>
         </div>
+        <div id="global-search-app" class="min-w-0 flex-1 max-w-xl"></div>
     </div>
     <div class="flex shrink-0 items-center gap-2 sm:gap-3">
         <div id="notification-app"></div>
-        <span class="hidden max-w-[8rem] truncate text-sm text-[#4a6490] md:inline md:max-w-none">{{ auth()->user()->name }}</span>
+        <a
+            href="{{ url('/profile') }}"
+            class="hidden max-w-[8rem] cursor-pointer truncate text-sm text-[#4a6490] transition-colors hover:text-[#001f6b] hover:underline md:inline md:max-w-none"
+            title="My Profile"
+        >
+            {{ auth()->user()->name }}
+        </a>
         <form method="POST" action="{{ url('/logout') }}">
             @csrf
             <button type="submit" class="shadcn-btn shadcn-btn-outline shadcn-btn-sm">

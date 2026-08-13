@@ -11,7 +11,9 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cookie;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
@@ -111,6 +113,50 @@ class AuthController extends Controller
 
         return response()->json([
             'user' => $this->formatUser($user),
+        ]);
+    }
+
+    public function updateProfile(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+        ]);
+
+        $user->update([
+            'name' => $data['name'],
+        ]);
+
+        $user->load(['department', 'employee']);
+
+        return response()->json([
+            'message' => 'Profile updated successfully.',
+            'user' => $this->formatUser($user),
+        ]);
+    }
+
+    public function updatePassword(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $data = $request->validate([
+            'current_password' => ['required', 'string'],
+            'password' => ['required', 'confirmed', Password::defaults()],
+        ]);
+
+        if (! Hash::check($data['current_password'], $user->password)) {
+            throw ValidationException::withMessages([
+                'current_password' => ['The current password is incorrect.'],
+            ]);
+        }
+
+        $user->update([
+            'password' => Hash::make($data['password']),
+        ]);
+
+        return response()->json([
+            'message' => 'Password updated successfully.',
         ]);
     }
 

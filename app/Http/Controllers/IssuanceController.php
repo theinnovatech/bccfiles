@@ -40,6 +40,7 @@ class IssuanceController extends Controller
 
         $rules = [
             'issuance_type' => ['required', Rule::enum(IssuanceType::class)],
+            'issuance_number' => ['nullable', 'string', 'max:255', 'unique:issuances,issuance_number'],
             'department_id' => ['required', 'exists:departments,id'],
             'received_by' => ['nullable', 'exists:employees,id'],
             'received_by_name' => ['nullable', 'string', 'max:255'],
@@ -73,10 +74,14 @@ class IssuanceController extends Controller
             ? Carbon::parse($data['issued_date'])->startOfDay()
             : now();
 
+        $manualReference = trim((string) ($data['issuance_number'] ?? ''));
+
         try {
-            $issuance = DB::transaction(function () use ($data, $request, $issuanceType, $receivedBy, $receivedByName, $issuedDate) {
+            $issuance = DB::transaction(function () use ($data, $request, $issuanceType, $receivedBy, $receivedByName, $issuedDate, $manualReference) {
                 $issuance = Issuance::create([
-                    'issuance_number' => ReferenceNumberGenerator::forIssuance(),
+                    'issuance_number' => $manualReference !== ''
+                        ? $manualReference
+                        : ReferenceNumberGenerator::forIssuance(),
                     'department_id' => $data['department_id'],
                     'issued_by' => $request->user()->id,
                     'received_by' => $receivedBy,

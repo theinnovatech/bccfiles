@@ -142,6 +142,7 @@
                         >
                             <label class="login-field-label" for="login-email">
                                 Email Address
+                                <span class="text-[#ce1126]">*</span>
                             </label>
                             <div class="login-field-box">
                                 <input
@@ -173,6 +174,7 @@
                                 for="login-password"
                             >
                                 Password
+                                <span class="text-[#ce1126]">*</span>
                             </label>
                             <div
                                 class="login-field-box login-field-box--password"

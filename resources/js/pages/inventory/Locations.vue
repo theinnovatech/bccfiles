@@ -9,8 +9,8 @@
             { field: 'description', header: 'Description' },
         ]"
         :fields="[
-            { key: 'name', label: 'Name' },
-            { key: 'code', label: 'Code' },
+            { key: 'name', label: 'Name', required: true },
+            { key: 'code', label: 'Code', required: true },
             { key: 'description', label: 'Description', type: 'textarea' },
             { key: 'is_active', label: 'Active', type: 'checkbox' },
         ]"

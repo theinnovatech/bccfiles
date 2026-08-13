@@ -58,7 +58,8 @@
                     <div>
                         <label
                             class="mb-1 block text-sm font-medium text-[#00164d]"
-                            >Quantity received</label
+                            >Quantity received
+                            <span class="text-[#ce1126]">*</span></label
                         >
                         <InputNumber
                             v-model="quantity"

@@ -7,8 +7,8 @@
             { field: 'code', header: 'Code' },
         ]"
         :fields="[
-            { key: 'name', label: 'Name' },
-            { key: 'code', label: 'Code' },
+            { key: 'name', label: 'Name', required: true },
+            { key: 'code', label: 'Code', required: true },
             { key: 'is_active', label: 'Active', type: 'checkbox' },
         ]"
     />

@@ -169,6 +169,24 @@ function openDialog(data = null) {
 }
 
 async function save() {
+    const missing = props.fields.find((field) => {
+        if (!field.required || field.type === 'checkbox') {
+            return false;
+        }
+
+        const value = form[field.key];
+        if (typeof value === 'string') {
+            return value.trim() === '';
+        }
+
+        return value === null || value === undefined || value === '';
+    });
+
+    if (missing) {
+        notify.warn(`Please fill in the required field: ${missing.label}.`);
+        return;
+    }
+
     saving.value = true;
     try {
         if (editingId.value) {

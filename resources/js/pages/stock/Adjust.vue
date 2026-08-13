@@ -60,7 +60,8 @@
                     <div>
                         <label
                             class="mb-1 block text-sm font-medium text-[#00164d]"
-                            >Actual count</label
+                            >Actual count
+                            <span class="text-[#ce1126]">*</span></label
                         >
                         <InputNumber
                             v-model="actualCount"
@@ -72,7 +73,8 @@
                     <div>
                         <label
                             class="mb-1 block text-sm font-medium text-[#00164d]"
-                            >Reason</label
+                            >Reason
+                            <span class="text-[#ce1126]">*</span></label
                         >
                         <Select
                             v-model="reason"
@@ -288,6 +290,16 @@ function onSelectItem(id) {
 async function submit() {
     if (!item.value) {
         notify.warn("Select an item first.", "No item");
+        return;
+    }
+
+    if (actualCount.value === null || actualCount.value === undefined || actualCount.value < 0) {
+        notify.warn("Please enter the actual count.", "Required");
+        return;
+    }
+
+    if (!reason.value) {
+        notify.warn("Please select a reason.", "Required");
         return;
     }
 

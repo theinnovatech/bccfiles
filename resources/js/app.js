@@ -1,5 +1,6 @@
 import './layout';
 import { bootstrapNotifications } from './notifications-bootstrap';
+import { bootstrapGlobalSearch } from './global-search-bootstrap';
 import { createApp, h } from 'vue';
 import { createPinia } from 'pinia';
 import PrimeVue from 'primevue/config';
@@ -99,4 +100,8 @@ bootstrap().catch((error) => {
 
 bootstrapNotifications().catch((error) => {
     console.error('Notification bootstrap failed:', error);
+});
+
+bootstrapGlobalSearch().catch((error) => {
+    console.error('Global search bootstrap failed:', error);
 });

@@ -17,6 +17,7 @@ use App\Http\Controllers\ItemReturnController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\PersonLookupController;
+use App\Http\Controllers\GlobalSearchController;
 use App\Http\Controllers\PredictiveInventoryController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SettingController;
@@ -46,7 +47,10 @@ Route::get('/', function (PageController $pages) {
 Route::middleware('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', [AuthController::class, 'user']);
+    Route::put('/profile', [AuthController::class, 'updateProfile']);
+    Route::put('/profile/password', [AuthController::class, 'updatePassword']);
 
+    Route::get('/search', GlobalSearchController::class);
     Route::get('/notifications/list', [NotificationController::class, 'index']);
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead']);
     Route::post('/notifications/{notification}/read', [NotificationController::class, 'markAsRead'])->whereNumber('notification');
@@ -66,7 +70,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/locations/list', [StorageLocationController::class, 'index']);
 
     // Shared item lookups for inventory / transaction pages employees may be granted.
-    Route::middleware('staff_or_page:items,stock.operations,stock.registration,issuance,returns,inventory.predictions,reports,person-lookup')->group(function () {
+    Route::middleware('staff_or_page:items,stock.operations,stock.registration,issuance,returns,inventory.predictions,reports,person-lookup,catalog-details')->group(function () {
         Route::get('/items/barcode/{barcode}', [ItemController::class, 'findByBarcode']);
         Route::get('/items/list', [ItemController::class, 'index']);
         Route::get('/items/{item}', [ItemController::class, 'show'])->whereNumber('item');
@@ -113,7 +117,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/equipments/receive', [EquipmentController::class, 'receive']);
     });
 
-    Route::middleware('staff_or_page:stock.operations,stock.registration,issuance,returns,person-lookup')->group(function () {
+    Route::middleware('staff_or_page:stock.operations,stock.registration,issuance,returns,person-lookup,catalog-details')->group(function () {
         Route::get('/equipments/barcode/{barcode}', [EquipmentController::class, 'findByBarcode']);
         Route::get('/equipments/{equipment}', [EquipmentController::class, 'show'])->whereNumber('equipment');
     });
@@ -123,6 +127,14 @@ Route::middleware('auth')->group(function () {
         Route::put('/equipments/{equipment}', [EquipmentController::class, 'update'])->whereNumber('equipment');
         Route::delete('/equipments/{equipment}', [EquipmentController::class, 'destroy'])->whereNumber('equipment');
     });
+
+    Route::put('/equipments/{equipment}/property-number', [EquipmentController::class, 'updatePropertyNumber'])
+        ->middleware('role:admin,supply_officer')
+        ->whereNumber('equipment');
+
+    Route::put('/items/{item}/stock-number', [ItemController::class, 'updateStockNumber'])
+        ->middleware('role:admin,supply_officer')
+        ->whereNumber('item');
 
     Route::middleware('staff_or_page:issuance,person-lookup,reports')->group(function () {
         Route::get('/issuances/list', [IssuanceController::class, 'index']);
@@ -142,8 +154,11 @@ Route::middleware('auth')->group(function () {
         Route::post('/returns', [ItemReturnController::class, 'store']);
     });
 
-    Route::middleware('staff_or_page:person-lookup')->group(function () {
+    Route::middleware('staff_or_page:person-lookup,catalog-details')->group(function () {
         Route::get('/lookups/suggestions', [PersonLookupController::class, 'suggestions']);
+    });
+
+    Route::middleware('staff_or_page:person-lookup')->group(function () {
         Route::get('/lookups/by-person', [PersonLookupController::class, 'show']);
         Route::get('/lookups/by-item', [PersonLookupController::class, 'byItem']);
         Route::get('/lookups/by-equipment', [PersonLookupController::class, 'byEquipment']);
@@ -200,6 +215,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/issuance', fn (PageController $pages) => $pages->show('issuance'))->middleware('staff_or_page:issuance');
     Route::get('/returns', fn (PageController $pages) => $pages->show('returns'))->middleware('staff_or_page:returns');
     Route::get('/person-lookup', fn (PageController $pages) => $pages->show('person-lookup'))->middleware('staff_or_page:person-lookup');
+    Route::get('/catalog-details', fn (PageController $pages) => $pages->show('catalog-details'))->middleware('staff_or_page:catalog-details');
     Route::get('/reports', fn (PageController $pages) => $pages->show('reports'))->middleware('staff_or_page:reports');
     Route::get('/items', fn (PageController $pages) => $pages->show('items'))->middleware('staff_or_page:items');
     Route::get('/inventory/predictions', fn (PageController $pages) => $pages->show('inventory.predictions'))->middleware('staff_or_page:inventory.predictions');
@@ -216,4 +232,5 @@ Route::middleware('auth')->group(function () {
     Route::get('/users', fn (PageController $pages) => $pages->show('users'))->middleware('role:admin');
     Route::get('/deleted-data', fn (PageController $pages) => $pages->show('deleted-data'))->middleware('role:admin');
     Route::get('/backup-files', fn (PageController $pages) => $pages->show('backup-files'))->middleware('role:admin');
+    Route::get('/profile', fn (PageController $pages) => $pages->show('profile'));
 });

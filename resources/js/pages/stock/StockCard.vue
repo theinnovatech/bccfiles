@@ -34,6 +34,7 @@
                         filterPlaceholder="Search item or barcode..."
                         placeholder="Select an item"
                         class="w-full"
+                        @update:model-value="onItemSelected"
                     />
                 </div>
                 <div>
@@ -100,10 +101,20 @@
                     <p
                         class="text-xs font-semibold uppercase tracking-wide text-[#4a6490]"
                     >
+                        Stock No.
+                    </p>
+                    <p class="mt-1 text-sm text-[#00164d]">
+                        {{ selectedItem.item_number || "—" }}
+                    </p>
+                </div>
+                <div>
+                    <p
+                        class="text-xs font-semibold uppercase tracking-wide text-[#4a6490]"
+                    >
                         Barcode
                     </p>
                     <p class="mt-1 text-sm text-[#00164d]">
-                        {{ selectedItem.barcode }}
+                        {{ selectedItem.barcode || "—" }}
                     </p>
                 </div>
                 <div>
@@ -260,12 +271,92 @@
                 </div>
             </template>
         </UiCard>
+
+        <Dialog
+            v-model:visible="stockModalVisible"
+            modal
+            header="Link Hard-Copy Stock Number"
+            :style="{ width: '480px' }"
+            :closable="!savingStockNumber"
+            :closeOnEscape="!savingStockNumber"
+            @hide="onStockModalHide"
+        >
+            <div class="space-y-4 pt-1">
+                <div
+                    v-if="pendingItem"
+                    class="border border-[#a8b8d4] bg-[#f4f7fb] px-3 py-2"
+                >
+                    <p
+                        class="text-xs font-semibold uppercase tracking-wide text-[#4a6490]"
+                    >
+                        Selected Item
+                    </p>
+                    <p class="mt-1 text-sm font-medium text-[#00164d]">
+                        {{ pendingItem.item_name }}
+                    </p>
+                    <p
+                        v-if="pendingItem.category?.name"
+                        class="mt-0.5 text-xs text-[#4a6490]"
+                    >
+                        {{ pendingItem.category.name }}
+                    </p>
+                </div>
+
+                <div>
+                    <label
+                        class="mb-1 block text-sm font-medium text-[#00164d]"
+                    >
+                        Stock Number
+                        <span class="text-[#ce1126]">*</span>
+                    </label>
+                    <InputText
+                        v-model="hardCopyStockNumber"
+                        class="w-full"
+                        placeholder="Enter stock number from hard copy"
+                        :disabled="savingStockNumber"
+                        @keyup.enter="confirmStockNumber"
+                    />
+                    <p class="mt-1 text-xs text-[#4a6490]">
+                        <span v-if="stockNumberUnchanged">
+                            This item already has a linked stock number. Click
+                            Continue to keep using it, or edit the number to
+                            update it.
+                        </span>
+                        <span v-else>
+                            Enter or update the stock number from the hard-copy
+                            Stock Card. Saving links it to the item and shows it
+                            on the PDF.
+                        </span>
+                    </p>
+                </div>
+            </div>
+
+            <template #footer>
+                <div class="flex justify-end gap-2">
+                    <UiButton
+                        variant="outline"
+                        :disabled="savingStockNumber"
+                        @click="cancelStockModal"
+                    >
+                        Cancel
+                    </UiButton>
+                    <UiButton
+                        :loading="savingStockNumber"
+                        @click="confirmStockNumber"
+                    >
+                        {{ stockNumberUnchanged ? "Continue" : "Save & Link" }}
+                    </UiButton>
+                </div>
+            </template>
+        </Dialog>
     </div>
 </template>
 
 <script setup>
 import { computed, onMounted, reactive, ref } from "vue";
 import Select from "primevue/select";
+import Dialog from "primevue/dialog";
+import InputText from "primevue/inputtext";
 import UiCard from "../../components/ui/UiCard.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import ReportPreview from "../../components/ReportPreview.vue";
@@ -281,6 +372,12 @@ const selectedItem = ref(null);
 const loading = ref(false);
 const hasLoaded = ref(false);
 const activeView = ref("table");
+
+const stockModalVisible = ref(false);
+const pendingItem = ref(null);
+const hardCopyStockNumber = ref("");
+const savingStockNumber = ref(false);
+const stockNumberLinked = ref(false);
 
 const filters = reactive({
     item_id: null,
@@ -299,32 +396,154 @@ const transactionTypeOptions = [
 
 const itemOptions = computed(() =>
     items.value.map((item) => ({
-        label: `${item.item_name} (${item.barcode || item.item_number || "—"})`,
+        label: item.item_number
+            ? `${item.item_name} (${item.item_number})`
+            : `${item.item_name} (${item.barcode || "—"})`,
         value: item.id,
     })),
 );
+
+const existingStockNumber = computed(() =>
+    String(pendingItem.value?.item_number || "").trim(),
+);
+
+const stockNumberUnchanged = computed(() => {
+    const current = hardCopyStockNumber.value.trim();
+    return (
+        existingStockNumber.value !== "" &&
+        current !== "" &&
+        current === existingStockNumber.value
+    );
+});
 
 const pdfParams = computed(() => ({
     item_id: filters.item_id,
     from: filters.from || undefined,
     to: filters.to || undefined,
     transaction_type: filters.transaction_type || undefined,
+    _sn: selectedItem.value?.item_number || undefined,
 }));
 
-function resetFilters() {
-    filters.item_id = null;
-    filters.from = "";
-    filters.to = "";
-    filters.transaction_type = "";
+function clearPreview() {
     selectedItem.value = null;
     movementRows.value = [];
     hasLoaded.value = false;
     activeView.value = "table";
 }
 
+function resetFilters() {
+    filters.item_id = null;
+    filters.from = "";
+    filters.to = "";
+    filters.transaction_type = "";
+    pendingItem.value = null;
+    hardCopyStockNumber.value = "";
+    stockNumberLinked.value = false;
+    stockModalVisible.value = false;
+    clearPreview();
+}
+
+function onItemSelected(itemId) {
+    stockNumberLinked.value = false;
+    clearPreview();
+
+    if (!itemId) {
+        pendingItem.value = null;
+        hardCopyStockNumber.value = "";
+        stockModalVisible.value = false;
+        return;
+    }
+
+    const item = items.value.find((row) => row.id === itemId);
+    if (!item) {
+        return;
+    }
+
+    pendingItem.value = item;
+    hardCopyStockNumber.value = item.item_number || "";
+    stockModalVisible.value = true;
+}
+
+function cancelStockModal() {
+    stockModalVisible.value = false;
+}
+
+function onStockModalHide() {
+    if (stockNumberLinked.value || savingStockNumber.value) {
+        return;
+    }
+
+    filters.item_id = null;
+    pendingItem.value = null;
+    hardCopyStockNumber.value = "";
+    clearPreview();
+}
+
+function continueWithExistingStockNumber() {
+    if (!pendingItem.value) {
+        return;
+    }
+
+    selectedItem.value = pendingItem.value;
+    stockNumberLinked.value = true;
+    stockModalVisible.value = false;
+}
+
+async function confirmStockNumber() {
+    const stockNumber = hardCopyStockNumber.value.trim();
+    if (!pendingItem.value) {
+        return;
+    }
+
+    if (!stockNumber) {
+        notify.warn("Please enter the stock number from the hard copy.");
+        return;
+    }
+
+    if (stockNumberUnchanged.value) {
+        continueWithExistingStockNumber();
+        return;
+    }
+
+    savingStockNumber.value = true;
+    try {
+        const { data } = await api.put(
+            `/items/${pendingItem.value.id}/stock-number`,
+            { item_number: stockNumber },
+        );
+
+        const index = items.value.findIndex(
+            (row) => row.id === pendingItem.value.id,
+        );
+        if (index !== -1) {
+            items.value[index] = data;
+        }
+
+        selectedItem.value = data;
+        pendingItem.value = data;
+        stockNumberLinked.value = true;
+        stockModalVisible.value = false;
+
+        notify.success(
+            "Hard-copy stock number linked to this item.",
+            "Stock number saved",
+        );
+    } catch (error) {
+        notify.error(
+            error.response?.data?.message ||
+                error.response?.data?.errors?.item_number?.[0] ||
+                "Unable to save the stock number.",
+        );
+    } finally {
+        savingStockNumber.value = false;
+    }
+}
+
 async function loadItems() {
     try {
-        const { data } = await api.get("/items/list");
+        const { data } = await api.get("/items/list", {
+            params: { all: 1 },
+        });
         items.value = data.data ?? data;
     } catch (error) {
         notify.error(error.response?.data?.message || "Unable to load items.");
@@ -337,11 +556,23 @@ async function loadMovements() {
         return;
     }
 
+    if (!stockNumberLinked.value) {
+        const item = items.value.find((row) => row.id === filters.item_id);
+        if (item) {
+            pendingItem.value = item;
+            hardCopyStockNumber.value = item.item_number || "";
+            stockModalVisible.value = true;
+            notify.warn(
+                "Confirm the hard-copy stock number before viewing the stock card.",
+            );
+            return;
+        }
+    }
+
     loading.value = true;
     hasLoaded.value = true;
     activeView.value = "table";
     movementRows.value = [];
-    selectedItem.value = null;
 
     try {
         const { data } = await api.get("/reports/stock-card", {
@@ -396,9 +627,11 @@ function exportPdf() {
         .then((response) => {
             const disposition = response.headers["content-disposition"] || "";
             const match = disposition.match(/filename="?([^";]+)"?/i);
-            const fallback = selectedItem.value?.item_name
-                ? `Stock-Card-${selectedItem.value.item_name.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "")}.pdf`
-                : "Stock-Card-Report.pdf";
+            const fallback = selectedItem.value?.item_number
+                ? `Stock-Card-${selectedItem.value.item_number.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "")}.pdf`
+                : selectedItem.value?.item_name
+                  ? `Stock-Card-${selectedItem.value.item_name.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "")}.pdf`
+                  : "Stock-Card-Report.pdf";
             const filename = match?.[1] || fallback;
             const url = URL.createObjectURL(
                 new Blob([response.data], { type: "application/pdf" }),
@@ -424,7 +657,7 @@ onMounted(async () => {
 
     if (itemId) {
         filters.item_id = Number(itemId);
-        await loadMovements();
+        onItemSelected(filters.item_id);
     }
 });
 </script>

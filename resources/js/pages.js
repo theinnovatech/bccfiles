@@ -11,6 +11,7 @@ export const pageModules = {
     issuance: () => import('./pages/issuance/Issuance.vue'),
     returns: () => import('./pages/issuance/Returns.vue'),
     'person-lookup': () => import('./pages/lookup/PersonLookup.vue'),
+    'catalog-details': () => import('./pages/lookup/CatalogDetails.vue'),
     departments: () => import('./pages/master/Departments.vue'),
     employees: () => import('./pages/master/Employees.vue'),
     reports: () => import('./pages/reports/Reports.vue'),
@@ -20,4 +21,5 @@ export const pageModules = {
     permissions: () => import('./pages/Permissions.vue'),
     'deleted-data': () => import('./pages/DeletedData.vue'),
     'backup-files': () => import('./pages/BackupFiles.vue'),
+    profile: () => import('./pages/Profile.vue'),
 };

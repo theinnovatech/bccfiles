@@ -35,6 +35,7 @@
                         filterPlaceholder="Search equipment or property no...."
                         placeholder="Select equipment"
                         class="w-full"
+                        @update:model-value="onEquipmentSelected"
                     />
                 </div>
                 <div>
@@ -278,12 +279,96 @@
                 </div>
             </template>
         </UiCard>
+
+        <Dialog
+            v-model:visible="propertyModalVisible"
+            modal
+            header="Link Hard-Copy Property Number"
+            :style="{ width: '480px' }"
+            :closable="!savingPropertyNumber"
+            :closeOnEscape="!savingPropertyNumber"
+            @hide="onPropertyModalHide"
+        >
+            <div class="space-y-4 pt-1">
+                <div
+                    v-if="pendingEquipment"
+                    class="border border-[#a8b8d4] bg-[#f4f7fb] px-3 py-2"
+                >
+                    <p
+                        class="text-xs font-semibold uppercase tracking-wide text-[#4a6490]"
+                    >
+                        Selected Equipment
+                    </p>
+                    <p class="mt-1 text-sm font-medium text-[#00164d]">
+                        {{ pendingEquipment.name }}
+                    </p>
+                    <p
+                        v-if="pendingEquipment.category?.name"
+                        class="mt-0.5 text-xs text-[#4a6490]"
+                    >
+                        {{ pendingEquipment.category.name }}
+                    </p>
+                </div>
+
+                <div>
+                    <label
+                        class="mb-1 block text-sm font-medium text-[#00164d]"
+                    >
+                        Property Number
+                        <span class="text-[#ce1126]">*</span>
+                    </label>
+                    <InputText
+                        v-model="hardCopyPropertyNumber"
+                        class="w-full"
+                        placeholder="Enter property number from hard copy"
+                        :disabled="savingPropertyNumber"
+                        @keyup.enter="confirmPropertyNumber"
+                    />
+                    <p class="mt-1 text-xs text-[#4a6490]">
+                        <span v-if="propertyNumberUnchanged">
+                            This equipment already has a linked property number.
+                            Click Continue to keep using it, or edit the number
+                            to update it.
+                        </span>
+                        <span v-else>
+                            Enter or update the property number from the
+                            hard-copy Property Card. Saving links it to the
+                            equipment and shows it on the PDF.
+                        </span>
+                    </p>
+                </div>
+            </div>
+
+            <template #footer>
+                <div class="flex justify-end gap-2">
+                    <UiButton
+                        variant="outline"
+                        :disabled="savingPropertyNumber"
+                        @click="cancelPropertyModal"
+                    >
+                        Cancel
+                    </UiButton>
+                    <UiButton
+                        :loading="savingPropertyNumber"
+                        @click="confirmPropertyNumber"
+                    >
+                        {{
+                            propertyNumberUnchanged
+                                ? "Continue"
+                                : "Save & Link"
+                        }}
+                    </UiButton>
+                </div>
+            </template>
+        </Dialog>
     </div>
 </template>
 
 <script setup>
 import { computed, onMounted, reactive, ref } from "vue";
 import Select from "primevue/select";
+import Dialog from "primevue/dialog";
+import InputText from "primevue/inputtext";
 import UiCard from "../../components/ui/UiCard.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import ReportPreview from "../../components/ReportPreview.vue";
@@ -299,6 +384,12 @@ const selectedEquipment = ref(null);
 const loading = ref(false);
 const hasLoaded = ref(false);
 const activeView = ref("table");
+
+const propertyModalVisible = ref(false);
+const pendingEquipment = ref(null);
+const hardCopyPropertyNumber = ref("");
+const savingPropertyNumber = ref(false);
+const propertyNumberLinked = ref(false);
 
 const filters = reactive({
     equipment_id: null,
@@ -322,22 +413,140 @@ const equipmentOptions = computed(() =>
     })),
 );
 
+const existingPropertyNumber = computed(() =>
+    String(pendingEquipment.value?.property_number || "").trim(),
+);
+
+const propertyNumberUnchanged = computed(() => {
+    const current = hardCopyPropertyNumber.value.trim();
+    return (
+        existingPropertyNumber.value !== "" &&
+        current !== "" &&
+        current === existingPropertyNumber.value
+    );
+});
+
 const pdfParams = computed(() => ({
     equipment_id: filters.equipment_id,
     from: filters.from || undefined,
     to: filters.to || undefined,
     movement_type: filters.movement_type || undefined,
+    _pn: selectedEquipment.value?.property_number || undefined,
 }));
+
+function clearPreview() {
+    selectedEquipment.value = null;
+    movementRows.value = [];
+    hasLoaded.value = false;
+    activeView.value = "table";
+}
 
 function resetFilters() {
     filters.equipment_id = null;
     filters.from = "";
     filters.to = "";
     filters.movement_type = "";
-    selectedEquipment.value = null;
-    movementRows.value = [];
-    hasLoaded.value = false;
-    activeView.value = "table";
+    pendingEquipment.value = null;
+    hardCopyPropertyNumber.value = "";
+    propertyNumberLinked.value = false;
+    propertyModalVisible.value = false;
+    clearPreview();
+}
+
+function onEquipmentSelected(equipmentId) {
+    propertyNumberLinked.value = false;
+    clearPreview();
+
+    if (!equipmentId) {
+        pendingEquipment.value = null;
+        hardCopyPropertyNumber.value = "";
+        propertyModalVisible.value = false;
+        return;
+    }
+
+    const equipment = equipments.value.find((row) => row.id === equipmentId);
+    if (!equipment) {
+        return;
+    }
+
+    pendingEquipment.value = equipment;
+    hardCopyPropertyNumber.value = equipment.property_number || "";
+    propertyModalVisible.value = true;
+}
+
+function cancelPropertyModal() {
+    propertyModalVisible.value = false;
+}
+
+function onPropertyModalHide() {
+    if (propertyNumberLinked.value || savingPropertyNumber.value) {
+        return;
+    }
+
+    filters.equipment_id = null;
+    pendingEquipment.value = null;
+    hardCopyPropertyNumber.value = "";
+    clearPreview();
+}
+
+function continueWithExistingPropertyNumber() {
+    if (!pendingEquipment.value) {
+        return;
+    }
+
+    selectedEquipment.value = pendingEquipment.value;
+    propertyNumberLinked.value = true;
+    propertyModalVisible.value = false;
+}
+
+async function confirmPropertyNumber() {
+    const propertyNumber = hardCopyPropertyNumber.value.trim();
+    if (!pendingEquipment.value) {
+        return;
+    }
+
+    if (!propertyNumber) {
+        notify.warn("Please enter the property number from the hard copy.");
+        return;
+    }
+
+    if (propertyNumberUnchanged.value) {
+        continueWithExistingPropertyNumber();
+        return;
+    }
+
+    savingPropertyNumber.value = true;
+    try {
+        const { data } = await api.put(
+            `/equipments/${pendingEquipment.value.id}/property-number`,
+            { property_number: propertyNumber },
+        );
+
+        const index = equipments.value.findIndex(
+            (row) => row.id === pendingEquipment.value.id,
+        );
+        if (index !== -1) {
+            equipments.value[index] = data;
+        }
+
+        selectedEquipment.value = data;
+        pendingEquipment.value = data;
+        propertyNumberLinked.value = true;
+        propertyModalVisible.value = false;
+
+        notify.success(
+            "Hard-copy property number linked to this equipment.",
+            "Property number saved",
+        );
+    } catch (error) {
+        notify.error(
+            error.response?.data?.message ||
+                error.response?.data?.errors?.property_number?.[0] ||
+                "Unable to save the property number.",
+        );
+    } finally {
+        savingPropertyNumber.value = false;
+    }
 }
 
 async function loadEquipments() {
@@ -357,11 +566,25 @@ async function loadMovements() {
         return;
     }
 
+    if (!propertyNumberLinked.value) {
+        const equipment = equipments.value.find(
+            (row) => row.id === filters.equipment_id,
+        );
+        if (equipment) {
+            pendingEquipment.value = equipment;
+            hardCopyPropertyNumber.value = equipment.property_number || "";
+            propertyModalVisible.value = true;
+            notify.warn(
+                "Save the hard-copy property number before viewing the property card.",
+            );
+            return;
+        }
+    }
+
     loading.value = true;
     hasLoaded.value = true;
     activeView.value = "table";
     movementRows.value = [];
-    selectedEquipment.value = null;
 
     try {
         const { data } = await api.get("/reports/property-card", {
@@ -448,7 +671,7 @@ onMounted(async () => {
 
     if (equipmentId) {
         filters.equipment_id = Number(equipmentId);
-        await loadMovements();
+        onEquipmentSelected(filters.equipment_id);
     }
 });
 </script>

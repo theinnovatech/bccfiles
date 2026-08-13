@@ -460,7 +460,7 @@
                         <td class="info-item"><strong>Item:</strong> {{ $item->item_name }}</td>
                         <td class="info-description"><strong>Description:</strong> {{ $item->description ?: '—' }}</td>
                         <td class="info-stock">
-                            <div class="info-stock-row"><strong>Stock No.:</strong> {{ $item->barcode ?: $item->item_number }}</div>
+                            <div class="info-stock-row"><strong>Stock No.:</strong> {{ $item->item_number ?: $item->barcode }}</div>
                             <div class="info-stock-row"><strong>Re-order Point:</strong> {{ $item->minimum_stock }}</div>
                         </td>
                     </tr>

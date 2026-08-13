@@ -134,6 +134,33 @@ class ItemController extends Controller
         return response()->json($item->load(['category', 'unit', 'location']));
     }
 
+    public function updateStockNumber(Request $request, Item $item): JsonResponse
+    {
+        $data = $request->validate([
+            'item_number' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('items', 'item_number')->ignore($item->id),
+            ],
+        ]);
+
+        $stockNumber = trim($data['item_number']);
+
+        $item->update([
+            'item_number' => $stockNumber,
+        ]);
+
+        $this->activityLogService->log(
+            $request->user(),
+            'Updated',
+            'Items',
+            "Linked hard-copy stock number {$stockNumber} to item {$item->item_name}"
+        );
+
+        return response()->json($item->fresh()->load(['category', 'unit', 'location']));
+    }
+
     public function destroy(Request $request, Item $item): JsonResponse
     {
         $name = $item->item_name;

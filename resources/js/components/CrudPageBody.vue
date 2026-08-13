@@ -43,9 +43,23 @@
     >
         <div class="space-y-4">
             <div v-for="field in fields" :key="field.key" class="space-y-2">
-                <label class="text-sm font-medium text-[#00164d]">{{ field.label }}</label>
-                <InputText v-if="field.type !== 'textarea' && field.type !== 'checkbox'" v-model="form[field.key]" class="w-full" />
-                <Textarea v-else-if="field.type === 'textarea'" v-model="form[field.key]" class="w-full" rows="3" />
+                <label class="text-sm font-medium text-[#00164d]">
+                    {{ field.label }}
+                    <span v-if="field.required" class="text-[#ce1126]">*</span>
+                </label>
+                <InputText
+                    v-if="field.type !== 'textarea' && field.type !== 'checkbox'"
+                    v-model="form[field.key]"
+                    class="w-full"
+                    :required="!!field.required"
+                />
+                <Textarea
+                    v-else-if="field.type === 'textarea'"
+                    v-model="form[field.key]"
+                    class="w-full"
+                    rows="3"
+                    :required="!!field.required"
+                />
                 <div v-else class="flex items-center gap-2">
                     <Checkbox v-model="form[field.key]" binary :inputId="field.key" />
                     <label :for="field.key" class="text-sm text-[#4a6490]">Enabled</label>

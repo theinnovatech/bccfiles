@@ -53,6 +53,12 @@ class PagePermissionService
                 'group' => 'Inventory',
             ],
             [
+                'key' => 'catalog-details',
+                'label' => 'Catalog Details',
+                'description' => 'Search and view full item or equipment details.',
+                'group' => 'Inventory',
+            ],
+            [
                 'key' => 'issuance',
                 'label' => 'Item Issuance',
                 'description' => 'Issue supplies and equipment to people.',
@@ -66,8 +72,8 @@ class PagePermissionService
             ],
             [
                 'key' => 'person-lookup',
-                'label' => 'Person Lookup',
-                'description' => 'Look up issuance history by person.',
+                'label' => 'Records Lookup',
+                'description' => 'Look up issuance and return history by person, item, or equipment.',
                 'group' => 'Transactions',
             ],
             [
@@ -106,6 +112,7 @@ class PagePermissionService
             'inventory/predictions' => 'inventory.predictions',
             'stock/operations' => 'stock.operations',
             'stock/registration' => 'stock.registration',
+            'catalog-details' => 'catalog-details',
             'issuance' => 'issuance',
             'returns' => 'returns',
             'person-lookup' => 'person-lookup',
