@@ -323,6 +323,13 @@
                                     field="property_number"
                                     header="Property #"
                                 />
+                                <Column header="Specs">
+                                    <template #body="{ data }">
+                                        <span class="line-clamp-2">{{
+                                            data.specs || "—"
+                                        }}</span>
+                                    </template>
+                                </Column>
                                 <Column
                                     field="department"
                                     header="Department"
@@ -369,6 +376,13 @@
                                     field="property_number"
                                     header="Property #"
                                 />
+                                <Column header="Specs">
+                                    <template #body="{ data }">
+                                        <span class="line-clamp-2">{{
+                                            data.specs || "—"
+                                        }}</span>
+                                    </template>
+                                </Column>
                                 <Column
                                     field="issued_quantity"
                                     header="Issued"
@@ -425,6 +439,13 @@
                                     field="property_number"
                                     header="Property #"
                                 />
+                                <Column header="Specs">
+                                    <template #body="{ data }">
+                                        <span class="line-clamp-2">{{
+                                            data.specs || "—"
+                                        }}</span>
+                                    </template>
+                                </Column>
                                 <Column
                                     field="department"
                                     header="Department"
@@ -587,6 +608,21 @@
                                         · {{ result.target.type_label }}
                                     </span>
                                 </p>
+                                <div class="mt-3 border-t border-[#d7e0ef] pt-3">
+                                    <p
+                                        class="text-[10px] font-semibold uppercase tracking-wide text-[#4a6490]"
+                                    >
+                                        Specs
+                                    </p>
+                                    <p
+                                        class="mt-1 whitespace-pre-wrap text-sm text-[#00164d]"
+                                    >
+                                        {{
+                                            result.target?.specs ||
+                                            "No specs recorded for this equipment."
+                                        }}
+                                    </p>
+                                </div>
                             </div>
                         </div>
 

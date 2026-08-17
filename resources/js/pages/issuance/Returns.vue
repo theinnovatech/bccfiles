@@ -85,8 +85,45 @@
                             placeholder="Select equipment"
                             class="w-full"
                             filter
+                            @update:model-value="onSupplyEquipmentSelected"
                         />
                     </div>
+
+                    <template v-if="!form.useCustom">
+                        <div>
+                            <label
+                                class="mb-1 block text-sm font-medium text-[#00164d]"
+                            >
+                                Property No.
+                                <span
+                                    class="ml-1 text-xs font-normal text-[#4a6490]"
+                                    >(optional)</span
+                                >
+                            </label>
+                            <InputText
+                                v-model="form.property_number"
+                                class="w-full"
+                                placeholder="e.g. PROP-2023-0125"
+                            />
+                        </div>
+
+                        <div>
+                            <label
+                                class="mb-1 block text-sm font-medium text-[#00164d]"
+                            >
+                                Inventory No.
+                                <span
+                                    class="ml-1 text-xs font-normal text-[#4a6490]"
+                                    >(optional)</span
+                                >
+                            </label>
+                            <InputText
+                                v-model="form.inventory_number"
+                                class="w-full"
+                                placeholder="e.g. INV-2023-0087"
+                            />
+                        </div>
+                    </template>
 
                     <template v-else>
                         <div class="md:col-span-2">
@@ -248,11 +285,47 @@
                     </div>
 
                     <div class="md:col-span-2">
+                        <p class="mb-2 text-sm font-medium text-[#00164d]">
+                            Return condition
+                            <span class="text-[#ce1126]">*</span>
+                        </p>
+                        <div class="grid gap-2 sm:grid-cols-2">
+                            <button
+                                v-for="option in conditionOptions"
+                                :key="option.value"
+                                type="button"
+                                class="rounded-md border px-3 py-2.5 text-left transition"
+                                :class="
+                                    form.condition === option.value
+                                        ? 'border-[#00164d] bg-[#00164d] text-white'
+                                        : 'border-[#a8b8d4] bg-transparent text-[#00164d]'
+                                "
+                                @click="form.condition = option.value"
+                            >
+                                <span class="block text-sm font-medium">{{
+                                    option.label
+                                }}</span>
+                                <span
+                                    class="mt-0.5 block text-xs"
+                                    :class="
+                                        form.condition === option.value
+                                            ? 'text-white/80'
+                                            : 'text-[#4a6490]'
+                                    "
+                                >
+                                    {{ option.description }}
+                                </span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="md:col-span-2">
                         <label
                             class="mb-1 block text-sm font-medium text-[#00164d]"
                         >
                             Condition / Remarks
-                            <span class="ml-1 text-xs font-normal text-[#4a6490]"
+                            <span
+                                class="ml-1 text-xs font-normal text-[#4a6490]"
                                 >(optional)</span
                             >
                         </label>
@@ -260,7 +333,7 @@
                             v-model="form.reason"
                             class="w-full"
                             rows="2"
-                            placeholder="Optional notes (condition, missing parts, hard-copy reference, etc.)"
+                            placeholder="Optional notes (missing parts, hard-copy reference, etc.)"
                         />
                     </div>
                 </div>
@@ -272,13 +345,52 @@
                     <p class="font-medium">{{ selectedEquipment.name }}</p>
                     <p class="mt-1 text-[#4a6490]">
                         Property No.:
-                        {{ selectedEquipment.property_number || "—" }} · Current
-                        available qty: {{ selectedEquipment.quantity ?? 0 }}
+                        {{ selectedEquipment.property_number || "—" }}
+                        · Inventory No.:
+                        {{ selectedEquipment.inventory_number || "—" }}
+                        · Current available qty:
+                        {{ selectedEquipment.quantity ?? 0 }}
                     </p>
                     <p class="mt-1 text-xs text-[#4a6490]">
-                        Returned units are considered used and are only logged
-                        in the Returned Equipments table — they are not added
-                        back to Supply Master.
+                        Life span:
+                        {{
+                            selectedEquipment.life_span_years
+                                ? `${selectedEquipment.life_span_years} year${selectedEquipment.life_span_years === 1 ? "" : "s"}`
+                                : "—"
+                        }}
+                        · Date acquired:
+                        {{ formatDateOnly(selectedEquipment.date_acquired) }}
+                    </p>
+                    <div class="mt-3 border-t border-[#d7e0ef] pt-3">
+                        <p
+                            class="text-[10px] font-semibold uppercase tracking-wide text-[#4a6490]"
+                        >
+                            Specs
+                        </p>
+                        <p class="mt-1 whitespace-pre-wrap text-sm text-[#00164d]">
+                            {{
+                                selectedEquipment.specs ||
+                                "No specs recorded for this equipment."
+                            }}
+                        </p>
+                    </div>
+                    <p
+                        v-if="selectedEquipmentReachedLifespan"
+                        class="mt-3 text-xs font-medium text-[#ce1126]"
+                    >
+                        This equipment has reached its life span. Even if
+                        returned well, it will not be added back for re-issue.
+                    </p>
+                    <p
+                        v-else-if="form.condition === 'good'"
+                        class="mt-3 text-xs text-[#4a6490]"
+                    >
+                        Returned well with no damage will be added back to
+                        Supply Master so it can be re-issued.
+                    </p>
+                    <p v-else class="mt-3 text-xs text-[#4a6490]">
+                        Damaged returns are logged only and are not added back
+                        for re-issue.
                     </p>
                 </div>
 
@@ -298,10 +410,7 @@
             </form>
         </div>
 
-        <UiCard
-            title="Returned Equipments"
-            description="Log of used equipments that have been returned. These are not added back to Supply Master."
-        >
+        <div class="space-y-6">
             <TableFilters
                 v-model="filters"
                 :filters="filterConfig"
@@ -310,124 +419,147 @@
                 @reset="resetFilters"
             />
 
-            <div v-if="loadingReturned" class="stock-op-empty">
-                <p class="text-sm text-[#4a6490]">Loading returned equipments...</p>
-            </div>
+            <UiCard
+                v-for="table in returnTables"
+                :key="table.key"
+                :title="table.title"
+                :description="table.description"
+            >
+                <div v-if="loadingReturned" class="stock-op-empty">
+                    <p class="text-sm text-[#4a6490]">
+                        Loading returned equipments...
+                    </p>
+                </div>
 
-            <div v-else-if="!filteredReturnedEquipments.length" class="stock-op-empty">
-                <p class="mt-3 text-sm font-medium text-[#00164d]">
-                    No returned equipments yet
-                </p>
-                <p class="mt-1 text-xs text-[#4a6490]">
-                    Processed equipment returns will be listed here.
-                </p>
-            </div>
+                <div v-else-if="!table.rows.length" class="stock-op-empty">
+                    <p class="mt-3 text-sm font-medium text-[#00164d]">
+                        {{ table.emptyTitle }}
+                    </p>
+                    <p class="mt-1 text-xs text-[#4a6490]">
+                        {{ table.emptyText }}
+                    </p>
+                </div>
 
-            <div v-else class="obims-table-wrap">
-                <DataTable
-                    :value="filteredReturnedEquipments"
-                    striped-rows
-                    paginator
-                    :rows="10"
-                    class="rounded-md border border-[#a8b8d4]"
-                >
-                    <Column header="Ref. No.">
-                        <template #body="{ data }">{{
-                            data.reference_number || "—"
-                        }}</template>
-                    </Column>
-                    <Column header="Property No.">
-                        <template #body="{ data }">{{
-                            propertyNumber(data)
-                        }}</template>
-                    </Column>
-                    <Column header="Inventory No.">
-                        <template #body="{ data }">{{
-                            inventoryNumber(data)
-                        }}</template>
-                    </Column>
-                    <Column header="Equipment">
-                        <template #body="{ data }">
-                            <div>
-                                <p class="font-medium text-[#00164d]">
-                                    {{ equipmentName(data) }}
-                                    <span
-                                        v-if="!data.equipment_id"
-                                        class="ml-1 rounded bg-[#f2c94c] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#00164d]"
-                                        >Custom</span
-                                    >
-                                </p>
-                                <p class="text-xs text-[#4a6490]">
-                                    {{ equipmentCategory(data) }}
-                                </p>
-                            </div>
-                        </template>
-                    </Column>
-                    <Column header="Type">
-                        <template #body="{ data }">{{
-                            equipmentType(data)
-                        }}</template>
-                    </Column>
-                    <Column header="Qty">
-                        <template #body="{ data }">{{
-                            data.quantity ?? 0
-                        }}</template>
-                    </Column>
-                    <Column header="Department">
-                        <template #body="{ data }">{{
-                            data.department?.name || "—"
-                        }}</template>
-                    </Column>
-                    <Column header="Returned By">
-                        <template #body="{ data }">{{
-                            borrowerName(data)
-                        }}</template>
-                    </Column>
-                    <Column header="Date Returned">
-                        <template #body="{ data }">{{
-                            formatDate(data.date_returned)
-                        }}</template>
-                    </Column>
-                    <Column header="Condition / Remarks">
-                        <template #body="{ data }">
-                            <span class="text-sm text-[#4a6490]">{{
-                                data.reason || "—"
-                            }}</span>
-                        </template>
-                    </Column>
-                    <Column header="Actions" style="width: 6rem">
-                        <template #body="{ data }">
-                            <UiButton
-                                variant="ghost"
-                                size="icon"
-                                title="View return details"
-                                @click="viewReturn(data)"
-                            >
-                                <svg
-                                    class="h-4 w-4"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                    stroke-width="2"
-                                    aria-hidden="true"
+                <div v-else class="obims-table-wrap">
+                    <DataTable
+                        :value="table.rows"
+                        striped-rows
+                        paginator
+                        :rows="10"
+                        class="rounded-md border border-[#a8b8d4]"
+                    >
+                        <Column header="Ref. No.">
+                            <template #body="{ data }">{{
+                                data.reference_number || "—"
+                            }}</template>
+                        </Column>
+                        <Column header="Property No.">
+                            <template #body="{ data }">{{
+                                propertyNumber(data)
+                            }}</template>
+                        </Column>
+                        <Column header="Inventory No.">
+                            <template #body="{ data }">{{
+                                inventoryNumber(data)
+                            }}</template>
+                        </Column>
+                        <Column header="Equipment">
+                            <template #body="{ data }">
+                                <div>
+                                    <p class="font-medium text-[#00164d]">
+                                        {{ equipmentName(data) }}
+                                        <span
+                                            v-if="!data.equipment_id"
+                                            class="ml-1 rounded bg-[#f2c94c] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#00164d]"
+                                            >Custom</span
+                                        >
+                                    </p>
+                                    <p class="text-xs text-[#4a6490]">
+                                        {{ equipmentCategory(data) }}
+                                    </p>
+                                </div>
+                            </template>
+                        </Column>
+                        <Column header="Type">
+                            <template #body="{ data }">{{
+                                equipmentType(data)
+                            }}</template>
+                        </Column>
+                        <Column header="Qty">
+                            <template #body="{ data }">{{
+                                data.quantity ?? 0
+                            }}</template>
+                        </Column>
+                        <Column header="Status">
+                            <template #body="{ data }">
+                                <span
+                                    class="text-sm"
+                                    :class="
+                                        data.restocked
+                                            ? 'font-medium text-[#00164d]'
+                                            : 'text-[#4a6490]'
+                                    "
                                 >
-                                    <path
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"
-                                    />
-                                    <path
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                                    />
-                                </svg>
-                            </UiButton>
-                        </template>
-                    </Column>
-                </DataTable>
-            </div>
-        </UiCard>
+                                    {{ returnStatus(data) }}
+                                </span>
+                            </template>
+                        </Column>
+                        <Column header="Department">
+                            <template #body="{ data }">{{
+                                data.department?.name || "—"
+                            }}</template>
+                        </Column>
+                        <Column header="Returned By">
+                            <template #body="{ data }">{{
+                                borrowerName(data)
+                            }}</template>
+                        </Column>
+                        <Column header="Date Returned">
+                            <template #body="{ data }">{{
+                                formatDate(data.date_returned)
+                            }}</template>
+                        </Column>
+                        <Column header="Remarks">
+                            <template #body="{ data }">
+                                <span class="text-sm text-[#4a6490]">{{
+                                    data.reason || "—"
+                                }}</span>
+                            </template>
+                        </Column>
+                        <Column header="Actions" style="width: 6rem">
+                            <template #body="{ data }">
+                                <UiButton
+                                    variant="ghost"
+                                    size="icon"
+                                    title="View return details"
+                                    @click="viewReturn(data)"
+                                >
+                                    <svg
+                                        class="h-4 w-4"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        aria-hidden="true"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"
+                                        />
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                                        />
+                                    </svg>
+                                </UiButton>
+                            </template>
+                        </Column>
+                    </DataTable>
+                </div>
+            </UiCard>
+        </div>
 
         <Dialog
             v-model:visible="viewDialogVisible"
@@ -457,6 +589,9 @@
                         <span v-if="equipmentType(selectedReturn) !== '—'">
                             · {{ equipmentType(selectedReturn) }}
                         </span>
+                    </p>
+                    <p class="mt-2 text-xs font-medium text-[#00164d]">
+                        {{ returnStatus(selectedReturn) }}
                     </p>
                 </div>
 
@@ -523,6 +658,17 @@
                         </p>
                         <p class="mt-0.5 font-medium">
                             {{ selectedReturn.returner?.name || "—" }}
+                        </p>
+                    </div>
+                    <div>
+                        <p class="text-xs uppercase tracking-wide text-[#4a6490]">
+                            Condition
+                        </p>
+                        <p class="mt-0.5 font-medium">
+                            {{
+                                selectedReturn.condition_label ||
+                                returnStatus(selectedReturn)
+                            }}
                         </p>
                     </div>
                     <div>
@@ -616,10 +762,26 @@ const form = reactive({
     custom_equipment_type: "",
     custom_equipment_category: "",
     department_id: null,
+    property_number: "",
+    inventory_number: "",
     quantity: 1,
     reason: "",
+    condition: "good",
     date_returned: "",
 });
+
+const conditionOptions = [
+    {
+        value: "good",
+        label: "Returned well",
+        description: "No damage. Can be re-issued if still within life span.",
+    },
+    {
+        value: "damaged",
+        label: "Returned with damage",
+        description: "Logged only. This equipment will not be re-issued.",
+    },
+];
 
 const equipments = computed(() =>
     equipmentRows.value.map((equipment) => ({
@@ -630,6 +792,10 @@ const equipments = computed(() =>
 
 const selectedEquipment = computed(() =>
     equipmentRows.value.find((row) => row.id === form.equipment_id) ?? null,
+);
+
+const selectedEquipmentReachedLifespan = computed(() =>
+    hasReachedLifespan(selectedEquipment.value, form.date_returned || undefined),
 );
 
 const todayIso = computed(() => {
@@ -672,6 +838,7 @@ const filterConfig = computed(() => [
             "borrower_name",
             "returner.name",
             "reason",
+            "condition",
         ],
     },
 ]);
@@ -682,6 +849,39 @@ const {
     hasActiveFilters,
     resetFilters,
 } = useTableFilters(returnedEquipments, filterConfig);
+
+const goodReturnedEquipments = computed(() =>
+    filteredReturnedEquipments.value.filter(
+        (row) => returnCondition(row) !== "damaged",
+    ),
+);
+
+const damagedReturnedEquipments = computed(() =>
+    filteredReturnedEquipments.value.filter(
+        (row) => returnCondition(row) === "damaged",
+    ),
+);
+
+const returnTables = computed(() => [
+    {
+        key: "good",
+        title: "Equipments Returned Well",
+        description:
+            "No-damage returns. Units still within life span are added back to Supply Master so they can be re-issued.",
+        rows: goodReturnedEquipments.value,
+        emptyTitle: "No well-returned equipments yet",
+        emptyText: "Returns marked as well / no damage will appear here.",
+    },
+    {
+        key: "damaged",
+        title: "Equipments Returned with Damage",
+        description:
+            "Damaged returns are logged here and are not added back for re-issue.",
+        rows: damagedReturnedEquipments.value,
+        emptyTitle: "No damaged returns yet",
+        emptyText: "Returns marked as damaged will appear here.",
+    },
+]);
 
 watch(
     () => form.department_id,
@@ -738,6 +938,66 @@ function inventoryNumber(row) {
     );
 }
 
+function returnCondition(row) {
+    return row?.condition === "damaged" ? "damaged" : "good";
+}
+
+function returnStatus(row) {
+    if (returnCondition(row) === "damaged") {
+        return "Damaged — not re-issuable";
+    }
+
+    if (row?.restocked) {
+        return "Restocked — can re-issue";
+    }
+
+    if (row?.lifespan_reached) {
+        return "Lifespan reached — not re-issuable";
+    }
+
+    if (!row?.equipment_id) {
+        return "Custom — not in Supply Master";
+    }
+
+    return "Logged only";
+}
+
+function hasReachedLifespan(equipment, asOf) {
+    if (!equipment?.life_span_years || !equipment?.date_acquired) {
+        return false;
+    }
+
+    const acquired = new Date(`${String(equipment.date_acquired).slice(0, 10)}T00:00:00`);
+    if (Number.isNaN(acquired.getTime())) {
+        return false;
+    }
+
+    const limit = new Date(acquired);
+    limit.setFullYear(limit.getFullYear() + Number(equipment.life_span_years));
+
+    const check = asOf
+        ? new Date(`${String(asOf).slice(0, 10)}T00:00:00`)
+        : new Date();
+    check.setHours(0, 0, 0, 0);
+    limit.setHours(0, 0, 0, 0);
+
+    return check >= limit;
+}
+
+function formatDateOnly(value) {
+    if (!value) {
+        return "—";
+    }
+
+    const raw = String(value).slice(0, 10);
+    const [year, month, day] = raw.split("-");
+    if (!year || !month || !day) {
+        return raw;
+    }
+
+    return new Date(Number(year), Number(month) - 1, Number(day)).toLocaleDateString();
+}
+
 function viewReturn(row) {
     selectedReturn.value = row;
     viewDialogVisible.value = true;
@@ -751,6 +1011,8 @@ function setUseCustom(useCustom) {
     form.useCustom = useCustom;
     if (useCustom) {
         form.equipment_id = null;
+        form.property_number = "";
+        form.inventory_number = "";
     } else {
         form.custom_equipment_name = "";
         form.custom_property_number = "";
@@ -758,6 +1020,12 @@ function setUseCustom(useCustom) {
         form.custom_equipment_type = "";
         form.custom_equipment_category = "";
     }
+}
+
+function onSupplyEquipmentSelected(equipmentId) {
+    const equipment = equipmentRows.value.find((row) => row.id === equipmentId);
+    form.property_number = equipment?.property_number || "";
+    form.inventory_number = equipment?.inventory_number || "";
 }
 
 function resolveBorrowerPayload() {
@@ -782,6 +1050,8 @@ function resetForm() {
     form.useCustom = false;
     form.reference_number = "";
     form.equipment_id = null;
+    form.property_number = "";
+    form.inventory_number = "";
     form.custom_equipment_name = "";
     form.custom_property_number = "";
     form.custom_inventory_number = "";
@@ -790,6 +1060,7 @@ function resetForm() {
     form.department_id = null;
     form.quantity = 1;
     form.reason = "";
+    form.condition = "good";
     form.date_returned = "";
     returnedByInput.value = null;
     borrowerSuggestions.value = [];
@@ -841,7 +1112,11 @@ async function submit() {
                   custom_equipment_category:
                       (form.custom_equipment_category || "").trim() || null,
               }
-            : { equipment_id: form.equipment_id };
+            : {
+                  equipment_id: form.equipment_id,
+                  property_number: (form.property_number || "").trim() || null,
+                  inventory_number: (form.inventory_number || "").trim() || null,
+              };
 
         await api.post("/returns", {
             ...payload,
@@ -850,11 +1125,14 @@ async function submit() {
             department_id: form.department_id,
             quantity: form.quantity,
             reason: form.reason || null,
+            condition: form.condition,
             date_returned: formatDateForPayload(form.date_returned),
             ...borrower,
         });
         notify.success(
-            "Equipment return recorded successfully.",
+            form.condition === "good" && !selectedEquipmentReachedLifespan.value && !form.useCustom
+                ? "Return recorded. Equipment was added back and can be re-issued."
+                : "Equipment return recorded successfully.",
             "Return completed",
         );
         resetForm();

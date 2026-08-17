@@ -47,12 +47,15 @@ class IssuanceController extends Controller
             'remarks' => ['nullable', 'string'],
             'use_custom_date' => ['sometimes', 'boolean'],
             'issued_date' => ['nullable', 'required_if:use_custom_date,true,1', 'date', 'before_or_equal:today'],
+            'date_acquired' => ['nullable', 'date', 'before_or_equal:today'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
+            'items.*.inventory_number' => ['nullable', 'string', 'max:255'],
         ];
 
         if ($issuanceType === IssuanceType::Equipments) {
             $rules['items.*.equipment_id'] = ['required', 'exists:equipments,id'];
+            $rules['items.*.property_number'] = ['required', 'string', 'max:255'];
         } elseif ($issuanceType === IssuanceType::Items) {
             $rules['items.*.item_id'] = ['required', 'exists:items,id'];
         }
@@ -75,9 +78,12 @@ class IssuanceController extends Controller
             : now();
 
         $manualReference = trim((string) ($data['issuance_number'] ?? ''));
+        $dateAcquired = $issuanceType === IssuanceType::Equipments && filled($data['date_acquired'] ?? null)
+            ? Carbon::parse($data['date_acquired'])->toDateString()
+            : null;
 
         try {
-            $issuance = DB::transaction(function () use ($data, $request, $issuanceType, $receivedBy, $receivedByName, $issuedDate, $manualReference) {
+            $issuance = DB::transaction(function () use ($data, $request, $issuanceType, $receivedBy, $receivedByName, $issuedDate, $manualReference, $dateAcquired) {
                 $issuance = Issuance::create([
                     'issuance_number' => $manualReference !== ''
                         ? $manualReference
@@ -91,7 +97,7 @@ class IssuanceController extends Controller
 
                 foreach ($data['items'] as $line) {
                     if ($issuanceType === IssuanceType::Equipments) {
-                        $this->issueEquipmentLine($issuance, $line);
+                        $this->issueEquipmentLine($issuance, $line, $dateAcquired);
                     } else {
                         $this->issueItemLine($issuance, $line, $request);
                     }
@@ -126,6 +132,11 @@ class IssuanceController extends Controller
     private function issueItemLine(Issuance $issuance, array $line, Request $request): void
     {
         $item = Item::query()->findOrFail($line['item_id']);
+        $inventoryNumber = $this->resolveInventoryNumber($line, $item, null);
+
+        if ($item->inventory_number !== $inventoryNumber) {
+            $item->update(['inventory_number' => $inventoryNumber]);
+        }
 
         $this->inventoryService->issueStock(
             $item,
@@ -137,24 +148,89 @@ class IssuanceController extends Controller
         $issuance->details()->create([
             'item_id' => $item->id,
             'barcode' => $item->barcode ?? $item->item_number,
+            'inventory_number' => $inventoryNumber,
             'quantity' => $line['quantity'],
         ]);
     }
 
-    private function issueEquipmentLine(Issuance $issuance, array $line): void
+    private function issueEquipmentLine(Issuance $issuance, array $line, ?string $dateAcquired): void
     {
         $equipment = Equipment::query()->findOrFail($line['equipment_id']);
+        $propertyNumber = trim((string) ($line['property_number'] ?? ''));
+        $inventoryNumber = $this->resolveInventoryNumber($line, null, $equipment);
+
+        if ($propertyNumber === '') {
+            throw new InvalidArgumentException("Property number is required for {$equipment->name}.");
+        }
 
         if ($line['quantity'] > $equipment->quantity) {
             throw new InvalidArgumentException("Not enough available quantity for {$equipment->name}.");
         }
 
+        $taken = Equipment::query()
+            ->where('property_number', $propertyNumber)
+            ->where('id', '!=', $equipment->id)
+            ->exists();
+
+        if ($taken) {
+            throw new InvalidArgumentException("Property number {$propertyNumber} is already used by another equipment.");
+        }
+
+        $payload = [];
+
+        if ($equipment->property_number !== $propertyNumber) {
+            $payload['property_number'] = $propertyNumber;
+        }
+
+        if ($equipment->inventory_number !== $inventoryNumber) {
+            $payload['inventory_number'] = $inventoryNumber;
+        }
+
+        if ($dateAcquired && $equipment->date_acquired?->toDateString() !== $dateAcquired) {
+            $payload['date_acquired'] = $dateAcquired;
+        }
+
+        if ($payload !== []) {
+            $equipment->update($payload);
+        }
+
         $issuance->details()->create([
             'equipment_id' => $equipment->id,
-            'barcode' => $equipment->barcode ?? $equipment->property_number,
+            'barcode' => $equipment->barcode ?? $propertyNumber,
+            'property_number' => $propertyNumber,
+            'inventory_number' => $inventoryNumber,
+            'date_acquired' => $dateAcquired ?: $equipment->date_acquired,
             'quantity' => $line['quantity'],
         ]);
 
         $equipment->decrement('quantity', $line['quantity']);
+    }
+
+    private function resolveInventoryNumber(array $line, ?Item $item, ?Equipment $equipment): string
+    {
+        $manual = trim((string) ($line['inventory_number'] ?? ''));
+        $current = $item?->inventory_number ?: $equipment?->inventory_number;
+        $number = $manual !== '' ? $manual : ($current ?: ReferenceNumberGenerator::forInventory());
+
+        $this->assertInventoryNumberAvailable($number, $item?->id, $equipment?->id);
+
+        return $number;
+    }
+
+    private function assertInventoryNumberAvailable(string $number, ?int $ignoreItemId, ?int $ignoreEquipmentId): void
+    {
+        $itemTaken = Item::query()
+            ->where('inventory_number', $number)
+            ->when($ignoreItemId, fn ($query) => $query->where('id', '!=', $ignoreItemId))
+            ->exists();
+
+        $equipmentTaken = Equipment::query()
+            ->where('inventory_number', $number)
+            ->when($ignoreEquipmentId, fn ($query) => $query->where('id', '!=', $ignoreEquipmentId))
+            ->exists();
+
+        if ($itemTaken || $equipmentTaken) {
+            throw new InvalidArgumentException("Inventory number {$number} is already in use.");
+        }
     }
 }

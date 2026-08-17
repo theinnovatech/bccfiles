@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ReturnCondition;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -27,8 +28,16 @@ class ItemReturn extends Model
         'borrower_name',
         'quantity',
         'reason',
+        'condition',
+        'restocked',
         'returned_by',
         'date_returned',
+    ];
+
+    protected $appends = [
+        'reissuable',
+        'lifespan_reached',
+        'condition_label',
     ];
 
     protected function casts(): array
@@ -36,6 +45,8 @@ class ItemReturn extends Model
         return [
             'quantity' => 'integer',
             'date_returned' => 'datetime',
+            'condition' => ReturnCondition::class,
+            'restocked' => 'boolean',
         ];
     }
 
@@ -74,5 +85,36 @@ class ItemReturn extends Model
         return $this->borrower?->name
             ?? $this->borrower_name
             ?? '—';
+    }
+
+    public function getConditionLabelAttribute(): string
+    {
+        $condition = $this->condition instanceof ReturnCondition
+            ? $this->condition
+            : ReturnCondition::tryFrom((string) $this->condition);
+
+        return $condition?->label() ?? 'Returned well';
+    }
+
+    public function getLifespanReachedAttribute(): bool
+    {
+        if (! $this->equipment) {
+            return false;
+        }
+
+        return $this->equipment->hasReachedLifespan($this->date_returned);
+    }
+
+    public function getReissuableAttribute(): bool
+    {
+        if ($this->condition !== ReturnCondition::Good) {
+            return false;
+        }
+
+        if (! $this->equipment_id || ! $this->equipment) {
+            return false;
+        }
+
+        return ! $this->lifespan_reached;
     }
 }

@@ -2,13 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\ReturnCondition;
 use App\Http\Controllers\Controller;
 use App\Models\Equipment;
+use App\Models\Item;
 use App\Models\ItemReturn;
 use App\Services\ActivityLogService;
+use App\Support\ReferenceNumberGenerator;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use InvalidArgumentException;
 
 class ItemReturnController extends Controller
@@ -48,6 +53,8 @@ class ItemReturnController extends Controller
         $data = $request->validate([
             'reference_number' => ['nullable', 'string', 'max:255'],
             'equipment_id' => ['nullable', 'exists:equipments,id'],
+            'property_number' => ['nullable', 'string', 'max:255'],
+            'inventory_number' => ['nullable', 'string', 'max:255'],
             'custom_equipment_name' => ['nullable', 'string', 'max:255'],
             'custom_property_number' => ['nullable', 'string', 'max:255'],
             'custom_inventory_number' => ['nullable', 'string', 'max:255'],
@@ -58,6 +65,7 @@ class ItemReturnController extends Controller
             'borrower_name' => ['nullable', 'string', 'max:255'],
             'quantity' => ['required', 'integer', 'min:1'],
             'reason' => ['nullable', 'string'],
+            'condition' => ['required', Rule::enum(ReturnCondition::class)],
             'date_returned' => ['nullable', 'date'],
         ]);
 
@@ -84,17 +92,25 @@ class ItemReturnController extends Controller
                     throw new InvalidArgumentException('Return quantity must be at least 1.');
                 }
 
+                $condition = ReturnCondition::from($data['condition']);
+                $dateReturned = ! empty($data['date_returned'])
+                    ? Carbon::parse($data['date_returned'])
+                    : now();
+                $restocked = false;
+
                 if ($equipmentId) {
-                    Equipment::query()->lockForUpdate()->findOrFail($equipmentId);
+                    $equipment = Equipment::query()->lockForUpdate()->findOrFail($equipmentId);
+                    $this->syncEquipmentNumbers($equipment, $data);
+
+                    if (
+                        $condition === ReturnCondition::Good
+                        && ! $equipment->hasReachedLifespan($dateReturned)
+                    ) {
+                        $equipment->increment('quantity', $data['quantity']);
+                        $restocked = true;
+                    }
                 }
 
-                // Returned equipments are considered used stock — they are
-                // NOT added back to Supply Master and the source equipment's
-                // quantity is left unchanged. The return record itself serves
-                // as the "returned equipments" log.
-                //
-                // When no supply-master equipment is picked, the custom_*
-                // fields describe the historical/past equipment being logged.
                 $referenceNumber = trim((string) ($data['reference_number'] ?? ''));
 
                 return ItemReturn::create([
@@ -110,8 +126,10 @@ class ItemReturnController extends Controller
                     'borrower_name' => $borrowerEmployeeId ? null : $borrowerName,
                     'quantity' => $data['quantity'],
                     'reason' => $data['reason'] ?? null,
+                    'condition' => $condition,
+                    'restocked' => $restocked,
                     'returned_by' => $request->user()->id,
-                    'date_returned' => ! empty($data['date_returned']) ? $data['date_returned'] : now(),
+                    'date_returned' => $dateReturned,
                 ]);
             });
         } catch (InvalidArgumentException $e) {
@@ -121,14 +139,67 @@ class ItemReturnController extends Controller
         $return->load(['equipment.category', 'department', 'borrower', 'returner']);
 
         $equipmentLabel = $return->equipment?->name ?? $return->custom_equipment_name ?? 'custom equipment';
+        $restockNote = $return->restocked ? ' and restocked for re-issue' : '';
 
         $this->activityLogService->log(
             $request->user(),
             'Returned',
             'Returns',
-            "Recorded return of {$return->quantity} unit(s) of {$equipmentLabel}"
+            "Recorded return of {$return->quantity} unit(s) of {$equipmentLabel}{$restockNote}"
         );
 
         return response()->json($return, 201);
+    }
+
+    private function syncEquipmentNumbers(Equipment $equipment, array $data): void
+    {
+        $payload = [];
+        $propertyNumber = trim((string) ($data['property_number'] ?? ''));
+        $inventoryNumber = trim((string) ($data['inventory_number'] ?? ''));
+
+        if ($propertyNumber !== '') {
+            $taken = Equipment::query()
+                ->where('property_number', $propertyNumber)
+                ->where('id', '!=', $equipment->id)
+                ->exists();
+
+            if ($taken) {
+                throw new InvalidArgumentException("Property number {$propertyNumber} is already used by another equipment.");
+            }
+
+            if ($equipment->property_number !== $propertyNumber) {
+                $payload['property_number'] = $propertyNumber;
+            }
+        }
+
+        $resolvedInventory = $inventoryNumber !== ''
+            ? $inventoryNumber
+            : ($equipment->inventory_number ?: ReferenceNumberGenerator::forInventory());
+
+        $this->assertInventoryNumberAvailable($resolvedInventory, $equipment->id);
+
+        if ($equipment->inventory_number !== $resolvedInventory) {
+            $payload['inventory_number'] = $resolvedInventory;
+        }
+
+        if ($payload !== []) {
+            $equipment->update($payload);
+        }
+    }
+
+    private function assertInventoryNumberAvailable(string $number, int $ignoreEquipmentId): void
+    {
+        $itemTaken = Item::query()
+            ->where('inventory_number', $number)
+            ->exists();
+
+        $equipmentTaken = Equipment::query()
+            ->where('inventory_number', $number)
+            ->where('id', '!=', $ignoreEquipmentId)
+            ->exists();
+
+        if ($itemTaken || $equipmentTaken) {
+            throw new InvalidArgumentException("Inventory number {$number} is already in use.");
+        }
     }
 }

@@ -60,7 +60,9 @@ const issuedEquipments = computed(() => {
             rows.push({
                 id: `${issuance.id}-${detail.id}`,
                 equipment_name: detail.equipment?.name ?? '—',
-                property_number: detail.equipment?.property_number ?? '—',
+                property_number: detail.property_number
+                    || detail.equipment?.property_number
+                    || '—',
                 barcode: detail.barcode ?? detail.equipment?.barcode ?? '—',
                 quantity: detail.quantity,
                 issuance_number: issuance.issuance_number,

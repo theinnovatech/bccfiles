@@ -14,12 +14,18 @@ class IssuanceDetail extends Model
         'item_id',
         'equipment_id',
         'barcode',
+        'property_number',
+        'inventory_number',
+        'date_acquired',
         'quantity',
     ];
 
     protected function casts(): array
     {
-        return ['quantity' => 'integer'];
+        return [
+            'quantity' => 'integer',
+            'date_acquired' => 'date',
+        ];
     }
 
     public function issuance(): BelongsTo

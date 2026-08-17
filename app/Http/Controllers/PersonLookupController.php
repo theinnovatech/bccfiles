@@ -409,6 +409,7 @@ class PersonLookupController extends Controller
                 'barcode' => $equipment->barcode,
                 'category' => $equipment->category?->name,
                 'type_label' => $equipment->type,
+                'specs' => $equipment->specs,
             ],
             'summary' => [
                 'total_issued' => $issued,
@@ -459,6 +460,7 @@ class PersonLookupController extends Controller
                         'equipment_id' => $detail->equipment_id,
                         'equipment_name' => $detail->equipment?->name ?? '—',
                         'property_number' => $detail->equipment?->property_number ?? '—',
+                        'specs' => $detail->equipment?->specs,
                         'quantity' => (int) $detail->quantity,
                     ]);
             })
@@ -474,6 +476,7 @@ class PersonLookupController extends Controller
             'equipment_id' => $return->equipment_id,
             'equipment_name' => $return->equipment?->name ?? '—',
             'property_number' => $return->equipment?->property_number ?? '—',
+            'specs' => $return->equipment?->specs,
             'quantity' => (int) $return->quantity,
             'remarks' => $return->reason,
         ])->values();
@@ -499,6 +502,7 @@ class PersonLookupController extends Controller
                     'equipment_id' => $equipmentId,
                     'equipment_name' => $sample['equipment_name'] ?? '—',
                     'property_number' => $sample['property_number'] ?? '—',
+                    'specs' => $sample['specs'] ?? null,
                     'issued_quantity' => $issuedQty,
                     'returned_quantity' => $returnedQty,
                     'outstanding_quantity' => $outstanding,

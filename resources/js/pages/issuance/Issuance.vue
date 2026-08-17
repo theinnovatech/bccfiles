@@ -114,41 +114,77 @@
                             placeholder="Optional notes from the hard-copy form"
                         />
                     </div>
-                    <div class="md:col-span-2 space-y-3 rounded-md border border-[#a8b8d4] bg-[#f4f7fb] p-3">
-                        <div class="flex items-start gap-2">
-                            <Checkbox
-                                v-model="form.use_custom_date"
-                                binary
-                                inputId="issuance-custom-date"
-                                class="mt-0.5"
-                            />
-                            <div>
+                    <div
+                        class="md:col-span-2 grid gap-4"
+                        :class="
+                            form.issuance_type === 'equipments'
+                                ? 'md:grid-cols-2'
+                                : ''
+                        "
+                    >
+                        <div class="space-y-3 rounded-md border border-[#a8b8d4] bg-[#f4f7fb] p-3">
+                            <div class="flex items-start gap-2">
+                                <Checkbox
+                                    v-model="form.use_custom_date"
+                                    binary
+                                    inputId="issuance-custom-date"
+                                    class="mt-0.5"
+                                />
+                                <div>
+                                    <label
+                                        for="issuance-custom-date"
+                                        class="cursor-pointer text-sm font-medium text-[#00164d]"
+                                    >
+                                        Use custom issuance date
+                                    </label>
+                                    <p class="mt-0.5 text-xs text-[#4a6490]">
+                                        Turn this on when encoding past hard-copy
+                                        records. Otherwise the system uses today's
+                                        date.
+                                    </p>
+                                </div>
+                            </div>
+                            <div v-if="form.use_custom_date" class="max-w-xs">
                                 <label
-                                    for="issuance-custom-date"
-                                    class="cursor-pointer text-sm font-medium text-[#00164d]"
+                                    class="mb-1 block text-sm font-medium text-[#00164d]"
+                                    >Issuance Date
+                                    <span class="text-[#ce1126]">*</span></label
                                 >
-                                    Use custom issuance date
-                                </label>
-                                <p class="mt-0.5 text-xs text-[#4a6490]">
-                                    Turn this on when encoding past hard-copy
-                                    records. Otherwise the system uses today's
-                                    date.
-                                </p>
+                                <InputText
+                                    v-model="form.issued_date"
+                                    type="date"
+                                    class="w-full"
+                                    :max="todayDate"
+                                    required
+                                />
                             </div>
                         </div>
-                        <div v-if="form.use_custom_date" class="max-w-xs">
-                            <label
-                                class="mb-1 block text-sm font-medium text-[#00164d]"
-                                >Issuance Date
-                                <span class="text-[#ce1126]">*</span></label
-                            >
-                            <InputText
-                                v-model="form.issued_date"
-                                type="date"
-                                class="w-full"
-                                :max="todayDate"
-                                required
-                            />
+
+                        <div
+                            v-if="form.issuance_type === 'equipments'"
+                            class="space-y-3 rounded-md border border-[#a8b8d4] bg-[#f4f7fb] p-3"
+                        >
+                            <div>
+                                <label
+                                    class="block text-sm font-medium text-[#00164d]"
+                                    for="issuance-date-acquired"
+                                >
+                                    Date Acquired
+                                </label>
+                                <p class="mt-0.5 text-xs text-[#4a6490]">
+                                    Enter the date acquired from the hard-copy
+                                    equipment form.
+                                </p>
+                            </div>
+                            <div class="max-w-xs">
+                                <InputText
+                                    id="issuance-date-acquired"
+                                    v-model="form.date_acquired"
+                                    type="date"
+                                    class="w-full"
+                                    :max="todayDate"
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -172,9 +208,10 @@
                                 {{
                                     form.issuance_type === "items"
                                         ? "items"
-                                        : "equipments"
+                                        : "equipments, including the property number from the hard-copy form,"
                                 }}
-                                and quantities.
+                                and quantities. Inventory number is optional —
+                                leave it blank to let the system generate one.
                             </p>
                         </div>
                         <UiButton
@@ -204,77 +241,132 @@
                         <div
                             v-for="(line, index) in form.items"
                             :key="index"
-                            class="grid gap-3 border border-[#a8b8d4] bg-transparent p-3 md:grid-cols-[minmax(0,1fr)_160px_auto] md:items-end"
+                            class="space-y-3 border border-[#a8b8d4] bg-transparent p-3"
                         >
-                            <div class="min-w-0">
-                                <label
-                                    class="mb-1 block text-sm font-medium text-[#00164d]"
-                                >
-                                    {{
-                                        form.issuance_type === "items"
-                                            ? "Item"
-                                            : "Equipment"
-                                    }}
-                                    <span class="text-[#ce1126]">*</span>
-                                </label>
-                                <Select
-                                    v-if="form.issuance_type === 'items'"
-                                    v-model="line.item_id"
-                                    :options="items"
-                                    optionLabel="label"
-                                    optionValue="id"
-                                    placeholder="Select item"
-                                    class="min-w-0 w-full"
-                                    filter
-                                />
-                                <Select
-                                    v-else
-                                    v-model="line.equipment_id"
-                                    :options="equipments"
-                                    optionLabel="label"
-                                    optionValue="id"
-                                    placeholder="Select equipment"
-                                    class="min-w-0 w-full"
-                                    filter
-                                />
-                            </div>
-                            <div class="min-w-0">
-                                <label
-                                    class="mb-1 block text-sm font-medium text-[#00164d]"
-                                >
-                                    Qty
-                                    <span class="text-[#ce1126]">*</span>
-                                </label>
-                                <InputNumber
-                                    v-model="line.quantity"
-                                    :min="1"
-                                    placeholder="Qty"
-                                    class="min-w-0 w-full"
-                                    inputClass="w-full"
-                                />
-                            </div>
-                            <UiButton
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                class="shrink-0 text-[#ce1126] hover:bg-[#fff1f2] hover:text-[#ce1126]"
-                                :disabled="form.items.length === 1"
-                                @click="removeLine(index)"
+                            <div
+                                class="issuance-line-row grid gap-3"
+                                :class="
+                                    form.issuance_type === 'equipments'
+                                        ? 'md:grid-cols-[minmax(0,1.1fr)_minmax(0,0.85fr)_minmax(0,0.85fr)_8.75rem_auto]'
+                                        : 'md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_8.75rem_auto]'
+                                "
                             >
-                                <svg
-                                    class="h-4 w-4"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                    stroke-width="2"
-                                >
-                                    <path
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916A2.25 2.25 0 0013.5 2.25h-3A2.25 2.25 0 008.25 4.5v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+                                <div class="issuance-line-field min-w-0">
+                                    <label class="issuance-line-label">
+                                        {{
+                                            form.issuance_type === "items"
+                                                ? "Item"
+                                                : "Equipment"
+                                        }}
+                                        <span class="text-[#ce1126]">*</span>
+                                    </label>
+                                    <Select
+                                        v-if="form.issuance_type === 'items'"
+                                        v-model="line.item_id"
+                                        :options="items"
+                                        optionLabel="label"
+                                        optionValue="id"
+                                        placeholder="Select item"
+                                        class="issuance-line-control min-w-0 w-full"
+                                        filter
+                                        @update:model-value="
+                                            onItemSelected(line, $event)
+                                        "
                                     />
-                                </svg>
-                            </UiButton>
+                                    <Select
+                                        v-else
+                                        v-model="line.equipment_id"
+                                        :options="equipments"
+                                        optionLabel="label"
+                                        optionValue="id"
+                                        placeholder="Select equipment"
+                                        class="issuance-line-control min-w-0 w-full"
+                                        filter
+                                        @update:model-value="
+                                            onEquipmentSelected(line, $event)
+                                        "
+                                    />
+                                </div>
+                                <div
+                                    v-if="form.issuance_type === 'equipments'"
+                                    class="issuance-line-field min-w-0"
+                                >
+                                    <label class="issuance-line-label">
+                                        Property No.
+                                        <span class="text-[#ce1126]">*</span>
+                                    </label>
+                                    <InputText
+                                        v-model="line.property_number"
+                                        class="issuance-line-control w-full"
+                                        placeholder="e.g. PROP-2024-0125"
+                                        required
+                                    />
+                                </div>
+                                <div class="issuance-line-field min-w-0">
+                                    <label class="issuance-line-label">
+                                        Inventory No.
+                                    </label>
+                                    <InputText
+                                        v-model="line.inventory_number"
+                                        class="issuance-line-control w-full"
+                                        placeholder="Leave blank to auto-generate"
+                                    />
+                                </div>
+                                <div class="issuance-line-field min-w-0">
+                                    <label class="issuance-line-label">
+                                        Qty
+                                        <span class="text-[#ce1126]">*</span>
+                                    </label>
+                                    <InputNumber
+                                        v-model="line.quantity"
+                                        :min="1"
+                                        placeholder="Qty"
+                                        class="issuance-line-control min-w-0 w-full"
+                                        inputClass="w-full"
+                                    />
+                                </div>
+                                <div class="issuance-line-field issuance-line-action">
+                                    <span class="issuance-line-label" aria-hidden="true">&nbsp;</span>
+                                    <UiButton
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        class="shrink-0 text-[#ce1126] hover:bg-[#fff1f2] hover:text-[#ce1126]"
+                                        :disabled="form.items.length === 1"
+                                        @click="removeLine(index)"
+                                    >
+                                        <svg
+                                            class="h-4 w-4"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                        >
+                                            <path
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916A2.25 2.25 0 0013.5 2.25h-3A2.25 2.25 0 008.25 4.5v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+                                            />
+                                        </svg>
+                                    </UiButton>
+                                </div>
+                            </div>
+
+                            <div
+                                v-if="
+                                    form.issuance_type === 'equipments' &&
+                                    line.equipment_id
+                                "
+                                class="issuance-line-specs"
+                            >
+                                <p class="issuance-line-specs-label">Specs</p>
+                                <p class="issuance-line-specs-value">
+                                    {{
+                                        equipmentSpecs(line.equipment_id) ||
+                                        "No specs recorded for this equipment."
+                                    }}
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -473,6 +565,16 @@
                             {{ totalQuantity(selectedIssuance) }}
                         </p>
                     </div>
+                    <div
+                        v-if="issuanceTypeKey(selectedIssuance) !== 'items'"
+                    >
+                        <p class="text-xs uppercase tracking-wide text-[#4a6490]">
+                            Date Acquired
+                        </p>
+                        <p class="mt-0.5 font-medium">
+                            {{ issuanceDateAcquired(selectedIssuance) }}
+                        </p>
+                    </div>
                 </div>
 
                 <div>
@@ -501,7 +603,23 @@
                                 header="Property No."
                             >
                                 <template #body="{ data }">
-                                    {{ data.equipment?.property_number || "—" }}
+                                    {{
+                                        data.property_number ||
+                                        data.equipment?.property_number ||
+                                        "—"
+                                    }}
+                                </template>
+                            </Column>
+                            <Column
+                                header="Inventory No."
+                            >
+                                <template #body="{ data }">
+                                    {{
+                                        data.inventory_number ||
+                                        data.equipment?.inventory_number ||
+                                        data.item?.inventory_number ||
+                                        "—"
+                                    }}
                                 </template>
                             </Column>
                             <Column
@@ -646,6 +764,7 @@ const form = reactive({
     remarks: "",
     use_custom_date: false,
     issued_date: "",
+    date_acquired: "",
     items: [emptyLine()],
 });
 
@@ -655,7 +774,29 @@ const receiverSuggestions = ref([]);
 const todayDate = computed(() => new Date().toISOString().slice(0, 10));
 
 function emptyLine() {
-    return { item_id: null, equipment_id: null, quantity: 1 };
+    return {
+        item_id: null,
+        equipment_id: null,
+        property_number: "",
+        inventory_number: "",
+        quantity: 1,
+    };
+}
+
+function onItemSelected(line, itemId) {
+    const item = items.value.find((row) => row.id === itemId);
+    line.inventory_number = item?.inventory_number || "";
+}
+
+function onEquipmentSelected(line, equipmentId) {
+    const equipment = equipments.value.find((row) => row.id === equipmentId);
+    line.property_number = equipment?.property_number || "";
+    line.inventory_number = equipment?.inventory_number || "";
+}
+
+function equipmentSpecs(equipmentId) {
+    const equipment = equipments.value.find((row) => row.id === equipmentId);
+    return String(equipment?.specs || "").trim();
 }
 
 const employeeOptions = computed(() => {
@@ -771,6 +912,7 @@ function resetForm() {
     form.remarks = "";
     form.use_custom_date = false;
     form.issued_date = "";
+    form.date_acquired = "";
     form.items = [emptyLine()];
 }
 
@@ -830,6 +972,32 @@ function formatDate(value) {
     return value ? new Date(value).toLocaleString() : "";
 }
 
+function formatDateOnly(value) {
+    if (!value) {
+        return "—";
+    }
+
+    const raw = String(value).slice(0, 10);
+    const [year, month, day] = raw.split("-");
+    if (!year || !month || !day) {
+        return raw;
+    }
+
+    return new Date(Number(year), Number(month) - 1, Number(day)).toLocaleDateString();
+}
+
+function issuanceDateAcquired(issuance) {
+    const dates = (issuance.details ?? [])
+        .map((detail) => detail.date_acquired || detail.equipment?.date_acquired)
+        .filter(Boolean);
+
+    if (!dates.length) {
+        return "—";
+    }
+
+    return formatDateOnly(dates[0]);
+}
+
 function formatIssuedLines(issuance) {
     return (issuance.details ?? [])
         .map((detail) => {
@@ -875,12 +1043,15 @@ function buildPayload() {
             if (form.issuance_type === "items") {
                 return {
                     item_id: line.item_id,
+                    inventory_number: (line.inventory_number || "").trim() || null,
                     quantity: line.quantity,
                 };
             }
 
             return {
                 equipment_id: line.equipment_id,
+                property_number: (line.property_number || "").trim(),
+                inventory_number: (line.inventory_number || "").trim() || null,
                 quantity: line.quantity,
             };
         }),
@@ -893,6 +1064,10 @@ function buildPayload() {
 
     if (form.use_custom_date && form.issued_date) {
         payload.issued_date = form.issued_date;
+    }
+
+    if (form.issuance_type === "equipments" && form.date_acquired) {
+        payload.date_acquired = form.date_acquired;
     }
 
     return payload;
@@ -913,13 +1088,19 @@ async function submit() {
 
     const incomplete = form.items.some((line) => {
         if (!line.quantity || line.quantity < 1) return true;
-        return form.issuance_type === "items"
-            ? !line.item_id
-            : !line.equipment_id;
+        if (form.issuance_type === "items") {
+            return !line.item_id;
+        }
+
+        return !line.equipment_id || !(line.property_number || "").trim();
     });
 
     if (incomplete) {
-        notify.warn("Please complete all issuance lines before submitting.");
+        notify.warn(
+            form.issuance_type === "equipments"
+                ? "Please select equipment, enter a property number, and quantity for every line."
+                : "Please complete all issuance lines before submitting.",
+        );
         return;
     }
 
@@ -931,6 +1112,7 @@ async function submit() {
             "Issuance completed",
         );
         resetForm();
+        await loadLookups();
         await loadIssuances();
     } catch (error) {
         notify.error(
@@ -957,10 +1139,14 @@ async function loadLookups() {
         employees.value = empRes.data.data ?? empRes.data;
         items.value = (Array.isArray(itemRes.data) ? itemRes.data : itemRes.data?.data ?? []).map((item) => ({
             id: item.id,
+            inventory_number: item.inventory_number || "",
             label: `${item.item_name}${item.barcode || item.item_number ? ` (${item.barcode || item.item_number})` : ""} · Stock: ${item.current_stock ?? 0}`,
         }));
         equipments.value = (equipmentRes.data ?? []).map((equipment) => ({
             id: equipment.id,
+            property_number: equipment.property_number || "",
+            inventory_number: equipment.inventory_number || "",
+            specs: equipment.specs || "",
             label: `${equipment.name}${equipment.property_number ? ` · ${equipment.property_number}` : ""} · Qty: ${equipment.quantity ?? 0}`,
         }));
     } catch (error) {
@@ -991,6 +1177,68 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.issuance-line-row {
+    align-items: start;
+}
+
+.issuance-line-field {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+}
+
+.issuance-line-label {
+    display: block;
+    margin-bottom: 0.25rem;
+    height: 1.25rem;
+    overflow: hidden;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.25rem;
+    color: #00164d;
+    white-space: nowrap;
+}
+
+.issuance-line-action {
+    width: 2.25rem;
+    justify-self: end;
+}
+
+.issuance-line-control,
+.issuance-line-control :deep(.p-select),
+.issuance-line-control :deep(.p-inputtext),
+.issuance-line-control :deep(.p-inputnumber),
+.issuance-line-control :deep(.p-inputnumber-input) {
+    width: 100%;
+    height: 2.25rem;
+}
+
+.issuance-line-action :deep(.shadcn-btn-icon) {
+    height: 2.25rem;
+    width: 2.25rem;
+}
+
+.issuance-line-specs {
+    border-top: 1px solid #d7e0ef;
+    padding-top: 0.75rem;
+}
+
+.issuance-line-specs-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #4a6490;
+}
+
+.issuance-line-specs-value {
+    margin-top: 0.25rem;
+    font-size: 0.875rem;
+    line-height: 1.4;
+    color: #00164d;
+    white-space: pre-wrap;
+}
+
 .history-type-tabs {
     display: flex;
     width: 100%;
