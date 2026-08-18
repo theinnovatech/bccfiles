@@ -16,6 +16,7 @@ class ItemReturn extends Model
     protected $fillable = [
         'reference_number',
         'issuance_id',
+        'issuance_detail_id',
         'item_id',
         'equipment_id',
         'custom_equipment_name',
@@ -23,6 +24,10 @@ class ItemReturn extends Model
         'custom_inventory_number',
         'custom_equipment_type',
         'custom_equipment_category',
+        'custom_date_issued',
+        'custom_date_acquired',
+        'custom_specs',
+        'custom_details',
         'department_id',
         'borrower_employee_id',
         'borrower_name',
@@ -45,6 +50,8 @@ class ItemReturn extends Model
         return [
             'quantity' => 'integer',
             'date_returned' => 'datetime',
+            'custom_date_issued' => 'date',
+            'custom_date_acquired' => 'date',
             'condition' => ReturnCondition::class,
             'restocked' => 'boolean',
         ];
@@ -53,6 +60,11 @@ class ItemReturn extends Model
     public function issuance(): BelongsTo
     {
         return $this->belongsTo(Issuance::class);
+    }
+
+    public function issuanceDetail(): BelongsTo
+    {
+        return $this->belongsTo(IssuanceDetail::class);
     }
 
     public function item(): BelongsTo
@@ -102,7 +114,10 @@ class ItemReturn extends Model
             return false;
         }
 
-        return $this->equipment->hasReachedLifespan($this->date_returned);
+        return $this->equipment->hasReachedLifespan(
+            $this->date_returned,
+            $this->issuanceDetail?->date_acquired
+        );
     }
 
     public function getReissuableAttribute(): bool

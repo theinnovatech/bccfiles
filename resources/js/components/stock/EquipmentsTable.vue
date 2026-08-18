@@ -50,6 +50,20 @@
                     </Column>
                     <Column field="property_number" header="Property No." />
                     <Column field="name" header="Name" />
+                    <Column header="Origin">
+                        <template #body="{ data }">
+                            <span
+                                class="equipment-origin"
+                                :class="
+                                    equipmentOriginLabel(data) === 'Returned'
+                                        ? 'equipment-origin-returned'
+                                        : 'equipment-origin-fresh'
+                                "
+                            >
+                                {{ equipmentOriginLabel(data) }}
+                            </span>
+                        </template>
+                    </Column>
                     <Column header="Category">
                         <template #body="{ data }">
                             {{ data.category?.name || '—' }}
@@ -59,7 +73,7 @@
                     <Column field="quantity" header="Qty" />
                     <Column header="Life Span">
                         <template #body="{ data }">
-                            {{ data.life_span_years ? `${data.life_span_years} yr${data.life_span_years === 1 ? '' : 's'}` : '—' }}
+                            {{ formatEquipmentLifeSpan(data) }}
                         </template>
                     </Column>
                     <Column header="Description">
@@ -116,6 +130,7 @@ import { useTableFilters } from '../../composables/useTableFilters';
 import { confirmDelete } from '../../composables/confirm';
 import { useAuthStore } from '../../stores/auth';
 import api from '../../services/api';
+import { formatEquipmentLifeSpan, equipmentOriginLabel } from '../../utils/equipmentLifeSpan';
 
 const notify = useNotify();
 const auth = useAuthStore();
@@ -164,6 +179,18 @@ const filterConfig = computed(() => [
         label: 'Type',
         field: 'type',
         options: typeOptions.value,
+    },
+    {
+        key: 'origin',
+        type: 'select',
+        label: 'Origin',
+        field: 'origin',
+        match: (row) => equipmentOriginLabel(row),
+        options: [
+            { label: 'All origins', value: '' },
+            { label: 'Fresh', value: 'Fresh' },
+            { label: 'Returned', value: 'Returned' },
+        ],
     },
 ]);
 
@@ -214,6 +241,27 @@ onMounted(loadEquipments);
 .equipment-table :deep(.p-datatable-tbody > tr > td) {
     font-size: 0.875rem;
     color: #00164d;
+}
+
+.equipment-origin {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid #a8b8d4;
+    padding: 0.125rem 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.equipment-origin-fresh {
+    background: #f4f7fb;
+    color: #00164d;
+}
+
+.equipment-origin-returned {
+    background: #fff8e8;
+    color: #8a5a00;
+    border-color: #e0c48a;
 }
 
 .equipment-actions {

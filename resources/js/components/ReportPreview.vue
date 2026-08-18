@@ -31,9 +31,14 @@
             <Column header="Category"><template #body="{ data }">{{ data.category?.name || '—' }}</template></Column>
             <Column field="type" header="Type" />
             <Column field="quantity" header="Available Qty" />
+            <Column header="Origin">
+                <template #body="{ data }">
+                    {{ data.origin === 'returned' ? 'Returned' : 'Fresh' }}
+                </template>
+            </Column>
             <Column header="Life Span">
                 <template #body="{ data }">
-                    {{ data.life_span_years ? `${data.life_span_years} yr${data.life_span_years === 1 ? '' : 's'}` : '—' }}
+                    {{ formatEquipmentLifeSpan(data) }}
                 </template>
             </Column>
             <Column header="Description"><template #body="{ data }">{{ data.description || '—' }}</template></Column>
@@ -111,6 +116,7 @@
 import { computed } from 'vue';
 import DataTable from 'primevue/datatable';
 import Column from 'primevue/column';
+import { formatEquipmentLifeSpan } from '../utils/equipmentLifeSpan';
 
 const props = defineProps({
     type: { type: String, required: true },

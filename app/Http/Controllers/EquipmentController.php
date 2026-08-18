@@ -20,7 +20,6 @@ class EquipmentController extends Controller
         return response()->json(
             Equipment::query()
                 ->with('category')
-                ->whereNull('source_return_id')
                 ->orderBy('name')
                 ->get()
         );
@@ -28,15 +27,14 @@ class EquipmentController extends Controller
 
     public function findByBarcode(string $barcode): JsonResponse
     {
-        $equipment = Equipment::query()
-            ->with('category')
-            ->whereNull('source_return_id')
-            ->where(function ($query) use ($barcode) {
-                $query->where('barcode', $barcode)
-                    ->orWhere('property_number', $barcode)
-                    ->orWhere('inventory_number', $barcode);
-            })
-            ->first();
+        $equipment =             Equipment::query()
+                ->with('category')
+                ->where(function ($query) use ($barcode) {
+                    $query->where('barcode', $barcode)
+                        ->orWhere('property_number', $barcode)
+                        ->orWhere('inventory_number', $barcode);
+                })
+                ->first();
 
         return response()->json(['equipment' => $equipment]);
     }
@@ -135,7 +133,7 @@ class EquipmentController extends Controller
             'description' => ['nullable', 'string'],
             'type' => ['required', 'string', 'max:255'],
             'quantity' => ['required', 'integer', 'min:1'],
-            'life_span_years' => ['required', 'integer', 'min:1', 'max:100'],
+            'life_span_years' => ['required', 'integer', 'min:0', 'max:100'],
             'specs' => ['nullable', 'string'],
         ]);
 

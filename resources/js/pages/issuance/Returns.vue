@@ -29,7 +29,7 @@
                             "
                             @click="setUseCustom(false)"
                         >
-                            From Supply Master
+                            Latest Data
                         </button>
                         <button
                             type="button"
@@ -46,7 +46,7 @@
                     </div>
                     <p class="text-xs text-[#4a6490]">
                         Use "Custom Equipment" to log past returns that aren't
-                        in Supply Master.
+                        in issuance history.
                     </p>
                 </div>
 
@@ -71,39 +71,87 @@
                         </p>
                     </div>
 
-                    <div v-if="!form.useCustom" class="md:col-span-2">
-                        <label
-                            class="mb-1 block text-sm font-medium text-[#00164d]"
-                            >Equipment
-                            <span class="text-[#ce1126]">*</span></label
-                        >
-                        <Select
-                            v-model="form.equipment_id"
-                            :options="equipments"
-                            optionLabel="label"
-                            optionValue="id"
-                            placeholder="Select equipment"
-                            class="w-full"
-                            filter
-                            @update:model-value="onSupplyEquipmentSelected"
-                        />
-                    </div>
-
                     <template v-if="!form.useCustom">
-                        <div>
+                        <div class="md:col-span-2">
                             <label
                                 class="mb-1 block text-sm font-medium text-[#00164d]"
                             >
                                 Property No.
-                                <span
-                                    class="ml-1 text-xs font-normal text-[#4a6490]"
-                                    >(optional)</span
-                                >
+                                <span class="text-[#ce1126]">*</span>
+                            </label>
+                            <AutoComplete
+                                v-model="propertyNumberInput"
+                                :suggestions="propertySuggestions"
+                                optionLabel="property_number"
+                                dropdown
+                                :forceSelection="false"
+                                placeholder="Type or select property number"
+                                class="w-full"
+                                inputClass="w-full"
+                                :delay="150"
+                                @complete="searchIssuedPropertyNumbers"
+                                @item-select="onPropertyNumberSelect"
+                                @blur="onPropertyNumberLookup"
+                            >
+                                <template #option="{ option }">
+                                    <div class="flex flex-col py-0.5">
+                                        <span
+                                            class="font-medium text-[#00164d]"
+                                        >
+                                            {{
+                                                option.property_number ||
+                                                "No property number"
+                                            }}
+                                        </span>
+                                        <span class="text-xs text-[#4a6490]">
+                                            Issued
+                                            · {{ option.name }}
+                                            <template
+                                                v-if="option.issuance_number"
+                                            >
+                                                ·
+                                                {{ option.issuance_number }}
+                                            </template>
+                                            · Outstanding:
+                                            {{
+                                                option.quantity_outstanding ??
+                                                0
+                                            }}
+                                        </span>
+                                    </div>
+                                </template>
+                                <template #empty>
+                                    <div class="p-3 text-sm text-[#4a6490]">
+                                        No outstanding issued property number
+                                        found. Available Supply Master stock
+                                        is not listed here.
+                                    </div>
+                                </template>
+                            </AutoComplete>
+                            <p class="mt-1 text-xs text-[#4a6490]">
+                                Search outstanding issued property numbers
+                                only. Available equipment in Supply Master
+                                will not appear.
+                            </p>
+                            <p
+                                v-if="propertyLookupError"
+                                class="mt-1 text-xs font-medium text-[#ce1126]"
+                            >
+                                {{ propertyLookupError }}
+                            </p>
+                        </div>
+
+                        <div>
+                            <label
+                                class="mb-1 block text-sm font-medium text-[#00164d]"
+                            >
+                                Issued Equipment
                             </label>
                             <InputText
-                                v-model="form.property_number"
+                                :model-value="selectedIssuedLine?.name || ''"
                                 class="w-full"
-                                placeholder="e.g. PROP-2023-0125"
+                                readonly
+                                placeholder="Fills in from the property number"
                             />
                         </div>
 
@@ -112,15 +160,136 @@
                                 class="mb-1 block text-sm font-medium text-[#00164d]"
                             >
                                 Inventory No.
-                                <span
-                                    class="ml-1 text-xs font-normal text-[#4a6490]"
-                                    >(optional)</span
-                                >
                             </label>
                             <InputText
-                                v-model="form.inventory_number"
+                                :model-value="
+                                    selectedIssuedLine?.inventory_number || ''
+                                "
                                 class="w-full"
-                                placeholder="e.g. INV-2023-0087"
+                                readonly
+                                placeholder="Fills in from the property number"
+                            />
+                        </div>
+
+                        <div>
+                            <label
+                                class="mb-1 block text-sm font-medium text-[#00164d]"
+                            >
+                                Date Issued
+                            </label>
+                            <input
+                                :value="
+                                    toDateInputValue(
+                                        selectedIssuedLine?.date_issued,
+                                    )
+                                "
+                                type="date"
+                                readonly
+                                class="w-full rounded-md border border-[#a8b8d4] bg-[#f4f7fb] px-3 py-2 text-sm text-[#00164d]"
+                            />
+                            <p class="mt-1 text-xs text-[#4a6490]">
+                                From the issuance record.
+                            </p>
+                        </div>
+
+                        <div>
+                            <label
+                                class="mb-1 block text-sm font-medium text-[#00164d]"
+                            >
+                                Date Acquired
+                            </label>
+                            <input
+                                :value="
+                                    toDateInputValue(
+                                        selectedIssuedLine?.date_acquired,
+                                    )
+                                "
+                                type="date"
+                                readonly
+                                class="w-full rounded-md border border-[#a8b8d4] bg-[#f4f7fb] px-3 py-2 text-sm text-[#00164d]"
+                            />
+                            <p class="mt-1 text-xs text-[#4a6490]">
+                                From the issuance record.
+                            </p>
+                        </div>
+
+                        <div>
+                            <label
+                                class="mb-1 block text-sm font-medium text-[#00164d]"
+                            >
+                                Remaining life span
+                            </label>
+                            <InputText
+                                :model-value="
+                                    selectedIssuedLine
+                                        ? formatEquipmentLifeSpan(
+                                              selectedIssuedLine,
+                                          )
+                                        : ''
+                                "
+                                class="w-full"
+                                readonly
+                            />
+                        </div>
+
+                        <div>
+                            <label
+                                class="mb-1 block text-sm font-medium text-[#00164d]"
+                            >
+                                Status
+                            </label>
+                            <InputText
+                                :model-value="issuedStockWord"
+                                class="w-full"
+                                readonly
+                                placeholder="Fills in from the property number"
+                            />
+                            <p class="mt-1 text-xs text-[#4a6490]">
+                                New = first time from supply. Used = returned
+                                before and issued again.
+                            </p>
+                        </div>
+
+                        <div>
+                            <label
+                                class="mb-1 block text-sm font-medium text-[#00164d]"
+                            >
+                                Type / Category
+                            </label>
+                            <InputText
+                                :model-value="issuedTypeCategory"
+                                class="w-full"
+                                readonly
+                            />
+                        </div>
+
+                        <div class="md:col-span-2">
+                            <label
+                                class="mb-1 block text-sm font-medium text-[#00164d]"
+                            >
+                                Specs
+                            </label>
+                            <Textarea
+                                :model-value="selectedIssuedLine?.specs || ''"
+                                class="w-full"
+                                rows="2"
+                                readonly
+                                placeholder="No specs on file for this equipment"
+                            />
+                        </div>
+
+                        <div class="md:col-span-2">
+                            <label
+                                class="mb-1 block text-sm font-medium text-[#00164d]"
+                            >
+                                Other details
+                            </label>
+                            <Textarea
+                                :model-value="selectedIssuedLine?.details || ''"
+                                class="w-full"
+                                rows="2"
+                                readonly
+                                placeholder="No other details on file"
                             />
                         </div>
                     </template>
@@ -206,6 +375,84 @@
                                 placeholder="e.g. IT Equipment, Furniture"
                             />
                         </div>
+
+                        <div>
+                            <label
+                                class="mb-1 block text-sm font-medium text-[#00164d]"
+                            >
+                                Date Issued
+                                <span
+                                    class="ml-1 text-xs font-normal text-[#4a6490]"
+                                    >(optional)</span
+                                >
+                            </label>
+                            <input
+                                v-model="form.custom_date_issued"
+                                type="date"
+                                :max="todayIso"
+                                class="w-full rounded-md border border-[#a8b8d4] bg-white px-3 py-2 text-sm text-[#00164d] focus:border-[#00164d] focus:outline-none focus:ring-1 focus:ring-[#00164d]"
+                            />
+                            <p class="mt-1 text-xs text-[#4a6490]">
+                                When this equipment was given out.
+                            </p>
+                        </div>
+
+                        <div>
+                            <label
+                                class="mb-1 block text-sm font-medium text-[#00164d]"
+                            >
+                                Date Acquired
+                                <span
+                                    class="ml-1 text-xs font-normal text-[#4a6490]"
+                                    >(optional)</span
+                                >
+                            </label>
+                            <input
+                                v-model="form.custom_date_acquired"
+                                type="date"
+                                :max="todayIso"
+                                class="w-full rounded-md border border-[#a8b8d4] bg-white px-3 py-2 text-sm text-[#00164d] focus:border-[#00164d] focus:outline-none focus:ring-1 focus:ring-[#00164d]"
+                            />
+                            <p class="mt-1 text-xs text-[#4a6490]">
+                                When the office first got this equipment.
+                            </p>
+                        </div>
+
+                        <div class="md:col-span-2">
+                            <label
+                                class="mb-1 block text-sm font-medium text-[#00164d]"
+                            >
+                                Specs
+                                <span
+                                    class="ml-1 text-xs font-normal text-[#4a6490]"
+                                    >(optional)</span
+                                >
+                            </label>
+                            <Textarea
+                                v-model="form.custom_specs"
+                                class="w-full"
+                                rows="2"
+                                placeholder="Model, size, serial number, or other specs from the paper form"
+                            />
+                        </div>
+
+                        <div class="md:col-span-2">
+                            <label
+                                class="mb-1 block text-sm font-medium text-[#00164d]"
+                            >
+                                Other details
+                                <span
+                                    class="ml-1 text-xs font-normal text-[#4a6490]"
+                                    >(optional)</span
+                                >
+                            </label>
+                            <Textarea
+                                v-model="form.custom_details"
+                                class="w-full"
+                                rows="2"
+                                placeholder="Any other notes about this equipment"
+                            />
+                        </div>
                     </template>
 
                     <div>
@@ -251,15 +498,36 @@
                             optionLabel="name"
                             dropdown
                             :forceSelection="false"
-                            placeholder="Select or type borrower name"
+                            placeholder="Search Received By or employee name"
                             class="w-full"
                             inputClass="w-full"
                             :disabled="!form.department_id"
                             @complete="searchBorrowers"
-                        />
+                        >
+                            <template #option="{ option }">
+                                <div class="flex flex-col py-0.5">
+                                    <span class="font-medium text-[#00164d]">
+                                        {{ option.name }}
+                                    </span>
+                                    <span
+                                        v-if="option.hint"
+                                        class="text-xs text-[#4a6490]"
+                                    >
+                                        {{ option.hint }}
+                                    </span>
+                                </div>
+                            </template>
+                            <template #empty>
+                                <div class="p-3 text-sm text-[#4a6490]">
+                                    No matching Received By or employee found.
+                                    You can still type the name.
+                                </div>
+                            </template>
+                        </AutoComplete>
                         <p class="mt-1 text-xs text-[#4a6490]">
-                            Name of the person returning the borrowed equipment.
-                            Pick from employees or type if not listed.
+                            Search the person who received this equipment, or
+                            pick an employee. You can also type a name if not
+                            listed.
                         </p>
                     </div>
 
@@ -338,55 +606,36 @@
                     </div>
                 </div>
 
-                <div
-                    v-if="!form.useCustom && selectedEquipment"
-                    class="border border-[#a8b8d4] bg-transparent p-4 text-sm text-[#00164d]"
-                >
-                    <p class="font-medium">{{ selectedEquipment.name }}</p>
+                    <div
+                        v-if="!form.useCustom && selectedIssuedLine"
+                        class="border border-[#a8b8d4] bg-transparent p-4 text-sm text-[#00164d]"
+                    >
+                    <p class="font-medium">{{ selectedIssuedLine.name }}</p>
                     <p class="mt-1 text-[#4a6490]">
-                        Property No.:
-                        {{ selectedEquipment.property_number || "—" }}
-                        · Inventory No.:
-                        {{ selectedEquipment.inventory_number || "—" }}
-                        · Current available qty:
-                        {{ selectedEquipment.quantity ?? 0 }}
+                        Issuance:
+                        {{ selectedIssuedLine.issuance_number || "—" }}
+                        · Outstanding:
+                        {{ selectedIssuedLine.quantity_outstanding ?? 0 }}
+                        <template v-if="selectedIssuedLine.received_by_name">
+                            · Received by:
+                            {{ selectedIssuedLine.received_by_name }}
+                        </template>
                     </p>
-                    <p class="mt-1 text-xs text-[#4a6490]">
-                        Life span:
-                        {{
-                            selectedEquipment.life_span_years
-                                ? `${selectedEquipment.life_span_years} year${selectedEquipment.life_span_years === 1 ? "" : "s"}`
-                                : "—"
-                        }}
-                        · Date acquired:
-                        {{ formatDateOnly(selectedEquipment.date_acquired) }}
-                    </p>
-                    <div class="mt-3 border-t border-[#d7e0ef] pt-3">
-                        <p
-                            class="text-[10px] font-semibold uppercase tracking-wide text-[#4a6490]"
-                        >
-                            Specs
-                        </p>
-                        <p class="mt-1 whitespace-pre-wrap text-sm text-[#00164d]">
-                            {{
-                                selectedEquipment.specs ||
-                                "No specs recorded for this equipment."
-                            }}
-                        </p>
-                    </div>
                     <p
                         v-if="selectedEquipmentReachedLifespan"
                         class="mt-3 text-xs font-medium text-[#ce1126]"
                     >
                         This equipment has reached its life span. Even if
-                        returned well, it will not be added back for re-issue.
+                        returned well, it will not be added back to Supply
+                        Master.
                     </p>
                     <p
                         v-else-if="form.condition === 'good'"
                         class="mt-3 text-xs text-[#4a6490]"
                     >
-                        Returned well with no damage will be added back to
-                        Supply Master so it can be re-issued.
+                        Returned well before the life-span limit is added to
+                        Supply Master as a separate Returned record, using the
+                        issuance Property No. and Inventory No.
                     </p>
                     <p v-else class="mt-3 text-xs text-[#4a6490]">
                         Damaged returns are logged only and are not added back
@@ -679,6 +928,22 @@
                             {{ formatDate(selectedReturn.date_returned) }}
                         </p>
                     </div>
+                    <div v-if="selectedReturn.custom_date_issued">
+                        <p class="text-xs uppercase tracking-wide text-[#4a6490]">
+                            Date Issued
+                        </p>
+                        <p class="mt-0.5 font-medium">
+                            {{ formatDateOnly(selectedReturn.custom_date_issued) }}
+                        </p>
+                    </div>
+                    <div v-if="selectedReturn.custom_date_acquired">
+                        <p class="text-xs uppercase tracking-wide text-[#4a6490]">
+                            Date Acquired
+                        </p>
+                        <p class="mt-0.5 font-medium">
+                            {{ formatDateOnly(selectedReturn.custom_date_acquired) }}
+                        </p>
+                    </div>
                 </div>
 
                 <div>
@@ -693,23 +958,44 @@
                 </div>
 
                 <div
-                    v-if="selectedReturn.equipment?.specs || selectedReturn.equipment?.description"
+                    v-if="
+                        selectedReturn.equipment?.specs ||
+                        selectedReturn.equipment?.description ||
+                        selectedReturn.custom_specs ||
+                        selectedReturn.custom_details
+                    "
                     class="grid gap-4 sm:grid-cols-2"
                 >
-                    <div v-if="selectedReturn.equipment?.description">
+                    <div
+                        v-if="
+                            selectedReturn.equipment?.description ||
+                            selectedReturn.custom_details
+                        "
+                    >
                         <p class="text-xs uppercase tracking-wide text-[#4a6490]">
-                            Description
+                            Other details
                         </p>
-                        <p class="mt-0.5 text-sm text-[#4a6490]">
-                            {{ selectedReturn.equipment.description }}
+                        <p class="mt-0.5 whitespace-pre-line text-sm text-[#4a6490]">
+                            {{
+                                selectedReturn.equipment?.description ||
+                                selectedReturn.custom_details
+                            }}
                         </p>
                     </div>
-                    <div v-if="selectedReturn.equipment?.specs">
+                    <div
+                        v-if="
+                            selectedReturn.equipment?.specs ||
+                            selectedReturn.custom_specs
+                        "
+                    >
                         <p class="text-xs uppercase tracking-wide text-[#4a6490]">
                             Specs
                         </p>
-                        <p class="mt-0.5 text-sm text-[#4a6490]">
-                            {{ selectedReturn.equipment.specs }}
+                        <p class="mt-0.5 whitespace-pre-line text-sm text-[#4a6490]">
+                            {{
+                                selectedReturn.equipment?.specs ||
+                                selectedReturn.custom_specs
+                            }}
                         </p>
                     </div>
                 </div>
@@ -739,6 +1025,10 @@ import TableFilters from "../../components/TableFilters.vue";
 import { useNotify } from "../../composables/useNotify";
 import { useTableFilters } from "../../composables/useTableFilters";
 import api from "../../services/api";
+import {
+    formatEquipmentLifeSpan,
+    hasReachedLifespan,
+} from "../../utils/equipmentLifeSpan";
 
 const notify = useNotify();
 const departments = ref([]);
@@ -749,6 +1039,10 @@ const loading = ref(false);
 const loadingReturned = ref(false);
 const returnedByInput = ref(null);
 const borrowerSuggestions = ref([]);
+const propertyNumberInput = ref("");
+const propertySuggestions = ref([]);
+const propertyLookupError = ref("");
+let skipBorrowerReset = false;
 const viewDialogVisible = ref(false);
 const selectedReturn = ref(null);
 
@@ -756,11 +1050,16 @@ const form = reactive({
     useCustom: false,
     reference_number: "",
     equipment_id: null,
+    issuance_detail_id: null,
     custom_equipment_name: "",
     custom_property_number: "",
     custom_inventory_number: "",
     custom_equipment_type: "",
     custom_equipment_category: "",
+    custom_date_issued: "",
+    custom_date_acquired: "",
+    custom_specs: "",
+    custom_details: "",
     department_id: null,
     property_number: "",
     inventory_number: "",
@@ -774,7 +1073,7 @@ const conditionOptions = [
     {
         value: "good",
         label: "Returned well",
-        description: "No damage. Can be re-issued if still within life span.",
+        description: "No damage. Added to Supply Master as Returned stock if still within life span.",
     },
     {
         value: "damaged",
@@ -783,19 +1082,46 @@ const conditionOptions = [
     },
 ];
 
-const equipments = computed(() =>
-    equipmentRows.value.map((equipment) => ({
-        id: equipment.id,
-        label: `${equipment.name}${equipment.property_number ? ` · ${equipment.property_number}` : ""} · Qty: ${equipment.quantity ?? 0}`,
-    })),
+const issuedPropertyOptions = computed(() =>
+    equipmentRows.value.filter(
+        (row) =>
+            row.property_number &&
+            (row.quantity_outstanding ?? 0) > 0 &&
+            row.issuance_detail_id,
+    ),
 );
 
-const selectedEquipment = computed(() =>
-    equipmentRows.value.find((row) => row.id === form.equipment_id) ?? null,
+const selectedIssuedLine = computed(
+    () =>
+        equipmentRows.value.find(
+            (row) => row.issuance_detail_id === form.issuance_detail_id,
+        ) ?? null,
 );
+
+const issuedStockWord = computed(() => {
+    if (!selectedIssuedLine.value) {
+        return "";
+    }
+
+    const origin = String(selectedIssuedLine.value.origin || "").toLowerCase();
+
+    return origin === "returned" ? "Used" : "New";
+});
+
+const issuedTypeCategory = computed(() => {
+    const row = selectedIssuedLine.value;
+    if (!row) {
+        return "";
+    }
+
+    return [row.type, row.category].filter(Boolean).join(" · ");
+});
 
 const selectedEquipmentReachedLifespan = computed(() =>
-    hasReachedLifespan(selectedEquipment.value, form.date_returned || undefined),
+    hasReachedLifespan(
+        selectedIssuedLine.value,
+        form.date_returned || undefined,
+    ),
 );
 
 const todayIso = computed(() => {
@@ -804,15 +1130,80 @@ const todayIso = computed(() => {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 });
 
-const employeeOptions = computed(() => {
-    if (!form.department_id) {
-        return [];
+function returnedByOptions() {
+    const options = [];
+    const seen = new Set();
+
+    const add = (entry) => {
+        const name = String(entry.name || "").trim();
+        if (!name) {
+            return;
+        }
+
+        const key = `${entry.id || "name"}:${name.toLowerCase()}`;
+        if (seen.has(key)) {
+            return;
+        }
+
+        seen.add(key);
+        options.push({
+            id: entry.id || null,
+            name,
+            hint: entry.hint || "",
+            employee_number: entry.employee_number || "",
+        });
+    };
+
+    const issued = selectedIssuedLine.value;
+    if (issued?.received_by_name) {
+        add({
+            id: issued.received_by || null,
+            name: issued.received_by_name,
+            hint: "Received this equipment",
+        });
     }
 
-    return employees.value.filter(
-        (employee) => employee.department_id === form.department_id,
-    );
-});
+    for (const row of equipmentRows.value) {
+        if (!row.received_by_name) {
+            continue;
+        }
+
+        if (
+            form.department_id &&
+            row.department_id &&
+            row.department_id !== form.department_id
+        ) {
+            continue;
+        }
+
+        add({
+            id: row.received_by || null,
+            name: row.received_by_name,
+            hint: "Received By",
+        });
+    }
+
+    for (const employee of employees.value) {
+        const sameDepartment =
+            !form.department_id ||
+            employee.department_id === form.department_id;
+        add({
+            id: employee.id,
+            name: employee.name,
+            employee_number: employee.employee_number,
+            hint: [
+                employee.employee_number
+                    ? `ID: ${employee.employee_number}`
+                    : null,
+                sameDepartment ? "Employee" : "Employee · other department",
+            ]
+                .filter(Boolean)
+                .join(" · "),
+        });
+    }
+
+    return options;
+}
 
 const filterConfig = computed(() => [
     {
@@ -832,6 +1223,8 @@ const filterConfig = computed(() => [
             "custom_inventory_number",
             "custom_equipment_type",
             "custom_equipment_category",
+            "custom_specs",
+            "custom_details",
             "reference_number",
             "department.name",
             "borrower.name",
@@ -867,7 +1260,7 @@ const returnTables = computed(() => [
         key: "good",
         title: "Equipments Returned Well",
         description:
-            "No-damage returns. Units still within life span are added back to Supply Master so they can be re-issued.",
+            "No-damage returns. Units still within life span are added to Supply Master as Returned equipment, separate from Fresh stock.",
         rows: goodReturnedEquipments.value,
         emptyTitle: "No well-returned equipments yet",
         emptyText: "Returns marked as well / no damage will appear here.",
@@ -883,9 +1276,33 @@ const returnTables = computed(() => [
     },
 ]);
 
+watch(propertyNumberInput, (value) => {
+    if (typeof value === "object") {
+        return;
+    }
+
+    const query = String(value || "").trim();
+    if (!query) {
+        applyIssuedLine(null);
+        propertyLookupError.value = "";
+        return;
+    }
+
+    const row = findIssuedLineByProperty(query);
+    if (row) {
+        applyIssuedLine(row);
+        propertyLookupError.value = "";
+    }
+});
+
 watch(
     () => form.department_id,
     () => {
+        if (skipBorrowerReset) {
+            skipBorrowerReset = false;
+            return;
+        }
+
         returnedByInput.value = null;
         borrowerSuggestions.value = [];
     },
@@ -893,11 +1310,13 @@ watch(
 
 function searchBorrowers(event) {
     const query = (event.query || "").trim().toLowerCase();
-    const options = employeeOptions.value;
+    const options = returnedByOptions();
 
     borrowerSuggestions.value = query
-        ? options.filter((employee) =>
-              employee.name.toLowerCase().includes(query),
+        ? options.filter((row) =>
+              [row.name, row.employee_number, row.hint]
+                  .filter(Boolean)
+                  .some((part) => String(part).toLowerCase().includes(query)),
           )
         : options;
 }
@@ -948,7 +1367,7 @@ function returnStatus(row) {
     }
 
     if (row?.restocked) {
-        return "Restocked — can re-issue";
+        return "Added to Supply Master as Returned";
     }
 
     if (row?.lifespan_reached) {
@@ -962,26 +1381,12 @@ function returnStatus(row) {
     return "Logged only";
 }
 
-function hasReachedLifespan(equipment, asOf) {
-    if (!equipment?.life_span_years || !equipment?.date_acquired) {
-        return false;
+function toDateInputValue(value) {
+    if (!value) {
+        return "";
     }
 
-    const acquired = new Date(`${String(equipment.date_acquired).slice(0, 10)}T00:00:00`);
-    if (Number.isNaN(acquired.getTime())) {
-        return false;
-    }
-
-    const limit = new Date(acquired);
-    limit.setFullYear(limit.getFullYear() + Number(equipment.life_span_years));
-
-    const check = asOf
-        ? new Date(`${String(asOf).slice(0, 10)}T00:00:00`)
-        : new Date();
-    check.setHours(0, 0, 0, 0);
-    limit.setHours(0, 0, 0, 0);
-
-    return check >= limit;
+    return String(value).slice(0, 10);
 }
 
 function formatDateOnly(value) {
@@ -1011,30 +1416,164 @@ function setUseCustom(useCustom) {
     form.useCustom = useCustom;
     if (useCustom) {
         form.equipment_id = null;
+        form.issuance_detail_id = null;
         form.property_number = "";
         form.inventory_number = "";
+        propertyNumberInput.value = "";
+        propertyLookupError.value = "";
+        propertySuggestions.value = [];
     } else {
         form.custom_equipment_name = "";
         form.custom_property_number = "";
         form.custom_inventory_number = "";
         form.custom_equipment_type = "";
         form.custom_equipment_category = "";
+        form.custom_date_issued = "";
+        form.custom_date_acquired = "";
+        form.custom_specs = "";
+        form.custom_details = "";
     }
 }
 
-function onSupplyEquipmentSelected(equipmentId) {
-    const equipment = equipmentRows.value.find((row) => row.id === equipmentId);
-    form.property_number = equipment?.property_number || "";
-    form.inventory_number = equipment?.inventory_number || "";
+function propertyNumberQuery(value) {
+    if (!value) {
+        return "";
+    }
+
+    if (typeof value === "object") {
+        return String(value.property_number || "").trim();
+    }
+
+    return String(value).trim();
+}
+
+function findIssuedLineByProperty(value) {
+    const issuedRows = issuedPropertyOptions.value;
+
+    if (typeof value === "object" && value?.issuance_detail_id) {
+        return (
+            issuedRows.find(
+                (row) => row.issuance_detail_id === value.issuance_detail_id,
+            ) ?? null
+        );
+    }
+
+    const query = propertyNumberQuery(value).toLowerCase();
+    if (!query) {
+        return null;
+    }
+
+    return (
+        issuedRows.find(
+            (row) =>
+                String(row.property_number || "")
+                    .trim()
+                    .toLowerCase() === query,
+        ) ?? null
+    );
+}
+
+function applyIssuedLine(row) {
+    if (!row) {
+        form.issuance_detail_id = null;
+        form.equipment_id = null;
+        form.property_number = propertyNumberQuery(propertyNumberInput.value);
+        form.inventory_number = "";
+        return;
+    }
+
+    if (row.department_id && row.department_id !== form.department_id) {
+        skipBorrowerReset = true;
+    }
+
+    form.issuance_detail_id = row.issuance_detail_id;
+    form.equipment_id = row.equipment_id || null;
+    form.property_number = row.property_number || "";
+    form.inventory_number = row.inventory_number || "";
+    form.quantity = row.quantity_outstanding || 1;
+    if (row.department_id) {
+        form.department_id = row.department_id;
+    }
+
+    if (row.received_by) {
+        returnedByInput.value = {
+            id: row.received_by,
+            name: row.received_by_name,
+        };
+    } else if (row.received_by_name) {
+        returnedByInput.value = {
+            id: null,
+            name: row.received_by_name,
+        };
+    }
+    propertyLookupError.value = "";
+}
+
+function searchIssuedPropertyNumbers(event) {
+    const query = (event.query || "").trim().toLowerCase();
+    const options = issuedPropertyOptions.value;
+
+    propertySuggestions.value = query
+        ? options.filter((row) =>
+              String(row.property_number || "")
+                  .toLowerCase()
+                  .includes(query),
+          )
+        : options;
+}
+
+function onPropertyNumberSelect(event) {
+    const row = findIssuedLineByProperty(event.value);
+    applyIssuedLine(row);
+    propertyNumberInput.value = row?.property_number || "";
+}
+
+function onPropertyNumberLookup() {
+    window.setTimeout(() => {
+        const value = propertyNumberInput.value;
+        if (typeof value === "object" && value?.issuance_detail_id) {
+            onPropertyNumberSelect({ value });
+            return;
+        }
+
+        const query = propertyNumberQuery(value);
+        propertyNumberInput.value = query;
+
+        if (!query) {
+            applyIssuedLine(null);
+            propertyLookupError.value = "";
+            return;
+        }
+
+        const row = findIssuedLineByProperty(query);
+        if (row) {
+            applyIssuedLine(row);
+            propertyNumberInput.value = row.property_number || query;
+            return;
+        }
+
+        applyIssuedLine(null);
+        propertyLookupError.value =
+            "No outstanding issued equipment found for this property number. Available Supply Master stock cannot be returned here.";
+    }, 150);
 }
 
 function resolveBorrowerPayload() {
     const value = returnedByInput.value;
 
-    if (value && typeof value === "object" && value.id) {
+    if (value && typeof value === "object") {
+        const name = String(value.name || "").trim();
+
+        if (value.id) {
+            return {
+                borrower_employee_id: value.id,
+                borrower_name: null,
+            };
+        }
+
         return {
-            borrower_employee_id: value.id,
-            borrower_name: null,
+            borrower_employee_id: null,
+            borrower_name: name || null,
         };
     }
 
@@ -1050,13 +1589,21 @@ function resetForm() {
     form.useCustom = false;
     form.reference_number = "";
     form.equipment_id = null;
+    form.issuance_detail_id = null;
     form.property_number = "";
     form.inventory_number = "";
+    propertyNumberInput.value = "";
+    propertyLookupError.value = "";
+    propertySuggestions.value = [];
     form.custom_equipment_name = "";
     form.custom_property_number = "";
     form.custom_inventory_number = "";
     form.custom_equipment_type = "";
     form.custom_equipment_category = "";
+    form.custom_date_issued = "";
+    form.custom_date_acquired = "";
+    form.custom_specs = "";
+    form.custom_details = "";
     form.department_id = null;
     form.quantity = 1;
     form.reason = "";
@@ -1078,11 +1625,19 @@ function formatDateForPayload(value) {
 }
 
 async function submit() {
+    if (!form.useCustom) {
+        const row = findIssuedLineByProperty(propertyNumberInput.value);
+        if (row) {
+            applyIssuedLine(row);
+            propertyNumberInput.value = row.property_number || "";
+        }
+    }
+
     const borrower = resolveBorrowerPayload();
     const customName = (form.custom_equipment_name || "").trim();
     const hasEquipment = form.useCustom
         ? customName.length > 0
-        : !!form.equipment_id;
+        : !!form.issuance_detail_id;
 
     if (
         !hasEquipment ||
@@ -1092,7 +1647,9 @@ async function submit() {
         (!borrower.borrower_employee_id && !borrower.borrower_name)
     ) {
         notify.warn(
-            "Please complete equipment, quantity, department, and returned by.",
+            form.useCustom
+                ? "Please complete equipment, quantity, department, and returned by."
+                : "Please enter a valid property number, then complete quantity, department, and returned by.",
         );
         return;
     }
@@ -1111,9 +1668,14 @@ async function submit() {
                       (form.custom_equipment_type || "").trim() || null,
                   custom_equipment_category:
                       (form.custom_equipment_category || "").trim() || null,
+                  custom_date_issued: form.custom_date_issued || null,
+                  custom_date_acquired: form.custom_date_acquired || null,
+                  custom_specs: (form.custom_specs || "").trim() || null,
+                  custom_details: (form.custom_details || "").trim() || null,
               }
             : {
                   equipment_id: form.equipment_id,
+                  issuance_detail_id: form.issuance_detail_id,
                   property_number: (form.property_number || "").trim() || null,
                   inventory_number: (form.inventory_number || "").trim() || null,
               };
@@ -1131,7 +1693,7 @@ async function submit() {
         });
         notify.success(
             form.condition === "good" && !selectedEquipmentReachedLifespan.value && !form.useCustom
-                ? "Return recorded. Equipment was added back and can be re-issued."
+                ? "Return recorded. A Returned equipment record was added to Supply Master."
                 : "Equipment return recorded successfully.",
             "Return completed",
         );
@@ -1151,7 +1713,7 @@ async function loadLookups() {
         const [deptRes, empRes, equipmentRes] = await Promise.all([
             api.get("/departments/list"),
             api.get("/employees/list"),
-            api.get("/equipments/list"),
+            api.get("/issuances/outstanding-equipments"),
         ]);
 
         departments.value = deptRes.data.data ?? deptRes.data;

@@ -43,211 +43,212 @@
                 class="min-w-0 space-y-5 p-4 sm:p-6"
                 @submit.prevent="submit"
             >
-                <div class="grid gap-4 md:grid-cols-2">
-                    <div class="md:col-span-2">
-                        <label
-                            class="mb-1 block text-sm font-medium text-[#00164d]"
-                        >
-                            Reference No.
-                            <span class="ml-1 text-xs font-normal text-[#4a6490]"
-                                >(optional)</span
-                            >
-                        </label>
-                        <InputText
-                            v-model="form.issuance_number"
-                            class="w-full"
-                            placeholder="e.g. ISS-2024-018"
-                        />
-                        <p class="mt-1 text-xs text-[#4a6490]">
-                            Only fill this in if the hard-copy form has its own
-                            reference number. Otherwise the system generates
-                            one.
+                <div class="border border-[#a8b8d4] bg-transparent p-4">
+                    <div class="mb-4">
+                        <h4 class="font-semibold text-[#00164d]">
+                            {{
+                                form.issuance_type === "items"
+                                    ? "Items to Issue"
+                                    : "Equipments to Issue"
+                            }}
+                        </h4>
+                        <p class="mt-0.5 text-sm text-[#4a6490]">
+                            Encode the hard-copy form here: who received it,
+                            then the
+                            {{
+                                form.issuance_type === "items"
+                                    ? "item"
+                                    : "equipment"
+                            }}
+                            lines.
                         </p>
                     </div>
-                    <div>
-                        <label
-                            class="mb-1 block text-sm font-medium text-[#00164d]"
-                            >Department
-                            <span class="text-[#ce1126]">*</span></label
-                        >
-                        <Select
-                            v-model="form.department_id"
-                            :options="departments"
-                            optionLabel="name"
-                            optionValue="id"
-                            placeholder="Select department"
-                            class="w-full"
-                            filter
-                        />
-                    </div>
-                    <div>
-                        <label
-                            class="mb-1 block text-sm font-medium text-[#00164d]"
-                            >Received By
-                            <span class="text-[#ce1126]">*</span></label
-                        >
-                        <AutoComplete
-                            v-model="receivedByInput"
-                            :suggestions="receiverSuggestions"
-                            optionLabel="name"
-                            dropdown
-                            :forceSelection="false"
-                            placeholder="Select or type receiver name"
-                            class="w-full"
-                            inputClass="w-full"
-                            :disabled="!form.department_id"
-                            @complete="searchReceivers"
-                        />
-                        <p class="mt-1 text-xs text-[#4a6490]">
-                            Pick an employee or type a name if not in the list.
-                        </p>
-                    </div>
-                    <div class="md:col-span-2">
-                        <label
-                            class="mb-1 block text-sm font-medium text-[#00164d]"
-                            >Remarks</label
-                        >
-                        <Textarea
-                            v-model="form.remarks"
-                            class="w-full"
-                            rows="2"
-                            placeholder="Optional notes from the hard-copy form"
-                        />
-                    </div>
-                    <div
-                        class="md:col-span-2 grid gap-4"
-                        :class="
-                            form.issuance_type === 'equipments'
-                                ? 'md:grid-cols-2'
-                                : ''
-                        "
-                    >
-                        <div class="space-y-3 rounded-md border border-[#a8b8d4] bg-[#f4f7fb] p-3">
-                            <div class="flex items-start gap-2">
-                                <Checkbox
-                                    v-model="form.use_custom_date"
-                                    binary
-                                    inputId="issuance-custom-date"
-                                    class="mt-0.5"
-                                />
-                                <div>
-                                    <label
-                                        for="issuance-custom-date"
-                                        class="cursor-pointer text-sm font-medium text-[#00164d]"
-                                    >
-                                        Use custom issuance date
-                                    </label>
-                                    <p class="mt-0.5 text-xs text-[#4a6490]">
-                                        Turn this on when encoding past hard-copy
-                                        records. Otherwise the system uses today's
-                                        date.
-                                    </p>
-                                </div>
-                            </div>
-                            <div v-if="form.use_custom_date" class="max-w-xs">
+
+                    <div class="issuance-section">
+                        <p class="issuance-section-label">Issuance details</p>
+                        <div class="grid gap-4 md:grid-cols-2">
+                            <div class="md:col-span-2">
                                 <label
                                     class="mb-1 block text-sm font-medium text-[#00164d]"
-                                    >Issuance Date
-                                    <span class="text-[#ce1126]">*</span></label
                                 >
-                                <InputText
-                                    v-model="form.issued_date"
-                                    type="date"
-                                    class="w-full"
-                                    :max="todayDate"
-                                    required
-                                />
-                            </div>
-                        </div>
-
-                        <div
-                            v-if="form.issuance_type === 'equipments'"
-                            class="space-y-3 rounded-md border border-[#a8b8d4] bg-[#f4f7fb] p-3"
-                        >
-                            <div>
-                                <label
-                                    class="block text-sm font-medium text-[#00164d]"
-                                    for="issuance-date-acquired"
-                                >
-                                    Date Acquired
+                                    Reference No.
+                                    <span
+                                        class="ml-1 text-xs font-normal text-[#4a6490]"
+                                        >(optional)</span
+                                    >
                                 </label>
-                                <p class="mt-0.5 text-xs text-[#4a6490]">
-                                    Enter the date acquired from the hard-copy
-                                    equipment form.
+                                <InputText
+                                    v-model="form.issuance_number"
+                                    class="w-full"
+                                    placeholder="e.g. ISS-2024-018"
+                                />
+                                <p class="mt-1 text-xs text-[#4a6490]">
+                                    Only fill this in if the hard-copy form has
+                                    its own reference number. Otherwise the
+                                    system generates one.
                                 </p>
                             </div>
-                            <div class="max-w-xs">
-                                <InputText
-                                    id="issuance-date-acquired"
-                                    v-model="form.date_acquired"
-                                    type="date"
+                            <div>
+                                <label
+                                    class="mb-1 block text-sm font-medium text-[#00164d]"
+                                    >Department
+                                    <span class="text-[#ce1126]">*</span></label
+                                >
+                                <Select
+                                    v-model="form.department_id"
+                                    :options="departments"
+                                    optionLabel="name"
+                                    optionValue="id"
+                                    placeholder="Select department"
                                     class="w-full"
-                                    :max="todayDate"
+                                    filter
                                 />
+                            </div>
+                            <div>
+                                <label
+                                    class="mb-1 block text-sm font-medium text-[#00164d]"
+                                    >Received By
+                                    <span class="text-[#ce1126]">*</span></label
+                                >
+                                <AutoComplete
+                                    v-model="receivedByInput"
+                                    :suggestions="receiverSuggestions"
+                                    optionLabel="name"
+                                    dropdown
+                                    :forceSelection="false"
+                                    placeholder="Select or type receiver name"
+                                    class="w-full"
+                                    inputClass="w-full"
+                                    :disabled="!form.department_id"
+                                    @complete="searchReceivers"
+                                />
+                                <p class="mt-1 text-xs text-[#4a6490]">
+                                    Pick an employee or type a name if not in
+                                    the list.
+                                </p>
+                            </div>
+                            <div
+                                class="md:col-span-2 space-y-3 rounded-md border border-[#a8b8d4] bg-[#f4f7fb] p-3"
+                            >
+                                <div class="flex items-start gap-2">
+                                    <Checkbox
+                                        v-model="form.use_custom_date"
+                                        binary
+                                        inputId="issuance-custom-date"
+                                        class="mt-0.5"
+                                    />
+                                    <div>
+                                        <label
+                                            for="issuance-custom-date"
+                                            class="cursor-pointer text-sm font-medium text-[#00164d]"
+                                        >
+                                            Use custom issuance date
+                                        </label>
+                                        <p class="mt-0.5 text-xs text-[#4a6490]">
+                                            Turn this on when encoding past
+                                            hard-copy records. Otherwise the
+                                            system uses today's date.
+                                        </p>
+                                    </div>
+                                </div>
+                                <div
+                                    v-if="form.use_custom_date"
+                                    class="max-w-xs"
+                                >
+                                    <label
+                                        class="mb-1 block text-sm font-medium text-[#00164d]"
+                                        >Issuance Date
+                                        <span class="text-[#ce1126]"
+                                            >*</span
+                                        ></label
+                                    >
+                                    <InputText
+                                        v-model="form.issued_date"
+                                        type="date"
+                                        class="w-full"
+                                        :max="todayDate"
+                                        required
+                                    />
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <div
-                    class="border border-[#a8b8d4] bg-transparent p-4"
-                >
-                    <div
-                        class="mb-4 flex flex-wrap items-center justify-between gap-3"
-                    >
-                        <div>
-                            <h4 class="font-semibold text-[#00164d]">
-                                {{
-                                    form.issuance_type === "items"
-                                        ? "Items to Issue"
-                                        : "Equipments to Issue"
-                                }}
-                            </h4>
-                            <p class="mt-0.5 text-sm text-[#4a6490]">
-                                Add one or more
-                                {{
-                                    form.issuance_type === "items"
-                                        ? "items"
-                                        : "equipments, including the property number from the hard-copy form,"
-                                }}
-                                and quantities. Inventory number is optional —
-                                leave it blank to let the system generate one.
-                            </p>
-                        </div>
-                        <UiButton
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            @click="addLine"
-                        >
-                            <svg
-                                class="h-4 w-4"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                                stroke-width="2"
-                            >
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    d="M12 4.5v15m7.5-7.5h-15"
-                                />
-                            </svg>
-                            Add Line
-                        </UiButton>
-                    </div>
-
-                    <div class="space-y-3">
+                    <div class="issuance-section">
                         <div
-                            v-for="(line, index) in form.items"
-                            :key="index"
-                            class="space-y-3 border border-[#a8b8d4] bg-transparent p-3"
+                            class="mb-3 flex flex-wrap items-center justify-between gap-3"
                         >
+                            <div>
+                                <p class="issuance-section-label">
+                                    {{
+                                        form.issuance_type === "items"
+                                            ? "Item lines"
+                                            : "Equipment lines"
+                                    }}
+                                </p>
+                                <p class="mt-0.5 text-sm text-[#4a6490]">
+                                    <template
+                                        v-if="form.issuance_type === 'items'"
+                                    >
+                                        Add one or more items and quantities.
+                                        Leave Inventory No. blank to let the
+                                        system generate one.
+                                    </template>
+                                    <template v-else>
+                                        List each equipment from the paper form.
+                                        For New (fresh) equipment, you must
+                                        change the Property No. to the number on
+                                        the paper. The original listing in
+                                        Supply Master will not change. Inventory
+                                        No. is optional.
+                                    </template>
+                                </p>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-2">
+                            <UiButton
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                @click="addLine"
+                            >
+                                <svg
+                                    class="h-4 w-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        d="M12 4.5v15m7.5-7.5h-15"
+                                    />
+                                </svg>
+                                Add Line
+                            </UiButton>
+                            <UiButton
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                :disabled="!canCancelLines"
+                                @click="resetLines"
+                            >
+                                Cancel
+                            </UiButton>
+                            </div>
+                        </div>
+
+                        <div class="space-y-3">
+                            <div
+                                v-for="(line, index) in form.items"
+                                :key="index"
+                                class="space-y-3 border border-[#a8b8d4] bg-transparent p-3"
+                            >
                             <div
                                 class="issuance-line-row grid gap-3"
                                 :class="
                                     form.issuance_type === 'equipments'
-                                        ? 'md:grid-cols-[minmax(0,1.1fr)_minmax(0,0.85fr)_minmax(0,0.85fr)_8.75rem_auto]'
+                                        ? 'md:grid-cols-[minmax(0,1.15fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,9.75rem)_7.25rem_auto]'
                                         : 'md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_8.75rem_auto]'
                                 "
                             >
@@ -286,6 +287,28 @@
                                             onEquipmentSelected(line, $event)
                                         "
                                     />
+                                    <button
+                                        v-if="form.issuance_type === 'equipments'"
+                                        type="button"
+                                        class="mt-1 inline-flex items-center gap-1 text-xs font-medium text-[#4a6490] hover:text-[#00164d]"
+                                        @click="openEquipmentInfo(line)"
+                                    >
+                                        <svg
+                                            class="h-4 w-4"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                            aria-hidden="true"
+                                        >
+                                            <path
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"
+                                            />
+                                        </svg>
+                                        Info
+                                    </button>
                                 </div>
                                 <div
                                     v-if="form.issuance_type === 'equipments'"
@@ -298,9 +321,19 @@
                                     <InputText
                                         v-model="line.property_number"
                                         class="issuance-line-control w-full"
-                                        placeholder="e.g. PROP-2024-0125"
+                                        placeholder="Type the Property No. from the paper"
+                                        :readonly="isPropertyLocked(line)"
                                         required
                                     />
+                                    <p
+                                        class="issuance-line-hint"
+                                        :class="{
+                                            'issuance-line-hint-warn':
+                                                usesDefaultFreshProperty(line),
+                                        }"
+                                    >
+                                        {{ propertyNumberHint(line) }}
+                                    </p>
                                 </div>
                                 <div class="issuance-line-field min-w-0">
                                     <label class="issuance-line-label">
@@ -309,7 +342,32 @@
                                     <InputText
                                         v-model="line.inventory_number"
                                         class="issuance-line-control w-full"
-                                        placeholder="Leave blank to auto-generate"
+                                        :placeholder="
+                                            form.issuance_type === 'items'
+                                                ? 'Leave blank to auto-generate'
+                                                : 'Optional'
+                                        "
+                                    />
+                                    <p
+                                        v-if="form.issuance_type === 'equipments'"
+                                        class="issuance-line-hint"
+                                    >
+                                        Optional. Leave blank if the paper has
+                                        none.
+                                    </p>
+                                </div>
+                                <div
+                                    v-if="form.issuance_type === 'equipments'"
+                                    class="issuance-line-field min-w-0"
+                                >
+                                    <label class="issuance-line-label">
+                                        Date Acquired
+                                    </label>
+                                    <InputText
+                                        v-model="line.date_acquired"
+                                        type="date"
+                                        class="issuance-line-control w-full"
+                                        :max="todayDate"
                                     />
                                 </div>
                                 <div class="issuance-line-field min-w-0">
@@ -368,6 +426,20 @@
                                 </p>
                             </div>
                         </div>
+                    </div>
+                    </div>
+
+                    <div class="issuance-section">
+                        <label
+                            class="mb-1 block text-sm font-medium text-[#00164d]"
+                            >Remarks</label
+                        >
+                        <Textarea
+                            v-model="form.remarks"
+                            class="w-full"
+                            rows="2"
+                            placeholder="Optional notes from the hard-copy form"
+                        />
                     </div>
                 </div>
 
@@ -458,6 +530,26 @@
                             }}</span>
                         </template>
                     </Column>
+                    <Column
+                        v-if="historyType === 'equipments'"
+                        header="Property No."
+                    >
+                        <template #body="{ data }">
+                            <span class="text-sm text-[#00164d]">{{
+                                formatIssuedPropertyNumbers(data)
+                            }}</span>
+                        </template>
+                    </Column>
+                    <Column
+                        v-if="historyType === 'equipments'"
+                        header="Inventory No."
+                    >
+                        <template #body="{ data }">
+                            <span class="text-sm text-[#00164d]">{{
+                                formatIssuedInventoryNumbers(data)
+                            }}</span>
+                        </template>
+                    </Column>
                     <Column v-if="historyType === 'equipments'" header="Specs">
                         <template #body="{ data }">
                             <span class="line-clamp-2 text-sm text-[#00164d]">{{
@@ -470,10 +562,18 @@
                             totalQuantity(data)
                         }}</template>
                     </Column>
-                    <Column header="Date">
+                    <Column header="Issuance Date">
                         <template #body="{ data }">{{
                             formatDate(data.issued_date)
                         }}</template>
+                    </Column>
+                    <Column
+                        v-if="historyType === 'equipments'"
+                        header="Date Acquired"
+                    >
+                        <template #body="{ data }">
+                            {{ issuanceDateAcquired(data) }}
+                        </template>
                     </Column>
                     <Column header="Actions" style="width: 5rem">
                         <template #body="{ data }">
@@ -565,16 +665,6 @@
                             {{ totalQuantity(selectedIssuance) }}
                         </p>
                     </div>
-                    <div
-                        v-if="issuanceTypeKey(selectedIssuance) !== 'items'"
-                    >
-                        <p class="text-xs uppercase tracking-wide text-[#4a6490]">
-                            Date Acquired
-                        </p>
-                        <p class="mt-0.5 font-medium">
-                            {{ issuanceDateAcquired(selectedIssuance) }}
-                        </p>
-                    </div>
                 </div>
 
                 <div>
@@ -643,6 +733,22 @@
                                     issuanceTypeKey(selectedIssuance) !==
                                     'items'
                                 "
+                                header="Date Acquired"
+                            >
+                                <template #body="{ data }">
+                                    {{
+                                        formatDateOnly(
+                                            data.date_acquired ||
+                                                data.equipment?.date_acquired,
+                                        )
+                                    }}
+                                </template>
+                            </Column>
+                            <Column
+                                v-if="
+                                    issuanceTypeKey(selectedIssuance) !==
+                                    'items'
+                                "
                                 header="Specs"
                             >
                                 <template #body="{ data }">
@@ -658,6 +764,196 @@
             </div>
             <template #footer>
                 <UiButton variant="outline" @click="viewDialogVisible = false"
+                    >Close</UiButton
+                >
+            </template>
+        </Dialog>
+
+        <Dialog
+            v-model:visible="equipmentInfoVisible"
+            modal
+            header="Equipment Info"
+            :style="{ width: '560px' }"
+        >
+            <div class="space-y-4 pt-2 text-sm text-[#00164d]">
+                <div
+                    v-if="equipmentInfoRecord"
+                    class="border border-[#a8b8d4] bg-[#f4f7fb] p-4"
+                >
+                    <p class="text-base font-semibold">
+                        {{ equipmentInfoRecord.name || "—" }}
+                    </p>
+                    <p class="mt-1 text-xs text-[#4a6490]">
+                        Status:
+                        {{ equipmentStatusWord(equipmentInfoRecord) }}
+                    </p>
+                    <p
+                        v-if="!isReturnedEquipment(equipmentInfoRecord)"
+                        class="mt-3 border border-[#ce1126] bg-[#fff5f5] p-3 text-sm text-[#00164d]"
+                    >
+                        <span class="font-semibold">New equipment.</span>
+                        You must change the Property No. to the number on the
+                        paper form. The default listing cannot be used.
+                        <span
+                            v-if="
+                                usesDefaultFreshProperty(equipmentInfoLine)
+                            "
+                            class="mt-1 block font-medium text-[#ce1126]"
+                        >
+                            The Property No. is still the default. Change it
+                            before issuing.
+                        </span>
+                    </p>
+                    <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                        <div>
+                            <p
+                                class="text-[10px] font-semibold uppercase tracking-wide text-[#4a6490]"
+                            >
+                                Property No.
+                            </p>
+                            <p class="mt-0.5 font-medium">
+                                {{
+                                    equipmentInfoLine?.property_number ||
+                                    equipmentInfoRecord.property_number ||
+                                    "—"
+                                }}
+                            </p>
+                        </div>
+                        <div>
+                            <p
+                                class="text-[10px] font-semibold uppercase tracking-wide text-[#4a6490]"
+                            >
+                                Inventory No.
+                            </p>
+                            <p class="mt-0.5 font-medium">
+                                {{
+                                    equipmentInfoLine?.inventory_number ||
+                                    equipmentInfoRecord.inventory_number ||
+                                    "—"
+                                }}
+                            </p>
+                        </div>
+                        <div>
+                            <p
+                                class="text-[10px] font-semibold uppercase tracking-wide text-[#4a6490]"
+                            >
+                                Date Acquired
+                            </p>
+                            <p class="mt-0.5 font-medium">
+                                {{
+                                    equipmentInfoLine?.date_acquired ||
+                                    equipmentInfoRecord.date_acquired ||
+                                    "—"
+                                }}
+                            </p>
+                        </div>
+                        <div>
+                            <p
+                                class="text-[10px] font-semibold uppercase tracking-wide text-[#4a6490]"
+                            >
+                                Remaining life span
+                            </p>
+                            <p class="mt-0.5 font-medium">
+                                {{
+                                    formatEquipmentLifeSpan(
+                                        equipmentInfoRecord,
+                                    )
+                                }}
+                            </p>
+                        </div>
+                    </div>
+                    <div
+                        v-if="equipmentInfoRecord.specs"
+                        class="mt-3 border-t border-[#d7e0ef] pt-3"
+                    >
+                        <p
+                            class="text-[10px] font-semibold uppercase tracking-wide text-[#4a6490]"
+                        >
+                            Specs
+                        </p>
+                        <p class="mt-1 whitespace-pre-wrap">
+                            {{ equipmentInfoRecord.specs }}
+                        </p>
+                    </div>
+                </div>
+                <p v-else class="text-[#4a6490]">
+                    Select an equipment first to see its full details. You can
+                    still read the numbering rules below.
+                </p>
+
+                <div
+                    v-if="
+                        !equipmentInfoRecord ||
+                        !isReturnedEquipment(equipmentInfoRecord)
+                    "
+                    class="border border-[#a8b8d4] p-4"
+                    :class="{
+                        'border-[#ce1126] bg-[#fff5f5]':
+                            equipmentInfoRecord &&
+                            !isReturnedEquipment(equipmentInfoRecord),
+                    }"
+                >
+                    <p class="font-semibold">New</p>
+                    <p class="mt-1 text-[#4a6490]">
+                        This is first-time stock from supply. You must change
+                        the Property No. to the number on the paper form. The
+                        default listing cannot be used. Inventory No. is
+                        optional — leave it blank if the paper has none.
+                    </p>
+                    <p
+                        v-if="
+                            equipmentInfoRecord &&
+                            !isReturnedEquipment(equipmentInfoRecord)
+                        "
+                        class="mt-2 font-medium text-[#ce1126]"
+                    >
+                        Selected: change the Property No. before you issue
+                        this equipment.
+                    </p>
+                </div>
+
+                <div
+                    v-if="
+                        !equipmentInfoRecord ||
+                        isReturnedEquipment(equipmentInfoRecord)
+                    "
+                    class="border border-[#a8b8d4] p-4"
+                >
+                    <p class="font-semibold">Used</p>
+                    <p class="mt-1 text-[#4a6490]">
+                        This was returned before and is being issued again.
+                        You decide whether the Property No. should change.
+                        Keep it if the paper shows the same number. Change it
+                        only if the paper shows a different number. Inventory
+                        No. is optional.
+                    </p>
+                    <div
+                        v-if="
+                            equipmentInfoLine &&
+                            isReturnedEquipment(equipmentInfoRecord)
+                        "
+                        class="mt-3 flex flex-col gap-2 sm:flex-row"
+                    >
+                        <UiButton
+                            type="button"
+                            variant="outline"
+                            @click="setReturnedPropertyChoice(false)"
+                        >
+                            Keep Property No.
+                        </UiButton>
+                        <UiButton
+                            type="button"
+                            @click="setReturnedPropertyChoice(true)"
+                        >
+                            Change Property No.
+                        </UiButton>
+                    </div>
+                </div>
+            </div>
+            <template #footer>
+                <UiButton
+                    variant="outline"
+                    @click="equipmentInfoVisible = false"
                     >Close</UiButton
                 >
             </template>
@@ -682,6 +978,7 @@ import UiButton from "../../components/ui/UiButton.vue";
 import TableFilters from "../../components/TableFilters.vue";
 import { useTableFilters } from "../../composables/useTableFilters";
 import api from "../../services/api";
+import { formatEquipmentLifeSpan, equipmentOriginLabel } from "../../utils/equipmentLifeSpan";
 
 const IconItems = {
     render() {
@@ -756,6 +1053,17 @@ const loadingList = ref(false);
 const historyType = ref("items");
 const viewDialogVisible = ref(false);
 const selectedIssuance = ref(null);
+const equipmentInfoVisible = ref(false);
+const equipmentInfoLine = ref(null);
+
+const equipmentInfoRecord = computed(() => {
+    const equipmentId = equipmentInfoLine.value?.equipment_id;
+    if (!equipmentId) {
+        return null;
+    }
+
+    return equipments.value.find((row) => row.id === equipmentId) ?? null;
+});
 
 const form = reactive({
     issuance_type: "items",
@@ -764,7 +1072,6 @@ const form = reactive({
     remarks: "",
     use_custom_date: false,
     issued_date: "",
-    date_acquired: "",
     items: [emptyLine()],
 });
 
@@ -779,7 +1086,10 @@ function emptyLine() {
         equipment_id: null,
         property_number: "",
         inventory_number: "",
+        date_acquired: "",
         quantity: 1,
+        can_change_property: true,
+        default_property_number: "",
     };
 }
 
@@ -790,8 +1100,85 @@ function onItemSelected(line, itemId) {
 
 function onEquipmentSelected(line, equipmentId) {
     const equipment = equipments.value.find((row) => row.id === equipmentId);
+    line.default_property_number = equipment?.property_number || "";
     line.property_number = equipment?.property_number || "";
     line.inventory_number = equipment?.inventory_number || "";
+    line.date_acquired = toDateInputValue(equipment?.date_acquired);
+    line.can_change_property = !isReturnedEquipment(equipment);
+}
+
+function isReturnedEquipment(equipment) {
+    if (!equipment) {
+        return false;
+    }
+
+    return (
+        equipment.origin === "returned" || Boolean(equipment.source_return_id)
+    );
+}
+
+function usesDefaultFreshProperty(line) {
+    const equipment = equipments.value.find(
+        (row) => row.id === line.equipment_id,
+    );
+    if (!equipment || isReturnedEquipment(equipment)) {
+        return false;
+    }
+
+    const current = (line.property_number || "").trim();
+    const original = (
+        line.default_property_number ||
+        equipment.property_number ||
+        ""
+    ).trim();
+
+    if (!current || !original) {
+        return false;
+    }
+
+    return current.toLowerCase() === original.toLowerCase();
+}
+
+function equipmentStatusWord(equipment) {
+    return isReturnedEquipment(equipment) ? "Used" : "New";
+}
+
+function isPropertyLocked(line) {
+    const equipment = equipments.value.find(
+        (row) => row.id === line.equipment_id,
+    );
+
+    return isReturnedEquipment(equipment) && !line.can_change_property;
+}
+
+function propertyNumberHint(line) {
+    const equipment = equipments.value.find(
+        (row) => row.id === line.equipment_id,
+    );
+
+    if (isReturnedEquipment(equipment)) {
+        return line.can_change_property
+            ? "You chose to change this. Type the Property No. from the paper form."
+            : "Kept as listed. Open Info if you need to change it.";
+    }
+
+    if (usesDefaultFreshProperty(line)) {
+        return "Change this Property No. The default listing cannot be used for New equipment.";
+    }
+
+    return "Required. Use the Property No. from the paper form.";
+}
+
+function openEquipmentInfo(line) {
+    equipmentInfoLine.value = line;
+    equipmentInfoVisible.value = true;
+}
+
+function setReturnedPropertyChoice(canChange) {
+    if (equipmentInfoLine.value) {
+        equipmentInfoLine.value.can_change_property = canChange;
+    }
+    equipmentInfoVisible.value = false;
 }
 
 function equipmentSpecs(equipmentId) {
@@ -822,6 +1209,10 @@ const filterConfig = computed(() => [
             "receiver.name",
             "received_by_name",
             "issuer.name",
+            "details.property_number",
+            "details.inventory_number",
+            "details.equipment.property_number",
+            "details.equipment.inventory_number",
         ],
     },
     {
@@ -896,6 +1287,37 @@ function addLine() {
     form.items.push(emptyLine());
 }
 
+function lineHasData(line) {
+    if (form.issuance_type === "items") {
+        return Boolean(
+            line.item_id ||
+                (line.inventory_number || "").trim() ||
+                line.quantity !== 1,
+        );
+    }
+
+    return Boolean(
+        line.equipment_id ||
+            (line.property_number || "").trim() ||
+            (line.inventory_number || "").trim() ||
+            (line.date_acquired || "").trim() ||
+            line.quantity !== 1 ||
+            line.can_change_property === false,
+    );
+}
+
+const canCancelLines = computed(
+    () => form.items.length > 1 || form.items.some((line) => lineHasData(line)),
+);
+
+function resetLines() {
+    if (!canCancelLines.value) {
+        return;
+    }
+
+    form.items = [emptyLine()];
+}
+
 function removeLine(index) {
     if (form.items.length === 1) {
         return;
@@ -912,7 +1334,6 @@ function resetForm() {
     form.remarks = "";
     form.use_custom_date = false;
     form.issued_date = "";
-    form.date_acquired = "";
     form.items = [emptyLine()];
 }
 
@@ -972,6 +1393,14 @@ function formatDate(value) {
     return value ? new Date(value).toLocaleString() : "";
 }
 
+function toDateInputValue(value) {
+    if (!value) {
+        return "";
+    }
+
+    return String(value).slice(0, 10);
+}
+
 function formatDateOnly(value) {
     if (!value) {
         return "—";
@@ -989,13 +1418,14 @@ function formatDateOnly(value) {
 function issuanceDateAcquired(issuance) {
     const dates = (issuance.details ?? [])
         .map((detail) => detail.date_acquired || detail.equipment?.date_acquired)
-        .filter(Boolean);
+        .map((value) => formatDateOnly(value))
+        .filter((value) => value && value !== "—");
 
     if (!dates.length) {
         return "—";
     }
 
-    return formatDateOnly(dates[0]);
+    return [...new Set(dates)].join(", ");
 }
 
 function formatIssuedLines(issuance) {
@@ -1018,6 +1448,34 @@ function formatIssuedSpecs(issuance) {
     }
 
     return [...new Set(specs)].join("; ");
+}
+
+function uniqueDetailValues(issuance, pick) {
+    const values = (issuance.details ?? [])
+        .map(pick)
+        .map((value) => String(value || "").trim())
+        .filter(Boolean);
+
+    if (!values.length) {
+        return "—";
+    }
+
+    return [...new Set(values)].join(", ");
+}
+
+function formatIssuedPropertyNumbers(issuance) {
+    return uniqueDetailValues(
+        issuance,
+        (detail) => detail.property_number || detail.equipment?.property_number,
+    );
+}
+
+function formatIssuedInventoryNumbers(issuance) {
+    return uniqueDetailValues(
+        issuance,
+        (detail) =>
+            detail.inventory_number || detail.equipment?.inventory_number,
+    );
 }
 
 function viewIssuance(issuance) {
@@ -1052,6 +1510,7 @@ function buildPayload() {
                 equipment_id: line.equipment_id,
                 property_number: (line.property_number || "").trim(),
                 inventory_number: (line.inventory_number || "").trim() || null,
+                date_acquired: (line.date_acquired || "").trim() || null,
                 quantity: line.quantity,
             };
         }),
@@ -1064,10 +1523,6 @@ function buildPayload() {
 
     if (form.use_custom_date && form.issued_date) {
         payload.issued_date = form.issued_date;
-    }
-
-    if (form.issuance_type === "equipments" && form.date_acquired) {
-        payload.date_acquired = form.date_acquired;
     }
 
     return payload;
@@ -1100,6 +1555,16 @@ async function submit() {
             form.issuance_type === "equipments"
                 ? "Please select equipment, enter a property number, and quantity for every line."
                 : "Please complete all issuance lines before submitting.",
+        );
+        return;
+    }
+
+    if (
+        form.issuance_type === "equipments" &&
+        form.items.some((line) => usesDefaultFreshProperty(line))
+    ) {
+        notify.warn(
+            "Change the Property No. for New (fresh) equipment. The default listing cannot be used.",
         );
         return;
     }
@@ -1142,13 +1607,31 @@ async function loadLookups() {
             inventory_number: item.inventory_number || "",
             label: `${item.item_name}${item.barcode || item.item_number ? ` (${item.barcode || item.item_number})` : ""} · Stock: ${item.current_stock ?? 0}`,
         }));
-        equipments.value = (equipmentRes.data ?? []).map((equipment) => ({
-            id: equipment.id,
-            property_number: equipment.property_number || "",
-            inventory_number: equipment.inventory_number || "",
-            specs: equipment.specs || "",
-            label: `${equipment.name}${equipment.property_number ? ` · ${equipment.property_number}` : ""} · Qty: ${equipment.quantity ?? 0}`,
-        }));
+        equipments.value = (equipmentRes.data ?? []).map((equipment) => {
+            const lifeSpan = formatEquipmentLifeSpan(equipment);
+
+            return {
+                id: equipment.id,
+                name: equipment.name,
+                property_number: equipment.property_number || "",
+                inventory_number: equipment.inventory_number || "",
+                date_acquired: toDateInputValue(equipment.date_acquired),
+                specs: equipment.specs || "",
+                origin: equipment.origin,
+                source_return_id: equipment.source_return_id,
+                life_span_years: equipment.life_span_years,
+                lifespan_expires_on: equipment.lifespan_expires_on,
+                label: [
+                    equipment.name,
+                    equipment.property_number || null,
+                    Number(equipment.quantity) > 0 ? "Available" : "Not Available",
+                    equipmentOriginLabel(equipment),
+                    lifeSpan !== "—" ? lifeSpan : null,
+                ]
+                    .filter(Boolean)
+                    .join(" · "),
+            };
+        });
     } catch (error) {
         notify.error(
             error.response?.data?.message || "Unable to load issuance form data.",
@@ -1177,6 +1660,24 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.issuance-section + .issuance-section {
+    margin-top: 1.25rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid #d7e0ef;
+}
+
+.issuance-section-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #4a6490;
+}
+
+.issuance-section > .issuance-section-label {
+    margin-bottom: 0.75rem;
+}
+
 .issuance-line-row {
     align-items: start;
 }
@@ -1216,6 +1717,18 @@ onMounted(async () => {
 .issuance-line-action :deep(.shadcn-btn-icon) {
     height: 2.25rem;
     width: 2.25rem;
+}
+
+.issuance-line-hint {
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    line-height: 1.3;
+    color: #4a6490;
+}
+
+.issuance-line-hint-warn {
+    font-weight: 600;
+    color: #ce1126;
 }
 
 .issuance-line-specs {

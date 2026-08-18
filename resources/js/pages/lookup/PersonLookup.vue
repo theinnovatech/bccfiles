@@ -833,7 +833,7 @@ const lookupTabs = [
     {
         key: "person",
         label: "Person",
-        description: "Issuance and return history by employee",
+        description: "Issuance and return history by Received By",
         icon: IconPerson,
     },
     {
@@ -852,10 +852,10 @@ const lookupTabs = [
 
 const lookupMeta = {
     person: {
-        searchLabel: "Search by employee name or ID",
-        placeholder: "Type a name or employee number...",
-        helpText: "Shows items received, equipment borrowed, outstanding, and returns for that person.",
-        emptyText: "Start typing above to look up a person.",
+        searchLabel: "Search by Received By name or employee ID",
+        placeholder: "Type the person who received the items...",
+        helpText: "Looks up anyone listed as Received By on an issuance, including typed names that are not in Employees.",
+        emptyText: "Start typing above to look up who received items.",
         groupLabel: "People",
     },
     item: {
@@ -1141,7 +1141,7 @@ async function lookupBy(option) {
             response = await api.get("/lookups/by-person", {
                 params: {
                     employee_id: option.employee_id ?? undefined,
-                    name: option.name ?? undefined,
+                    name: option.name ?? option.label ?? undefined,
                 },
             });
         } else if (option.type === "item") {

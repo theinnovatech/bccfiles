@@ -160,11 +160,15 @@
                     <InputNumber
                         v-model="form.life_span_years"
                         class="w-full"
-                        :min="1"
+                        :min="editingId ? 0 : 1"
                         :max="100"
                         placeholder="e.g. 5"
                         required
                     />
+                    <p class="mt-1 text-xs text-[#4a6490]">
+                        After a return before the limit, this shows remaining
+                        years instead of the original life span.
+                    </p>
                 </div>
                 <div class="md:col-span-2">
                     <label class="mb-1 block text-sm font-medium text-[#00164d]"
@@ -393,7 +397,10 @@ async function save() {
         return;
     }
 
-    if (!form.life_span_years || form.life_span_years < 1) {
+    if (
+        form.life_span_years == null ||
+        form.life_span_years < (editingId.value ? 0 : 1)
+    ) {
         notify.warn("Please enter the equipment life span in years.");
         return;
     }

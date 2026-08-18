@@ -6,6 +6,7 @@ use App\Enums\IssuanceType;
 use App\Http\Controllers\Controller;
 use App\Models\Equipment;
 use App\Models\Issuance;
+use App\Models\IssuanceDetail;
 use App\Models\Item;
 use App\Services\ActivityLogService;
 use App\Services\InventoryService;
@@ -47,7 +48,6 @@ class IssuanceController extends Controller
             'remarks' => ['nullable', 'string'],
             'use_custom_date' => ['sometimes', 'boolean'],
             'issued_date' => ['nullable', 'required_if:use_custom_date,true,1', 'date', 'before_or_equal:today'],
-            'date_acquired' => ['nullable', 'date', 'before_or_equal:today'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
             'items.*.inventory_number' => ['nullable', 'string', 'max:255'],
@@ -56,6 +56,7 @@ class IssuanceController extends Controller
         if ($issuanceType === IssuanceType::Equipments) {
             $rules['items.*.equipment_id'] = ['required', 'exists:equipments,id'];
             $rules['items.*.property_number'] = ['required', 'string', 'max:255'];
+            $rules['items.*.date_acquired'] = ['nullable', 'date', 'before_or_equal:today'];
         } elseif ($issuanceType === IssuanceType::Items) {
             $rules['items.*.item_id'] = ['required', 'exists:items,id'];
         }
@@ -78,12 +79,9 @@ class IssuanceController extends Controller
             : now();
 
         $manualReference = trim((string) ($data['issuance_number'] ?? ''));
-        $dateAcquired = $issuanceType === IssuanceType::Equipments && filled($data['date_acquired'] ?? null)
-            ? Carbon::parse($data['date_acquired'])->toDateString()
-            : null;
 
         try {
-            $issuance = DB::transaction(function () use ($data, $request, $issuanceType, $receivedBy, $receivedByName, $issuedDate, $manualReference, $dateAcquired) {
+            $issuance = DB::transaction(function () use ($data, $request, $issuanceType, $receivedBy, $receivedByName, $issuedDate, $manualReference) {
                 $issuance = Issuance::create([
                     'issuance_number' => $manualReference !== ''
                         ? $manualReference
@@ -97,7 +95,7 @@ class IssuanceController extends Controller
 
                 foreach ($data['items'] as $line) {
                     if ($issuanceType === IssuanceType::Equipments) {
-                        $this->issueEquipmentLine($issuance, $line, $dateAcquired);
+                        $this->issueEquipmentLine($issuance, $line);
                     } else {
                         $this->issueItemLine($issuance, $line, $request);
                     }
@@ -120,6 +118,67 @@ class IssuanceController extends Controller
             $issuance->load(['department', 'issuer', 'receiver.department', 'details.item', 'details.equipment']),
             201
         );
+    }
+
+    public function outstandingEquipments(): JsonResponse
+    {
+        $details = IssuanceDetail::query()
+            ->with(['equipment.category', 'issuance.receiver', 'issuance.department'])
+            ->whereNotNull('equipment_id')
+            ->whereNotNull('property_number')
+            ->where('property_number', '!=', '')
+            ->whereHas('issuance')
+            ->whereHas('equipment')
+            ->withSum('returns as returned_qty', 'quantity')
+            ->orderByDesc('id')
+            ->get();
+
+        $rows = $details
+            ->map(function (IssuanceDetail $detail) {
+                $equipment = $detail->equipment;
+                if (! $equipment) {
+                    return null;
+                }
+
+                $outstanding = (int) $detail->quantity - (int) ($detail->returned_qty ?? 0);
+                if ($outstanding < 1) {
+                    return null;
+                }
+
+                $acquired = $detail->date_acquired ?: $equipment->date_acquired;
+                $expires = $equipment->expiryFromAcquired($acquired);
+                $issuedDate = $detail->issuance?->issued_date;
+
+                return [
+                    'id' => $detail->id,
+                    'issuance_detail_id' => $detail->id,
+                    'issuance_id' => $detail->issuance_id,
+                    'issuance_number' => $detail->issuance?->issuance_number,
+                    'equipment_id' => $equipment->id,
+                    'name' => $equipment->name,
+                    'type' => $equipment->type,
+                    'category' => $equipment->category?->name,
+                    'property_number' => $detail->property_number,
+                    'inventory_number' => $detail->inventory_number,
+                    'date_issued' => $issuedDate?->toDateString(),
+                    'date_acquired' => $acquired ? Carbon::parse($acquired)->toDateString() : null,
+                    'life_span_years' => $equipment->remainingLifeSpanYears(now(), $acquired)
+                        ?? $equipment->life_span_years,
+                    'lifespan_expires_on' => $expires?->toDateString(),
+                    'specs' => $equipment->specs,
+                    'details' => $equipment->description,
+                    'origin' => $equipment->origin,
+                    'department_id' => $detail->issuance?->department_id,
+                    'received_by' => $detail->issuance?->received_by,
+                    'received_by_name' => $detail->issuance?->receiver?->name
+                        ?: $detail->issuance?->received_by_name,
+                    'quantity_outstanding' => $outstanding,
+                ];
+            })
+            ->filter()
+            ->values();
+
+        return response()->json($rows);
     }
 
     public function show(Issuance $issuance): JsonResponse
@@ -153,14 +212,26 @@ class IssuanceController extends Controller
         ]);
     }
 
-    private function issueEquipmentLine(Issuance $issuance, array $line, ?string $dateAcquired): void
+    private function issueEquipmentLine(Issuance $issuance, array $line): void
     {
-        $equipment = Equipment::query()->findOrFail($line['equipment_id']);
+        $equipment = Equipment::query()->lockForUpdate()->findOrFail($line['equipment_id']);
         $propertyNumber = trim((string) ($line['property_number'] ?? ''));
-        $inventoryNumber = $this->resolveInventoryNumber($line, null, $equipment);
+        $inventoryNumber = $this->resolveIssuedInventoryNumber($line, $equipment);
+        $dateAcquired = filled($line['date_acquired'] ?? null)
+            ? Carbon::parse($line['date_acquired'])->toDateString()
+            : $equipment->date_acquired?->toDateString();
 
         if ($propertyNumber === '') {
             throw new InvalidArgumentException("Property number is required for {$equipment->name}.");
+        }
+
+        if (! $equipment->isReturnedStock()) {
+            $masterProperty = trim((string) $equipment->property_number);
+            if ($masterProperty !== '' && strcasecmp($propertyNumber, $masterProperty) === 0) {
+                throw new InvalidArgumentException(
+                    "Please change the Property No. for {$equipment->name}. The default listing cannot be used for New (fresh) equipment."
+                );
+            }
         }
 
         if ($line['quantity'] > $equipment->quantity) {
@@ -176,34 +247,28 @@ class IssuanceController extends Controller
             throw new InvalidArgumentException("Property number {$propertyNumber} is already used by another equipment.");
         }
 
-        $payload = [];
-
-        if ($equipment->property_number !== $propertyNumber) {
-            $payload['property_number'] = $propertyNumber;
-        }
-
-        if ($equipment->inventory_number !== $inventoryNumber) {
-            $payload['inventory_number'] = $inventoryNumber;
-        }
-
-        if ($dateAcquired && $equipment->date_acquired?->toDateString() !== $dateAcquired) {
-            $payload['date_acquired'] = $dateAcquired;
-        }
-
-        if ($payload !== []) {
-            $equipment->update($payload);
-        }
-
         $issuance->details()->create([
             'equipment_id' => $equipment->id,
             'barcode' => $equipment->barcode ?? $propertyNumber,
             'property_number' => $propertyNumber,
             'inventory_number' => $inventoryNumber,
-            'date_acquired' => $dateAcquired ?: $equipment->date_acquired,
+            'date_acquired' => $dateAcquired,
             'quantity' => $line['quantity'],
         ]);
 
         $equipment->decrement('quantity', $line['quantity']);
+    }
+
+    private function resolveIssuedInventoryNumber(array $line, Equipment $equipment): string
+    {
+        $manual = trim((string) ($line['inventory_number'] ?? ''));
+        if ($manual === '') {
+            return $equipment->inventory_number ?: ReferenceNumberGenerator::forInventory();
+        }
+
+        $this->assertInventoryNumberAvailable($manual, null, $equipment->id);
+
+        return $manual;
     }
 
     private function resolveInventoryNumber(array $line, ?Item $item, ?Equipment $equipment): string

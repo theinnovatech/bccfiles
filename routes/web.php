@@ -138,6 +138,7 @@ Route::middleware('auth')->group(function () {
 
     Route::middleware('staff_or_page:issuance,person-lookup,reports')->group(function () {
         Route::get('/issuances/list', [IssuanceController::class, 'index']);
+        Route::get('/issuances/outstanding-equipments', [IssuanceController::class, 'outstandingEquipments']);
         Route::get('/issuances/{issuance}', [IssuanceController::class, 'show'])->whereNumber('issuance');
     });
 

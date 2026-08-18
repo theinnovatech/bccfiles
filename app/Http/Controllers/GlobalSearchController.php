@@ -71,7 +71,6 @@ class GlobalSearchController extends Controller
 
             Equipment::query()
                 ->with('category')
-                ->whereNull('source_return_id')
                 ->where(function ($q) use ($like) {
                     $q->where('name', 'like', $like)
                         ->orWhere('property_number', 'like', $like)
@@ -84,6 +83,7 @@ class GlobalSearchController extends Controller
                 ->get()
                 ->each(function (Equipment $equipment) use (&$results, $user) {
                     $subtitle = collect([
+                        $equipment->origin === 'returned' ? 'Returned' : 'Fresh',
                         $equipment->property_number ? 'Property: '.$equipment->property_number : null,
                         $equipment->category?->name,
                         $equipment->type,

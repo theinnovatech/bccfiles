@@ -43,6 +43,7 @@ class PersonLookupController extends Controller
                         $employee->employee_number ? 'ID: '.$employee->employee_number : null,
                         $employee->department?->name,
                         $employee->position,
+                        'Received By',
                     ])->filter()->implode(' · ');
 
                     $results[] = [
@@ -53,6 +54,36 @@ class PersonLookupController extends Controller
                         'label' => $employee->name,
                         'subtitle' => $subtitle,
                     ];
+                });
+
+            $existingNames = collect($results)
+                ->pluck('name')
+                ->map(fn ($name) => mb_strtolower(trim((string) $name)));
+
+            Issuance::query()
+                ->whereNotNull('received_by_name')
+                ->where('received_by_name', '!=', '')
+                ->whereRaw('LOWER(received_by_name) LIKE ?', ['%'.mb_strtolower($query).'%'])
+                ->select('received_by_name')
+                ->groupBy('received_by_name')
+                ->orderBy('received_by_name')
+                ->limit(10)
+                ->pluck('received_by_name')
+                ->each(function (?string $name) use (&$results, $existingNames) {
+                    $name = trim((string) $name);
+                    if ($name === '' || $existingNames->contains(mb_strtolower($name))) {
+                        return;
+                    }
+
+                    $results[] = [
+                        'type' => 'person',
+                        'key' => 'person-name:'.mb_strtolower($name),
+                        'employee_id' => null,
+                        'name' => $name,
+                        'label' => $name,
+                        'subtitle' => 'Received By · typed name',
+                    ];
+                    $existingNames->push(mb_strtolower($name));
                 });
         }
 
@@ -130,62 +161,76 @@ class PersonLookupController extends Controller
 
         if (! $employeeId && $name === '') {
             return response()->json([
-                'message' => 'Select an employee or type a name to look up.',
+                'message' => 'Select a person or type the Received By name to look up.',
             ], 422);
         }
 
-        $employee = $employeeId
-            ? Employee::query()->with('department')->find($employeeId)
-            : null;
+        $matchedEmployees = Employee::query()
+            ->with('department')
+            ->when($employeeId, fn ($query) => $query->where('id', $employeeId))
+            ->when(! $employeeId && $name !== '', function ($query) use ($name) {
+                $like = '%'.$name.'%';
+                $query->where(function ($inner) use ($like) {
+                    $inner->where('name', 'like', $like)
+                        ->orWhere('employee_number', 'like', $like);
+                });
+            })
+            ->get();
 
+        $employee = $employeeId
+            ? ($matchedEmployees->firstWhere('id', $employeeId) ?: $matchedEmployees->first())
+            : $matchedEmployees->first();
+
+        $employeeIds = $matchedEmployees->pluck('id')->filter()->values();
         $matchNames = collect([
-            $employee?->name,
             $name !== '' ? $name : null,
-        ])->filter()->unique()->values();
+        ])
+            ->merge($matchedEmployees->pluck('name'))
+            ->filter()
+            ->unique()
+            ->values();
 
         $issuances = Issuance::query()
             ->with(['department', 'receiver', 'details.item.unit', 'details.equipment'])
-            ->where(function ($query) use ($employeeId, $matchNames, $name) {
-                if ($employeeId) {
-                    $query->where(function ($inner) use ($employeeId, $matchNames) {
-                        $inner->where('received_by', $employeeId);
-
-                        foreach ($matchNames as $matchName) {
-                            $inner->orWhereRaw('LOWER(received_by_name) = ?', [mb_strtolower($matchName)]);
-                        }
-                    });
-
-                    return;
+            ->where(function ($query) use ($employeeIds, $matchNames, $name) {
+                if ($employeeIds->isNotEmpty()) {
+                    $query->whereIn('received_by', $employeeIds);
                 }
 
-                $query->where('received_by_name', 'like', '%'.$name.'%')
-                    ->orWhereHas('receiver', function ($receiver) use ($name) {
-                        $receiver->where('name', 'like', '%'.$name.'%');
+                foreach ($matchNames as $matchName) {
+                    $query->orWhereRaw('LOWER(received_by_name) LIKE ?', ['%'.mb_strtolower($matchName).'%']);
+                }
+
+                if ($name !== '') {
+                    $like = '%'.$name.'%';
+                    $query->orWhereHas('receiver', function ($receiver) use ($like) {
+                        $receiver->where('name', 'like', $like)
+                            ->orWhere('employee_number', 'like', $like);
                     });
+                }
             })
             ->orderByDesc('issued_date')
             ->get();
 
         $returns = ItemReturn::query()
-            ->with(['department', 'equipment', 'item', 'borrower'])
+            ->with(['department', 'equipment', 'item', 'borrower', 'issuanceDetail'])
             ->whereNotNull('equipment_id')
-            ->where(function ($query) use ($employeeId, $matchNames, $name) {
-                if ($employeeId) {
-                    $query->where(function ($inner) use ($employeeId, $matchNames) {
-                        $inner->where('borrower_employee_id', $employeeId);
-
-                        foreach ($matchNames as $matchName) {
-                            $inner->orWhereRaw('LOWER(borrower_name) = ?', [mb_strtolower($matchName)]);
-                        }
-                    });
-
-                    return;
+            ->where(function ($query) use ($employeeIds, $matchNames, $name) {
+                if ($employeeIds->isNotEmpty()) {
+                    $query->whereIn('borrower_employee_id', $employeeIds);
                 }
 
-                $query->where('borrower_name', 'like', '%'.$name.'%')
-                    ->orWhereHas('borrower', function ($borrower) use ($name) {
-                        $borrower->where('name', 'like', '%'.$name.'%');
+                foreach ($matchNames as $matchName) {
+                    $query->orWhereRaw('LOWER(borrower_name) LIKE ?', ['%'.mb_strtolower($matchName).'%']);
+                }
+
+                if ($name !== '') {
+                    $like = '%'.$name.'%';
+                    $query->orWhereHas('borrower', function ($borrower) use ($like) {
+                        $borrower->where('name', 'like', $like)
+                            ->orWhere('employee_number', 'like', $like);
                     });
+                }
             })
             ->orderByDesc('date_returned')
             ->get();
@@ -377,6 +422,8 @@ class PersonLookupController extends Controller
                         ?? '—',
                     'department' => $issuance->department?->name ?? '—',
                     'quantity' => (int) $detail->quantity,
+                    'property_number' => $detail->property_number
+                        ?: ($detail->equipment?->property_number ?? '—'),
                 ]);
         })->values();
 
@@ -459,7 +506,7 @@ class PersonLookupController extends Controller
                         'department' => $issuance->department?->name,
                         'equipment_id' => $detail->equipment_id,
                         'equipment_name' => $detail->equipment?->name ?? '—',
-                        'property_number' => $detail->equipment?->property_number ?? '—',
+                        'property_number' => $this->issuedPropertyNumber($detail),
                         'specs' => $detail->equipment?->specs,
                         'quantity' => (int) $detail->quantity,
                     ]);
@@ -474,8 +521,10 @@ class PersonLookupController extends Controller
             'date_returned' => optional($return->date_returned)?->toDateString(),
             'department' => $return->department?->name,
             'equipment_id' => $return->equipment_id,
-            'equipment_name' => $return->equipment?->name ?? '—',
-            'property_number' => $return->equipment?->property_number ?? '—',
+            'equipment_name' => $return->equipment?->name
+                ?? $return->custom_equipment_name
+                ?? '—',
+            'property_number' => $this->returnedPropertyNumber($return),
             'specs' => $return->equipment?->specs,
             'quantity' => (int) $return->quantity,
             'remarks' => $return->reason,
@@ -484,22 +533,22 @@ class PersonLookupController extends Controller
 
     private function mapOutstandingEquipment(Collection $borrowed, Collection $returned): Collection
     {
-        $issuedByEquipment = $borrowed->groupBy('equipment_id')->map(
-            fn (Collection $rows) => $rows->sum('quantity')
+        $issuedGroups = $borrowed->groupBy(
+            fn (array $row) => ($row['equipment_id'] ?? '').'|'.($row['property_number'] ?? '')
+        );
+        $returnedGroups = $returned->groupBy(
+            fn (array $row) => ($row['equipment_id'] ?? '').'|'.($row['property_number'] ?? '')
         );
 
-        $returnedByEquipment = $returned->groupBy('equipment_id')->map(
-            fn (Collection $rows) => $rows->sum('quantity')
-        );
-
-        return $issuedByEquipment
-            ->map(function (int $issuedQty, $equipmentId) use ($borrowed, $returnedByEquipment) {
-                $returnedQty = (int) ($returnedByEquipment[$equipmentId] ?? 0);
+        return $issuedGroups
+            ->map(function (Collection $rows, string $key) use ($returnedGroups) {
+                $issuedQty = (int) $rows->sum('quantity');
+                $returnedQty = (int) ($returnedGroups->get($key)?->sum('quantity') ?? 0);
                 $outstanding = max(0, $issuedQty - $returnedQty);
-                $sample = $borrowed->firstWhere('equipment_id', $equipmentId);
+                $sample = $rows->first();
 
                 return [
-                    'equipment_id' => $equipmentId,
+                    'equipment_id' => $sample['equipment_id'] ?? null,
                     'equipment_name' => $sample['equipment_name'] ?? '—',
                     'property_number' => $sample['property_number'] ?? '—',
                     'specs' => $sample['specs'] ?? null,
@@ -510,5 +559,30 @@ class PersonLookupController extends Controller
             })
             ->filter(fn (array $row) => $row['outstanding_quantity'] > 0)
             ->values();
+    }
+
+    private function issuedPropertyNumber($detail): string
+    {
+        $issued = trim((string) ($detail->property_number ?? ''));
+        if ($issued !== '') {
+            return $issued;
+        }
+
+        return trim((string) ($detail->equipment?->property_number ?? '')) ?: '—';
+    }
+
+    private function returnedPropertyNumber(ItemReturn $return): string
+    {
+        $issued = trim((string) ($return->issuanceDetail?->property_number ?? ''));
+        if ($issued !== '') {
+            return $issued;
+        }
+
+        $custom = trim((string) ($return->custom_property_number ?? ''));
+        if ($custom !== '') {
+            return $custom;
+        }
+
+        return trim((string) ($return->equipment?->property_number ?? '')) ?: '—';
     }
 }

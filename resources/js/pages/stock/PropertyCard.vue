@@ -135,11 +135,7 @@
                         Life Span
                     </p>
                     <p class="mt-1 text-sm text-[#00164d]">
-                        {{
-                            selectedEquipment.life_span_years
-                                ? `${selectedEquipment.life_span_years} yr${selectedEquipment.life_span_years === 1 ? "" : "s"}`
-                                : "—"
-                        }}
+                        {{ formatEquipmentLifeSpan(selectedEquipment) }}
                     </p>
                 </div>
             </div>
@@ -375,6 +371,7 @@ import ReportPreview from "../../components/ReportPreview.vue";
 import ReportPdfViewer from "../../components/ReportPdfViewer.vue";
 import { useNotify } from "../../composables/useNotify";
 import api from "../../services/api";
+import { formatEquipmentLifeSpan } from "../../utils/equipmentLifeSpan";
 
 const notify = useNotify();
 

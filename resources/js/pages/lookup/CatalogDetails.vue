@@ -86,107 +86,145 @@
 
                 <div
                     v-else-if="selectedType === 'item' && details"
-                    class="catalog-detail-panel"
+                    class="catalog-result"
                 >
-                    <div class="catalog-detail-header">
+                    <div class="catalog-result-hero">
                         <div class="min-w-0">
-                            <p class="catalog-detail-kicker">Item record</p>
-                            <h4 class="catalog-detail-title">
+                            <p class="catalog-result-kicker">Item record</p>
+                            <h4 class="catalog-result-title">
                                 {{ details.item_name || "—" }}
                             </h4>
-                            <p class="catalog-detail-meta">
+                            <p class="catalog-result-meta">
                                 {{ details.category?.name || "No category" }}
                                 <span v-if="details.brand">
                                     · {{ details.brand }}
                                 </span>
                             </p>
                         </div>
-                        <p class="catalog-detail-status">
-                            {{ details.status || "—" }}
-                        </p>
+                        <span class="catalog-result-badge">
+                            {{ details.status || "On file" }}
+                        </span>
                     </div>
 
-                    <div class="catalog-detail-form">
+                    <div class="catalog-result-grid">
                         <div
                             v-for="field in itemDetailFields"
                             :key="field.label"
-                            class="catalog-detail-row"
+                            class="catalog-result-tile"
                         >
-                            <span class="catalog-detail-label">{{
-                                field.label
-                            }}</span>
-                            <span class="catalog-detail-value">{{
-                                field.value
-                            }}</span>
+                            <p class="catalog-result-tile-label">
+                                {{ field.label }}
+                            </p>
+                            <p class="catalog-result-tile-value">
+                                {{ field.value }}
+                            </p>
                         </div>
-                        <div
-                            v-if="details.description"
-                            class="catalog-detail-row catalog-detail-row-block"
-                        >
-                            <span class="catalog-detail-label"
-                                >Description</span
-                            >
-                            <span class="catalog-detail-value">{{
-                                details.description
-                            }}</span>
-                        </div>
+                    </div>
+
+                    <div
+                        v-if="details.description"
+                        class="catalog-result-notes"
+                    >
+                        <p class="catalog-result-tile-label">Description</p>
+                        <p class="catalog-result-notes-text">
+                            {{ details.description }}
+                        </p>
                     </div>
                 </div>
 
                 <div
                     v-else-if="selectedType === 'equipment' && details"
-                    class="catalog-detail-panel"
+                    class="catalog-result"
                 >
-                    <div class="catalog-detail-header">
+                    <div class="catalog-result-hero">
                         <div class="min-w-0">
-                            <p class="catalog-detail-kicker">
+                            <p class="catalog-result-kicker">
                                 Equipment record
                             </p>
-                            <h4 class="catalog-detail-title">
+                            <h4 class="catalog-result-title">
                                 {{ details.name || "—" }}
                             </h4>
-                            <p class="catalog-detail-meta">
+                            <p class="catalog-result-meta">
                                 {{ details.category?.name || "No category" }}
                                 <span v-if="details.type">
                                     · {{ details.type }}
                                 </span>
                             </p>
                         </div>
+                        <span
+                            class="catalog-origin-badge"
+                            :class="
+                                isReturnedEquipment
+                                    ? 'catalog-origin-returned'
+                                    : 'catalog-origin-fresh'
+                            "
+                        >
+                            {{ equipmentOriginWord }}
+                        </span>
                     </div>
 
-                    <div class="catalog-detail-form">
+                    <div
+                        class="catalog-origin-banner"
+                        :class="
+                            isReturnedEquipment
+                                ? 'catalog-origin-banner-returned'
+                                : 'catalog-origin-banner-fresh'
+                        "
+                    >
+                        <span class="catalog-origin-banner-icon" aria-hidden="true">
+                            <svg
+                                class="h-5 w-5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                stroke-width="1.8"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"
+                                />
+                            </svg>
+                        </span>
+                        <div class="min-w-0">
+                            <p class="catalog-origin-banner-title">
+                                {{ equipmentOriginWord }}
+                            </p>
+                            <p class="catalog-origin-banner-text">
+                                {{ equipmentOriginHelp }}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="catalog-result-grid">
                         <div
                             v-for="field in equipmentDetailFields"
                             :key="field.label"
-                            class="catalog-detail-row"
+                            class="catalog-result-tile"
                         >
-                            <span class="catalog-detail-label">{{
-                                field.label
-                            }}</span>
-                            <span class="catalog-detail-value">{{
-                                field.value
-                            }}</span>
+                            <p class="catalog-result-tile-label">
+                                {{ field.label }}
+                            </p>
+                            <p class="catalog-result-tile-value">
+                                {{ field.value }}
+                            </p>
                         </div>
-                        <div
-                            v-if="details.description"
-                            class="catalog-detail-row catalog-detail-row-block"
-                        >
-                            <span class="catalog-detail-label"
-                                >Description</span
-                            >
-                            <span class="catalog-detail-value">{{
-                                details.description
-                            }}</span>
-                        </div>
-                        <div
-                            v-if="details.specs"
-                            class="catalog-detail-row catalog-detail-row-block"
-                        >
-                            <span class="catalog-detail-label">Specs</span>
-                            <span class="catalog-detail-value">{{
-                                details.specs
-                            }}</span>
-                        </div>
+                    </div>
+
+                    <div
+                        v-if="details.description"
+                        class="catalog-result-notes"
+                    >
+                        <p class="catalog-result-tile-label">Description</p>
+                        <p class="catalog-result-notes-text">
+                            {{ details.description }}
+                        </p>
+                    </div>
+                    <div v-if="details.specs" class="catalog-result-notes">
+                        <p class="catalog-result-tile-label">Specs</p>
+                        <p class="catalog-result-notes-text">
+                            {{ details.specs }}
+                        </p>
                     </div>
                 </div>
             </div>
@@ -199,6 +237,10 @@ import { computed, onMounted, ref, watch } from "vue";
 import AutoComplete from "primevue/autocomplete";
 import { useNotify } from "../../composables/useNotify";
 import api from "../../services/api";
+import {
+    formatEquipmentLifeSpan,
+    equipmentOriginLabel,
+} from "../../utils/equipmentLifeSpan";
 
 const notify = useNotify();
 
@@ -226,6 +268,23 @@ const groupedSuggestions = computed(() => {
     }
     return output;
 });
+
+const isReturnedEquipment = computed(() => {
+    const equipment = details.value || {};
+    return (
+        equipment.origin === "returned" || Boolean(equipment.source_return_id)
+    );
+});
+
+const equipmentOriginWord = computed(() =>
+    equipmentOriginLabel(details.value),
+);
+
+const equipmentOriginHelp = computed(() =>
+    isReturnedEquipment.value
+        ? "Used. This equipment was returned before and is on hand again."
+        : "New. This equipment is first-time stock from supply.",
+);
 
 const itemDetailFields = computed(() => {
     const item = details.value || {};
@@ -258,13 +317,33 @@ const equipmentDetailFields = computed(() => {
         { label: "Type", value: equipment.type || "—" },
         { label: "Quantity", value: equipment.quantity ?? "—" },
         {
+            label: "Date Acquired",
+            value: formatDateOnly(equipment.date_acquired),
+        },
+        {
             label: "Life Span",
-            value: equipment.life_span_years
-                ? `${equipment.life_span_years} year${equipment.life_span_years === 1 ? "" : "s"}`
-                : "—",
+            value: formatEquipmentLifeSpan(equipment),
         },
     ];
 });
+
+function formatDateOnly(value) {
+    if (!value) {
+        return "—";
+    }
+
+    const raw = String(value).slice(0, 10);
+    const [year, month, day] = raw.split("-");
+    if (!year || !month || !day) {
+        return raw;
+    }
+
+    return new Date(
+        Number(year),
+        Number(month) - 1,
+        Number(day),
+    ).toLocaleDateString();
+}
 
 watch(searchInput, (value) => {
     if (value && typeof value === "object") return;
@@ -392,33 +471,32 @@ onMounted(applyDeepLink);
 </script>
 
 <style scoped>
-.catalog-detail-panel {
-    max-width: 52rem;
+.catalog-result {
+    max-width: 56rem;
     margin: 0 auto;
+    overflow: hidden;
     border: 1px solid #a8b8d4;
-    border-left: 4px solid #001f6b;
-    background: linear-gradient(180deg, #f7f9fc 0%, #ffffff 28%);
-    padding: 1.25rem 1.25rem 0.5rem;
+    background: #fff;
 }
 
-@media (min-width: 640px) {
-    .catalog-detail-panel {
-        padding: 1.5rem 1.75rem 0.75rem;
-    }
-}
-
-.catalog-detail-header {
+.catalog-result-hero {
     display: flex;
     flex-wrap: wrap;
     align-items: flex-start;
     justify-content: space-between;
     gap: 0.75rem 1.25rem;
-    padding-bottom: 1.1rem;
-    margin-bottom: 0.25rem;
-    border-bottom: 1px solid #c9d4e6;
+    padding: 1.25rem 1.25rem 1.1rem;
+    background: linear-gradient(180deg, #f4f7fb 0%, #ffffff 100%);
+    border-bottom: 1px solid #d7e0ef;
 }
 
-.catalog-detail-kicker {
+@media (min-width: 640px) {
+    .catalog-result-hero {
+        padding: 1.5rem 1.75rem 1.25rem;
+    }
+}
+
+.catalog-result-kicker {
     font-size: 0.7rem;
     font-weight: 700;
     letter-spacing: 0.08em;
@@ -426,71 +504,169 @@ onMounted(applyDeepLink);
     color: #4a6490;
 }
 
-.catalog-detail-title {
-    margin-top: 0.35rem;
-    font-size: 1.35rem;
+.catalog-result-title {
+    margin-top: 0.3rem;
+    font-size: 1.4rem;
     line-height: 1.25;
     font-weight: 700;
     color: #00164d;
 }
 
-.catalog-detail-meta {
-    margin-top: 0.35rem;
+.catalog-result-meta {
+    margin-top: 0.3rem;
     font-size: 0.875rem;
     color: #4a6490;
 }
 
-.catalog-detail-status {
+.catalog-result-badge,
+.catalog-origin-badge {
     align-self: center;
-    font-size: 0.7rem;
+    display: inline-flex;
+    align-items: center;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.75rem;
     font-weight: 700;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
+    border: 1px solid #a8b8d4;
+}
+
+.catalog-result-badge {
     color: #001f6b;
     background: #e8eef8;
-    border: 1px solid #a8b8d4;
-    padding: 0.35rem 0.65rem;
 }
 
-.catalog-detail-form {
+.catalog-origin-fresh {
+    color: #0f5132;
+    background: #e8f6ee;
+    border-color: #9dceb0;
+}
+
+.catalog-origin-returned {
+    color: #8a5a00;
+    background: #fff8e8;
+    border-color: #e0c48a;
+}
+
+.catalog-origin-banner {
     display: flex;
-    flex-direction: column;
-}
-
-.catalog-detail-row {
-    display: grid;
-    gap: 0.2rem;
-    padding: 0.95rem 0;
-    border-bottom: 1px solid #e2e8f2;
-}
-
-.catalog-detail-row:last-child {
-    border-bottom: 0;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin: 1rem 1.25rem 0;
+    padding: 0.9rem 1rem;
+    border: 1px solid #a8b8d4;
 }
 
 @media (min-width: 640px) {
-    .catalog-detail-row:not(.catalog-detail-row-block) {
-        grid-template-columns: 13.5rem minmax(0, 1fr);
-        align-items: baseline;
-        gap: 1.25rem;
+    .catalog-origin-banner {
+        margin: 1.15rem 1.75rem 0;
     }
 }
 
-.catalog-detail-label {
+.catalog-origin-banner-fresh {
+    background: #f3faf6;
+    border-color: #9dceb0;
+}
+
+.catalog-origin-banner-returned {
+    background: #fffaf0;
+    border-color: #e0c48a;
+}
+
+.catalog-origin-banner-icon {
+    display: flex;
+    height: 2rem;
+    width: 2rem;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid currentColor;
+    background: #fff;
+}
+
+.catalog-origin-banner-fresh .catalog-origin-banner-icon {
+    color: #0f5132;
+}
+
+.catalog-origin-banner-returned .catalog-origin-banner-icon {
+    color: #8a5a00;
+}
+
+.catalog-origin-banner-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #00164d;
+}
+
+.catalog-origin-banner-text {
+    margin-top: 0.15rem;
     font-size: 0.8125rem;
-    font-weight: 500;
+    line-height: 1.4;
     color: #4a6490;
 }
 
-.catalog-detail-value {
+.catalog-result-grid {
+    display: grid;
+    gap: 0.75rem;
+    padding: 1.15rem 1.25rem 1.25rem;
+    grid-template-columns: 1fr;
+}
+
+@media (min-width: 640px) {
+    .catalog-result-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        padding: 1.25rem 1.75rem 1.5rem;
+    }
+}
+
+@media (min-width: 900px) {
+    .catalog-result-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+.catalog-result-tile {
+    min-width: 0;
+    border: 1px solid #d7e0ef;
+    background: #f8fafc;
+    padding: 0.85rem 0.9rem;
+}
+
+.catalog-result-tile-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #4a6490;
+}
+
+.catalog-result-tile-value {
+    margin-top: 0.3rem;
     font-size: 0.95rem;
     font-weight: 600;
-    color: #001f6b;
-    white-space: pre-line;
+    color: #00164d;
     word-break: break-word;
 }
 
-.catalog-detail-row-block .catalog-detail-value {
-    margin-top: 0.15rem;
+.catalog-result-notes {
+    margin: 0 1.25rem 1.15rem;
+    border: 1px solid #d7e0ef;
+    background: #fff;
+    padding: 0.9rem 1rem;
+}
+
+@media (min-width: 640px) {
+    .catalog-result-notes {
+        margin: 0 1.75rem 1.5rem;
+    }
+}
+
+.catalog-result-notes-text {
+    margin-top: 0.35rem;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: #00164d;
+    white-space: pre-wrap;
+    word-break: break-word;
 }
 </style>
