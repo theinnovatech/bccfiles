@@ -1,20 +1,17 @@
-export function formatEquipmentLifeSpan(equipment) {
-    if (equipment?.life_span_years == null && !equipment?.lifespan_expires_on) {
+export function formatEquipmentLifeSpan(equipment, asOf) {
+    if (!equipment) {
         return "—";
     }
 
-    let years =
-        equipment?.life_span_years == null
-            ? null
-            : Number(equipment.life_span_years);
-
-    const expires = parseDateOnly(equipment?.lifespan_expires_on);
-    const today = startOfDay(new Date());
-
-    if (expires && expires.getTime() > today.getTime() && (!years || years < 1)) {
-        years = 1;
+    if (
+        equipment.life_span_years == null &&
+        !equipment.lifespan_expires_on &&
+        !equipment.date_acquired
+    ) {
+        return "—";
     }
 
+    const years = remainingLifeSpanYearsAsOf(equipment, asOf);
     if (years == null) {
         return "—";
     }
@@ -22,7 +19,53 @@ export function formatEquipmentLifeSpan(equipment) {
     const unit = years === 1 ? "yr" : "yrs";
     const label = `${years} ${unit}`;
 
-    return equipment.lifespan_expires_on ? `${label} remaining` : label;
+    return equipment.lifespan_expires_on || equipment.date_acquired
+        ? `${label} remaining`
+        : label;
+}
+
+export function remainingLifeSpanYearsAsOf(equipment, asOf) {
+    const expires = equipmentExpiryDate(equipment);
+    const check = asOf ? parseDateOnly(asOf) : startOfDay(new Date());
+
+    if (!expires || !check) {
+        return equipment?.life_span_years == null
+            ? null
+            : Number(equipment.life_span_years);
+    }
+
+    if (check.getTime() >= expires.getTime()) {
+        return 0;
+    }
+
+    let years = expires.getFullYear() - check.getFullYear();
+    const probe = new Date(check);
+    probe.setFullYear(check.getFullYear() + years);
+    if (probe.getTime() > expires.getTime()) {
+        years -= 1;
+    }
+
+    return years === 0 ? 1 : years;
+}
+
+export function equipmentExpiryDate(equipment) {
+    const stored = parseDateOnly(equipment?.lifespan_expires_on);
+    if (stored) {
+        return stored;
+    }
+
+    const acquired = parseDateOnly(equipment?.date_acquired);
+    const span = Number(
+        equipment?.original_life_span_years ?? equipment?.life_span_years,
+    );
+    if (!acquired || !span) {
+        return null;
+    }
+
+    const expires = new Date(acquired);
+    expires.setFullYear(acquired.getFullYear() + span);
+    expires.setHours(0, 0, 0, 0);
+    return expires;
 }
 
 function parseDateOnly(value) {

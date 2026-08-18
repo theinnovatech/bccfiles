@@ -220,16 +220,14 @@
                                 Remaining life span
                             </label>
                             <InputText
-                                :model-value="
-                                    selectedIssuedLine
-                                        ? formatEquipmentLifeSpan(
-                                              selectedIssuedLine,
-                                          )
-                                        : ''
-                                "
+                                :model-value="remainingLifeSpanLabel"
                                 class="w-full"
                                 readonly
                             />
+                            <p class="mt-1 text-xs text-[#4a6490]">
+                                Updates when you change Date Returned. Uses
+                                today if that date is blank.
+                            </p>
                         </div>
 
                         <div>
@@ -1115,6 +1113,17 @@ const issuedTypeCategory = computed(() => {
     }
 
     return [row.type, row.category].filter(Boolean).join(" · ");
+});
+
+const remainingLifeSpanLabel = computed(() => {
+    if (!selectedIssuedLine.value) {
+        return "";
+    }
+
+    return formatEquipmentLifeSpan(
+        selectedIssuedLine.value,
+        form.date_returned || undefined,
+    );
 });
 
 const selectedEquipmentReachedLifespan = computed(() =>
