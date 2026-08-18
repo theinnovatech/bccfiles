@@ -503,6 +503,26 @@
                     class="rounded-md border border-[#a8b8d4]"
                 >
                     <Column field="issuance_number" header="Issuance No." />
+                    <Column
+                        v-if="historyType === 'equipments'"
+                        header="Property No."
+                    >
+                        <template #body="{ data }">
+                            <span class="text-sm text-[#00164d]">{{
+                                formatIssuedPropertyNumbers(data)
+                            }}</span>
+                        </template>
+                    </Column>
+                    <Column
+                        v-if="historyType === 'equipments'"
+                        header="Inventory No."
+                    >
+                        <template #body="{ data }">
+                            <span class="text-sm text-[#00164d]">{{
+                                formatIssuedInventoryNumbers(data)
+                            }}</span>
+                        </template>
+                    </Column>
                     <Column header="Type">
                         <template #body="{ data }">{{
                             issuanceTypeLabel(data)
@@ -527,26 +547,6 @@
                         <template #body="{ data }">
                             <span class="text-sm text-[#00164d]">{{
                                 formatIssuedLines(data)
-                            }}</span>
-                        </template>
-                    </Column>
-                    <Column
-                        v-if="historyType === 'equipments'"
-                        header="Property No."
-                    >
-                        <template #body="{ data }">
-                            <span class="text-sm text-[#00164d]">{{
-                                formatIssuedPropertyNumbers(data)
-                            }}</span>
-                        </template>
-                    </Column>
-                    <Column
-                        v-if="historyType === 'equipments'"
-                        header="Inventory No."
-                    >
-                        <template #body="{ data }">
-                            <span class="text-sm text-[#00164d]">{{
-                                formatIssuedInventoryNumbers(data)
                             }}</span>
                         </template>
                     </Column>
