@@ -737,6 +737,16 @@
                                 data.quantity ?? 0
                             }}</template>
                         </Column>
+                        <Column header="Returned By">
+                            <template #body="{ data }">{{
+                                borrowerName(data)
+                            }}</template>
+                        </Column>
+                        <Column header="Department">
+                            <template #body="{ data }">{{
+                                data.department?.name || "—"
+                            }}</template>
+                        </Column>
                         <Column header="Status">
                             <template #body="{ data }">
                                 <span
@@ -750,16 +760,6 @@
                                     {{ returnStatus(data) }}
                                 </span>
                             </template>
-                        </Column>
-                        <Column header="Department">
-                            <template #body="{ data }">{{
-                                data.department?.name || "—"
-                            }}</template>
-                        </Column>
-                        <Column header="Returned By">
-                            <template #body="{ data }">{{
-                                borrowerName(data)
-                            }}</template>
                         </Column>
                         <Column header="Date Returned">
                             <template #body="{ data }">{{
