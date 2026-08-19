@@ -11,41 +11,81 @@ export function formatEquipmentLifeSpan(equipment, asOf) {
         return "—";
     }
 
-    const years = remainingLifeSpanYearsAsOf(equipment, asOf);
-    if (years == null) {
+    const parts = remainingLifeSpanParts(equipment, asOf);
+    if (!parts) {
         return "—";
     }
 
-    const unit = years === 1 ? "yr" : "yrs";
-    const label = `${years} ${unit}`;
+    const remaining = Boolean(
+        equipment.lifespan_expires_on || equipment.date_acquired,
+    );
 
-    return equipment.lifespan_expires_on || equipment.date_acquired
-        ? `${label} remaining`
-        : label;
+    return formatLifeSpanParts(parts, remaining);
 }
 
 export function remainingLifeSpanYearsAsOf(equipment, asOf) {
+    const parts = remainingLifeSpanParts(equipment, asOf);
+    return parts ? parts.years : null;
+}
+
+function returnedStockAsOf(equipment) {
+    if (
+        equipment?.origin !== "returned" &&
+        !equipment?.source_return_id &&
+        !equipment?.source_return
+    ) {
+        return null;
+    }
+
+    return equipment?.source_return?.date_returned || null;
+}
+
+export function remainingLifeSpanParts(equipment, asOf) {
     const expires = equipmentExpiryDate(equipment);
-    const check = asOf ? parseDateOnly(asOf) : startOfDay(new Date());
+    const check = asOf
+        ? parseDateOnly(asOf)
+        : parseDateOnly(returnedStockAsOf(equipment)) || startOfDay(new Date());
 
     if (!expires || !check) {
-        return equipment?.life_span_years == null
-            ? null
-            : Number(equipment.life_span_years);
+        if (equipment?.life_span_years == null) {
+            return null;
+        }
+
+        return {
+            years: Number(equipment.life_span_years),
+            months: 0,
+            days: 0,
+        };
     }
 
     if (check.getTime() >= expires.getTime()) {
-        return 0;
+        return { years: 0, months: 0, days: 0 };
     }
 
-    let years = expires.getFullYear() - check.getFullYear();
-    const probe = new Date(check);
-    probe.setFullYear(check.getFullYear() + years);
-    if (probe.getTime() > expires.getTime()) {
-        years -= 1;
+    return calendarDiff(check, expires);
+}
+
+export function formatLifeSpanParts(parts, remaining = false) {
+    const years = Number(parts?.years ?? 0);
+    const months = Number(parts?.months ?? 0);
+    const days = Number(parts?.days ?? 0);
+    const chunks = [];
+
+    if (years > 0) {
+        chunks.push(`${years} ${years === 1 ? "yr" : "yrs"}`);
     }
 
-    return years === 0 ? 1 : years;
+    if (months > 0) {
+        chunks.push(`${months} ${months === 1 ? "mo" : "mos"}`);
+    }
+
+    if (years === 0 && months === 0 && days > 0) {
+        chunks.push(`${days} ${days === 1 ? "day" : "days"}`);
+    }
+
+    const label = chunks.length ? chunks.join(" ") : "0 yrs";
+
+    return remaining ? `${label} remaining` : label;
 }
 
 export function equipmentExpiryDate(equipment) {
@@ -66,6 +106,29 @@ export function equipmentExpiryDate(equipment) {
     expires.setFullYear(acquired.getFullYear() + span);
     expires.setHours(0, 0, 0, 0);
     return expires;
+}
+
+function calendarDiff(from, to) {
+    let years = to.getFullYear() - from.getFullYear();
+    let months = to.getMonth() - from.getMonth();
+    let days = to.getDate() - from.getDate();
+
+    if (days < 0) {
+        months -= 1;
+        const daysInPreviousMonth = new Date(
+            to.getFullYear(),
+            to.getMonth(),
+            0,
+        ).getDate();
+        days += daysInPreviousMonth;
+    }
+
+    if (months < 0) {
+        years -= 1;
+        months += 12;
+    }
+
+    return { years, months, days };
 }
 
 function parseDateOnly(value) {
@@ -93,6 +156,28 @@ export function equipmentOriginLabel(equipment) {
     }
 
     return "Fresh";
+}
+
+export function hasNoRemainingLifeSpan(equipment) {
+    if (!equipment) {
+        return false;
+    }
+
+    if (Number(equipment.life_span_years) === 0) {
+        const parts = remainingLifeSpanParts(equipment);
+        if (!parts) {
+            return true;
+        }
+
+        return parts.years === 0 && parts.months === 0 && parts.days === 0;
+    }
+
+    const parts = remainingLifeSpanParts(equipment);
+    if (!parts) {
+        return false;
+    }
+
+    return parts.years === 0 && parts.months === 0 && parts.days === 0;
 }
 
 export function hasReachedLifespan(equipment, asOf) {

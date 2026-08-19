@@ -652,7 +652,7 @@
                         <td>{{ $row->type }}</td>
                         <td>{{ $row->quantity }}</td>
                         <td>{{ $row->source_return_id ? 'Returned' : 'Fresh' }}</td>
-                        <td>{{ $row->life_span_years !== null ? $row->life_span_years.' yr'.($row->life_span_years === 1 ? '' : 's').($row->lifespan_expires_on ? ' remaining' : '') : '' }}</td>
+                        <td>{{ $row->formattedRemainingLifeSpan() ?? '' }}</td>
                         <td>{{ $row->description ?? '' }}</td>
                     </tr>
                 @endforeach

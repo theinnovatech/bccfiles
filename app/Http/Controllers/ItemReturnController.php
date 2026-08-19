@@ -25,13 +25,13 @@ class ItemReturnController extends Controller
     {
         return response()->json(
             ItemReturn::query()
-                ->with(['equipment.category', 'department', 'borrower', 'returner', 'issuanceDetail'])
+                ->with(['equipment.category', 'department', 'borrower', 'returner', 'issuanceDetail.issuance'])
                 ->where(function ($query) {
                     $query->whereNotNull('equipment_id')
                         ->orWhereNotNull('custom_equipment_name');
                 })
-                ->orderByDesc('date_returned')
-                ->paginate(20)
+                ->orderByDesc('id')
+                ->get()
         );
     }
 
@@ -39,12 +39,12 @@ class ItemReturnController extends Controller
     {
         return response()->json(
             ItemReturn::query()
-                ->with(['equipment.category', 'department', 'borrower', 'returner', 'issuanceDetail'])
+                ->with(['equipment.category', 'department', 'borrower', 'returner', 'issuanceDetail.issuance'])
                 ->where(function ($query) {
                     $query->whereNotNull('equipment_id')
                         ->orWhereNotNull('custom_equipment_name');
                 })
-                ->orderByDesc('date_returned')
+                ->orderByDesc('id')
                 ->get()
         );
     }
@@ -183,10 +183,13 @@ class ItemReturnController extends Controller
         $equipmentLabel = $return->equipment?->name ?? $return->custom_equipment_name ?? 'custom equipment';
         $restockNote = $return->restocked ? ' and added to Supply Master as returned equipment' : '';
         $returnedStock = Equipment::query()->where('source_return_id', $return->id)->first();
-        $remainingYears = $returnedStock?->life_span_years ?? $return->equipment?->life_span_years;
-        $lifeSpanNote = $return->equipment && $remainingYears !== null
-            ? " Remaining life span: {$remainingYears} year(s)."
-            : '';
+        $asOf = $return->date_returned;
+        $remainingLabel = $returnedStock?->formattedRemainingLifeSpan($asOf)
+            ?? $return->equipment?->formattedRemainingLifeSpan(
+                $asOf,
+                $return->issuanceDetail?->date_acquired
+            );
+        $lifeSpanNote = $remainingLabel ? " Remaining life span: {$remainingLabel}." : '';
 
         $this->activityLogService->log(
             $request->user(),

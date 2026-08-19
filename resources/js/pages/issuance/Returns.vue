@@ -827,6 +827,17 @@
                             class="rounded bg-[#f2c94c] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#00164d]"
                             >Custom / Past Data</span
                         >
+                        <span
+                            v-else
+                            class="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                            :class="
+                                isReturnedStock(selectedReturn)
+                                    ? 'bg-[#fff8e8] text-[#8a5a00]'
+                                    : 'bg-[#e8f6ee] text-[#0f5132]'
+                            "
+                        >
+                            {{ issuedOriginLabel(selectedReturn) }}
+                        </span>
                     </div>
                     <p class="mt-1 text-base font-semibold">
                         {{ equipmentName(selectedReturn) }}
@@ -924,6 +935,22 @@
                         </p>
                         <p class="mt-0.5 font-medium">
                             {{ formatDate(selectedReturn.date_returned) }}
+                        </p>
+                    </div>
+                    <div>
+                        <p class="text-xs uppercase tracking-wide text-[#4a6490]">
+                            Issued as
+                        </p>
+                        <p class="mt-0.5 font-medium">
+                            {{ issuedOriginLabel(selectedReturn) }}
+                        </p>
+                    </div>
+                    <div>
+                        <p class="text-xs uppercase tracking-wide text-[#4a6490]">
+                            Life Span (before issued)
+                        </p>
+                        <p class="mt-0.5 font-medium">
+                            {{ lifeSpanBeforeIssued(selectedReturn) }}
                         </p>
                     </div>
                     <div v-if="selectedReturn.custom_date_issued">
@@ -1230,6 +1257,8 @@ const filterConfig = computed(() => [
             "custom_equipment_name",
             "custom_property_number",
             "custom_inventory_number",
+            "issuance_detail.property_number",
+            "issuance_detail.inventory_number",
             "custom_equipment_type",
             "custom_equipment_category",
             "custom_specs",
@@ -1352,16 +1381,18 @@ function equipmentType(row) {
 
 function propertyNumber(row) {
     return (
-        row?.equipment?.property_number ||
+        row?.issuance_detail?.property_number ||
         row?.custom_property_number ||
+        row?.equipment?.property_number ||
         "—"
     );
 }
 
 function inventoryNumber(row) {
     return (
-        row?.equipment?.inventory_number ||
+        row?.issuance_detail?.inventory_number ||
         row?.custom_inventory_number ||
+        row?.equipment?.inventory_number ||
         "—"
     );
 }
@@ -1419,6 +1450,48 @@ function viewReturn(row) {
 
 function formatDate(value) {
     return value ? new Date(value).toLocaleString() : "—";
+}
+
+function lifeSpanBeforeIssued(row) {
+    const equipment = row?.equipment;
+    if (!equipment) {
+        return "—";
+    }
+
+    const issuedOn =
+        row?.issuance_detail?.issuance?.issued_date ||
+        row?.custom_date_issued ||
+        null;
+
+    return formatEquipmentLifeSpan(
+        {
+            ...equipment,
+            date_acquired:
+                row?.issuance_detail?.date_acquired ||
+                row?.custom_date_acquired ||
+                equipment.date_acquired,
+        },
+        issuedOn || undefined,
+    );
+}
+
+function isReturnedStock(row) {
+    if (!row?.equipment) {
+        return false;
+    }
+
+    return (
+        String(row.equipment.origin || "").toLowerCase() === "returned" ||
+        Boolean(row.equipment.source_return_id)
+    );
+}
+
+function issuedOriginLabel(row) {
+    if (!row?.equipment_id) {
+        return "Custom / Past Data";
+    }
+
+    return isReturnedStock(row) ? "Returned" : "Fresh / New";
 }
 
 function setUseCustom(useCustom) {

@@ -6,6 +6,7 @@ use Carbon\Carbon;
 use DateTimeInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Equipment extends Model
@@ -56,7 +57,13 @@ class Equipment extends Model
         return $expires->lte($asOfDate);
     }
 
-    public function remainingLifeSpanYears(?DateTimeInterface $asOf = null, ?DateTimeInterface $acquiredOverride = null): ?int
+    /**
+     * Remaining life span in complete years, leftover months, and leftover days.
+     * Months are never rounded up to a year; leftover days are never rounded up to a month.
+     *
+     * @return array{years: int, months: int, days: int}|null
+     */
+    public function remainingLifeSpan(?DateTimeInterface $asOf = null, ?DateTimeInterface $acquiredOverride = null): ?array
     {
         if ($this->life_span_years === null && ! $this->lifespan_expires_on && ! $acquiredOverride) {
             return null;
@@ -64,24 +71,91 @@ class Equipment extends Model
 
         $expires = $this->expiryFromAcquired($acquiredOverride);
         if (! $expires) {
-            return $this->life_span_years !== null ? (int) $this->life_span_years : null;
+            if ($this->life_span_years === null) {
+                return null;
+            }
+
+            return [
+                'years' => (int) $this->life_span_years,
+                'months' => 0,
+                'days' => 0,
+            ];
         }
 
-        $asOfDate = Carbon::parse($asOf ?? now())->startOfDay();
+        $asOfDate = Carbon::parse($asOf ?? $this->lifeSpanAsOfDate() ?? now())->startOfDay();
         if ($asOfDate->gte($expires)) {
-            return 0;
+            return ['years' => 0, 'months' => 0, 'days' => 0];
         }
 
         $diff = $asOfDate->diff($expires);
-        $years = (int) $diff->y;
 
-        // Less than one full year left still counts as 1 year remaining
-        // (e.g. acquired 2022, 5-year span, today 2026 → 1 year left, not 0).
-        if ($years === 0 && ($diff->m > 0 || $diff->d > 0 || $diff->h > 0 || $diff->i > 0 || $diff->s > 0)) {
-            return 1;
+        return [
+            'years' => (int) $diff->y,
+            'months' => (int) $diff->m,
+            'days' => (int) $diff->d,
+        ];
+    }
+
+    public function remainingLifeSpanYears(?DateTimeInterface $asOf = null, ?DateTimeInterface $acquiredOverride = null): ?int
+    {
+        $parts = $this->remainingLifeSpan($asOf, $acquiredOverride);
+
+        return $parts === null ? null : $parts['years'];
+    }
+
+    public function lifeSpanAsOfDate(): ?Carbon
+    {
+        if (! $this->isReturnedStock()) {
+            return null;
         }
 
-        return $years;
+        $this->loadMissing('sourceReturn');
+
+        return $this->sourceReturn?->date_returned?->copy()->startOfDay();
+    }
+
+    public function formattedRemainingLifeSpan(?DateTimeInterface $asOf = null, ?DateTimeInterface $acquiredOverride = null): ?string
+    {
+        $parts = $this->remainingLifeSpan($asOf ?? $this->lifeSpanAsOfDate(), $acquiredOverride);
+        if ($parts === null) {
+            return null;
+        }
+
+        $expires = $this->expiryFromAcquired($acquiredOverride);
+        $remaining = $expires !== null || $acquiredOverride !== null || $this->date_acquired !== null;
+
+        return self::formatLifeSpanParts($parts, $remaining);
+    }
+
+    /**
+     * @param  array{years: int, months: int, days: int}  $parts
+     */
+    public static function formatLifeSpanParts(array $parts, bool $remaining = false): string
+    {
+        $years = (int) ($parts['years'] ?? 0);
+        $months = (int) ($parts['months'] ?? 0);
+        $days = (int) ($parts['days'] ?? 0);
+        $chunks = [];
+
+        if ($years > 0) {
+            $chunks[] = $years.' '.($years === 1 ? 'yr' : 'yrs');
+        }
+
+        if ($months > 0) {
+            $chunks[] = $months.' '.($months === 1 ? 'mo' : 'mos');
+        }
+
+        if ($years === 0 && $months === 0 && $days > 0) {
+            $chunks[] = $days.' '.($days === 1 ? 'day' : 'days');
+        }
+
+        if ($chunks === []) {
+            $label = '0 yrs';
+        } else {
+            $label = implode(' ', $chunks);
+        }
+
+        return $remaining ? $label.' remaining' : $label;
     }
 
     public function expiryFromAcquired(?DateTimeInterface $acquired = null): ?Carbon
@@ -166,5 +240,15 @@ class Equipment extends Model
     public function sourceReturn(): BelongsTo
     {
         return $this->belongsTo(ItemReturn::class, 'source_return_id');
+    }
+
+    public function issuanceDetails(): HasMany
+    {
+        return $this->hasMany(IssuanceDetail::class);
+    }
+
+    public function returns(): HasMany
+    {
+        return $this->hasMany(ItemReturn::class);
     }
 }

@@ -117,8 +117,9 @@ Route::middleware('auth')->group(function () {
         Route::post('/equipments/receive', [EquipmentController::class, 'receive']);
     });
 
-    Route::middleware('staff_or_page:stock.operations,stock.registration,issuance,returns,person-lookup,catalog-details')->group(function () {
+    Route::middleware('staff_or_page:items,stock.operations,stock.registration,issuance,returns,person-lookup,catalog-details')->group(function () {
         Route::get('/equipments/barcode/{barcode}', [EquipmentController::class, 'findByBarcode']);
+        Route::get('/equipments/{equipment}/history', [EquipmentController::class, 'history'])->whereNumber('equipment');
         Route::get('/equipments/{equipment}', [EquipmentController::class, 'show'])->whereNumber('equipment');
     });
 

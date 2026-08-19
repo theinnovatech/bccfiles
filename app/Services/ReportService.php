@@ -24,7 +24,7 @@ class ReportService
     public function equipmentInventory(): Collection
     {
         return Equipment::query()
-            ->with('category')
+            ->with(['category', 'sourceReturn'])
             ->orderBy('name')
             ->get();
     }

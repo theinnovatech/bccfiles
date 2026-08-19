@@ -30,8 +30,8 @@ class IssuanceController extends Controller
         return response()->json(
             Issuance::query()
                 ->with(['department', 'issuer', 'receiver.department', 'details.item', 'details.equipment'])
-                ->orderByDesc('issued_date')
-                ->paginate(20)
+                ->orderByDesc('id')
+                ->get()
         );
     }
 
