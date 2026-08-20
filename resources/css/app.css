@@ -440,6 +440,10 @@
     @apply bg-[#e2e8f2];
 }
 
+.p-datatable.table-row-clickable .p-datatable-tbody > tr {
+    cursor: pointer;
+}
+
 .p-dialog {
     @apply rounded-sm border border-[#a8b8d4] shadow-md;
 }

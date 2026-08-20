@@ -500,7 +500,9 @@
                     :loading="loadingList"
                     paginator
                     :rows="10"
-                    class="rounded-md border border-[#a8b8d4]"
+                    data-key="id"
+                    class="rounded-md border border-[#a8b8d4] table-row-clickable"
+                    @row-click="onIssuanceRowClick"
                 >
                     <Column field="issuance_number" header="Issuance No." />
                     <Column
@@ -581,7 +583,8 @@
                                 variant="ghost"
                                 size="icon"
                                 title="View issuance details"
-                                @click="viewIssuance(data)"
+                                class="table-row-actions"
+                                @click.stop="viewIssuance(data)"
                             >
                                 <svg
                                     class="h-4 w-4"
@@ -1476,6 +1479,21 @@ function formatIssuedInventoryNumbers(issuance) {
         (detail) =>
             detail.inventory_number || detail.equipment?.inventory_number,
     );
+}
+
+function isTableActionClick(event) {
+    const target = event?.originalEvent?.target;
+    return Boolean(
+        target?.closest?.("button, a, input, textarea, select, .table-row-actions"),
+    );
+}
+
+function onIssuanceRowClick(event) {
+    if (isTableActionClick(event) || !event?.data) {
+        return;
+    }
+
+    viewIssuance(event.data);
 }
 
 function viewIssuance(issuance) {

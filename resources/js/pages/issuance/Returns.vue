@@ -693,7 +693,9 @@
                         striped-rows
                         paginator
                         :rows="10"
-                        class="rounded-md border border-[#a8b8d4]"
+                        data-key="id"
+                        class="rounded-md border border-[#a8b8d4] table-row-clickable"
+                        @row-click="onReturnRowClick"
                     >
                         <Column header="Ref. No.">
                             <template #body="{ data }">{{
@@ -779,7 +781,8 @@
                                     variant="ghost"
                                     size="icon"
                                     title="View return details"
-                                    @click="viewReturn(data)"
+                                    class="table-row-actions"
+                                    @click.stop="viewReturn(data)"
                                 >
                                     <svg
                                         class="h-4 w-4"
@@ -1441,6 +1444,21 @@ function formatDateOnly(value) {
     }
 
     return new Date(Number(year), Number(month) - 1, Number(day)).toLocaleDateString();
+}
+
+function isTableActionClick(event) {
+    const target = event?.originalEvent?.target;
+    return Boolean(
+        target?.closest?.("button, a, input, textarea, select, .table-row-actions"),
+    );
+}
+
+function onReturnRowClick(event) {
+    if (isTableActionClick(event) || !event?.data) {
+        return;
+    }
+
+    viewReturn(event.data);
 }
 
 function viewReturn(row) {

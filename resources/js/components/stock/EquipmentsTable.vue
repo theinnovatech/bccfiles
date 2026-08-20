@@ -59,7 +59,9 @@
                         paginator
                         :rows="10"
                         striped-rows
-                        class="rounded-md border border-[#a8b8d4] equipment-table"
+                        data-key="id"
+                        class="rounded-md border border-[#a8b8d4] equipment-table table-row-clickable"
+                        @row-click="onEquipmentRowClick"
                     >
                         <Column header="Barcode">
                             <template #body="{ data }">
@@ -115,7 +117,7 @@
                         </Column>
                         <Column header="Actions" :style="{ width: canManage ? '8.5rem' : '3.5rem' }">
                             <template #body="{ data }">
-                                <div class="equipment-actions">
+                                <div class="equipment-actions table-row-actions" @click.stop>
                                     <UiButton
                                         variant="ghost"
                                         size="icon"
@@ -496,6 +498,21 @@ async function loadEquipments() {
     } finally {
         loading.value = false;
     }
+}
+
+function isTableActionClick(event) {
+    const target = event?.originalEvent?.target;
+    return Boolean(
+        target?.closest?.('button, a, input, textarea, select, .table-row-actions'),
+    );
+}
+
+function onEquipmentRowClick(event) {
+    if (isTableActionClick(event) || !event?.data) {
+        return;
+    }
+
+    viewEquipment(event.data);
 }
 
 async function viewEquipment(equipment) {
