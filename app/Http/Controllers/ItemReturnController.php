@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\ReturnCondition;
 use App\Http\Controllers\Controller;
 use App\Models\Equipment;
+use App\Models\EquipmentSerialNumber;
 use App\Models\IssuanceDetail;
 use App\Models\Item;
 use App\Models\ItemReturn;
@@ -23,30 +24,12 @@ class ItemReturnController extends Controller
 
     public function index(): JsonResponse
     {
-        return response()->json(
-            ItemReturn::query()
-                ->with(['equipment.category', 'department', 'borrower', 'returner', 'issuanceDetail.issuance'])
-                ->where(function ($query) {
-                    $query->whereNotNull('equipment_id')
-                        ->orWhereNotNull('custom_equipment_name');
-                })
-                ->orderByDesc('id')
-                ->get()
-        );
+        return response()->json($this->equipmentReturnRows());
     }
 
     public function returnedEquipments(): JsonResponse
     {
-        return response()->json(
-            ItemReturn::query()
-                ->with(['equipment.category', 'department', 'borrower', 'returner', 'issuanceDetail.issuance'])
-                ->where(function ($query) {
-                    $query->whereNotNull('equipment_id')
-                        ->orWhereNotNull('custom_equipment_name');
-                })
-                ->orderByDesc('id')
-                ->get()
-        );
+        return response()->json($this->equipmentReturnRows());
     }
 
     public function store(Request $request): JsonResponse
@@ -70,6 +53,8 @@ class ItemReturnController extends Controller
             'borrower_employee_id' => ['nullable', 'exists:employees,id'],
             'borrower_name' => ['nullable', 'string', 'max:255'],
             'quantity' => ['required', 'integer', 'min:1'],
+            'serial_number_ids' => ['nullable', 'array'],
+            'serial_number_ids.*' => ['integer', 'exists:equipment_serial_numbers,id'],
             'reason' => ['nullable', 'string'],
             'condition' => ['required', Rule::enum(ReturnCondition::class)],
             'date_returned' => ['nullable', 'date'],
@@ -130,9 +115,19 @@ class ItemReturnController extends Controller
                             ->where('issuance_detail_id', $detail->id)
                             ->sum('quantity');
                         $outstanding = (int) $detail->quantity - (int) $alreadyReturned;
+                        if ($outstanding < 1) {
+                            throw new InvalidArgumentException(
+                                'This issuance has no outstanding quantity left to return.'
+                            );
+                        }
                         if ($data['quantity'] > $outstanding) {
                             throw new InvalidArgumentException(
                                 "Only {$outstanding} outstanding unit(s) can be returned for this issuance."
+                            );
+                        }
+                        if ($data['quantity'] < $outstanding && trim((string) ($data['reason'] ?? '')) === '') {
+                            throw new InvalidArgumentException(
+                                "Please enter the reason why only {$data['quantity']} of {$outstanding} outstanding unit(s) are being returned."
                             );
                         }
                     }
@@ -165,11 +160,14 @@ class ItemReturnController extends Controller
                     'date_returned' => $dateReturned,
                 ]);
 
+                $returnedListing = null;
                 if ($equipmentId && $condition === ReturnCondition::Good && ! $reachedLifespan) {
-                    $this->returnToSupplyMaster($equipment, $return, $detail, $data, $dateReturned);
+                    $returnedListing = $this->returnToSupplyMaster($equipment, $return, $detail, $data, $dateReturned);
                     $return->update(['restocked' => true]);
                     $restocked = true;
                 }
+
+                $this->settleReturnedSerials($detail, $return, $data['serial_number_ids'] ?? [], $returnedListing);
 
                 return $return->refresh();
             });
@@ -177,7 +175,15 @@ class ItemReturnController extends Controller
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
-        $return->load(['equipment.category', 'department', 'borrower', 'returner', 'issuanceDetail']);
+        $return->load([
+            'equipment.category',
+            'department',
+            'borrower',
+            'returner',
+            'issuanceDetail',
+            'returnedSerialNumbers',
+            'returnedStock.serialNumbers',
+        ]);
         $return->equipment?->refresh();
 
         $equipmentLabel = $return->equipment?->name ?? $return->custom_equipment_name ?? 'custom equipment';
@@ -198,6 +204,8 @@ class ItemReturnController extends Controller
             "Recorded return of {$return->quantity} unit(s) of {$equipmentLabel}{$restockNote}.{$lifeSpanNote}"
         );
 
+        $return->setAttribute('serial_numbers', $this->visibleReturnSerials($return));
+
         return response()->json($return, 201);
     }
 
@@ -207,7 +215,7 @@ class ItemReturnController extends Controller
         ?IssuanceDetail $detail,
         array $data,
         Carbon $dateReturned
-    ): void {
+    ): Equipment {
         $acquired = $detail?->date_acquired ?: $source->date_acquired;
         $expires = $source->expiryFromAcquired($acquired);
         $remaining = $source->remainingLifeSpanYears($dateReturned, $acquired) ?? $source->life_span_years ?? 0;
@@ -215,7 +223,8 @@ class ItemReturnController extends Controller
         if ($source->isReturnedStock()) {
             $source->reduceRemainingLifeSpan($dateReturned);
             $source->increment('quantity', $return->quantity);
-            return;
+
+            return $source->refresh();
         }
 
         $preferredProperty = trim((string) ($data['property_number'] ?? ''))
@@ -225,7 +234,7 @@ class ItemReturnController extends Controller
             ?: trim((string) ($detail?->inventory_number ?? ''))
             ?: (string) $source->inventory_number;
 
-        Equipment::create([
+        return Equipment::create([
             'name' => $source->name,
             'property_number' => $this->uniquePropertyNumber($preferredProperty, $source->id),
             'inventory_number' => $this->uniqueInventoryNumber($preferredInventory, $source->id),
@@ -239,6 +248,62 @@ class ItemReturnController extends Controller
             'date_acquired' => $acquired,
             'lifespan_expires_on' => $expires?->toDateString(),
             'source_return_id' => $return->id,
+        ]);
+    }
+
+    private function settleReturnedSerials(
+        ?IssuanceDetail $detail,
+        ItemReturn $return,
+        array $serialIds,
+        ?Equipment $returnedListing
+    ): void {
+        if (! $detail) {
+            return;
+        }
+
+        $issued = $detail->serialNumbers()->issued()->lockForUpdate()->get();
+        if ($issued->isEmpty()) {
+            return;
+        }
+
+        $ids = collect($serialIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($ids->count() !== (int) $return->quantity) {
+            throw new InvalidArgumentException(
+                "Select exactly {$return->quantity} serial number(s) being returned."
+            );
+        }
+
+        $selected = $issued->whereIn('id', $ids->all());
+        if ($selected->count() !== $ids->count()) {
+            throw new InvalidArgumentException(
+                'One or more selected serial numbers were not issued on this record.'
+            );
+        }
+
+        foreach ($selected as $serial) {
+            $serial->update([
+                'equipment_id' => $returnedListing?->id ?? $serial->equipment_id,
+                'issuance_detail_id' => null,
+                'item_return_id' => $return->id,
+                'status' => $returnedListing
+                    ? EquipmentSerialNumber::STATUS_IN_STOCK
+                    : EquipmentSerialNumber::STATUS_UNAVAILABLE,
+            ]);
+        }
+
+        $return->update([
+            'serial_numbers' => $selected
+                ->map(fn ($serial) => [
+                    'id' => $serial->id,
+                    'serial_number' => $serial->serial_number,
+                ])
+                ->values()
+                ->all(),
         ]);
     }
 
@@ -273,5 +338,77 @@ class ItemReturnController extends Controller
         }
 
         return ReferenceNumberGenerator::forInventory();
+    }
+
+    private function equipmentReturnRows()
+    {
+        return $this->withVisibleSerials(
+            ItemReturn::query()
+                ->with([
+                    'equipment.category',
+                    'department',
+                    'borrower',
+                    'returner',
+                    'issuanceDetail.issuance',
+                    'returnedSerialNumbers',
+                    'returnedStock.serialNumbers',
+                ])
+                ->where(function ($query) {
+                    $query->whereNotNull('equipment_id')
+                        ->orWhereNotNull('custom_equipment_name');
+                })
+                ->orderByDesc('id')
+                ->get()
+        );
+    }
+
+    private function withVisibleSerials($returns)
+    {
+        return $returns->map(function (ItemReturn $return) {
+            $return->setAttribute('serial_numbers', $this->visibleReturnSerials($return));
+
+            return $return;
+        });
+    }
+
+    private function visibleReturnSerials(ItemReturn $return): array
+    {
+        $stored = collect($return->serial_numbers ?? [])
+            ->map(fn ($serial) => [
+                'id' => is_array($serial) ? ($serial['id'] ?? null) : $serial?->id,
+                'serial_number' => is_array($serial)
+                    ? ($serial['serial_number'] ?? '')
+                    : (string) ($serial->serial_number ?? $serial),
+            ])
+            ->filter(fn ($serial) => trim((string) $serial['serial_number']) !== '')
+            ->values();
+
+        if ($stored->isNotEmpty()) {
+            return $stored->all();
+        }
+
+        $linked = $return->returnedSerialNumbers
+            ?: $return->returnedSerialNumbers()->get();
+
+        if ($linked->isNotEmpty()) {
+            return $linked
+                ->map(fn ($serial) => [
+                    'id' => $serial->id,
+                    'serial_number' => $serial->serial_number,
+                ])
+                ->values()
+                ->all();
+        }
+
+        $fromStock = ($return->returnedStock ?: $return->returnedStock()->with('serialNumbers')->get())
+            ->flatMap(fn ($equipment) => $equipment->serialNumbers);
+
+        return $fromStock
+            ->map(fn ($serial) => [
+                'id' => $serial->id,
+                'serial_number' => $serial->serial_number,
+            ])
+            ->values()
+            ->all();
     }
 }

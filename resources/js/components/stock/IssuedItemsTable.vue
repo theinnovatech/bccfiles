@@ -63,6 +63,7 @@ const issuedItems = computed(() => {
                 quantity: detail.quantity,
                 issuance_number: issuance.issuance_number,
                 department: issuance.department?.name
+                    ?? issuance.department_name
                     ?? issuance.receiver?.department?.name
                     ?? '—',
                 received_by: issuance.receiver?.name ?? issuance.received_by_name ?? '—',

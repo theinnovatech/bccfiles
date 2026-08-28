@@ -14,6 +14,7 @@ class Issuance extends Model
     protected $fillable = [
         'issuance_number',
         'department_id',
+        'department_name',
         'issued_by',
         'received_by',
         'received_by_name',
@@ -28,6 +29,12 @@ class Issuance extends Model
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class);
+    }
+
+    public function departmentDisplayName(): ?string
+    {
+        return $this->department?->name
+            ?: ($this->department_name ?: $this->receiver?->department?->name);
     }
 
     public function issuer(): BelongsTo

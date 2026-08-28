@@ -79,6 +79,11 @@
                             @input="onQuantityInput"
                         />
                     </div>
+                    <EquipmentSerialFields
+                        v-if="tracksSerials && (quantity || 0) >= 1"
+                        v-model="serialNumbers"
+                        :quantity="quantity || 1"
+                    />
                     <div>
                         <label
                             class="mb-1 block text-sm font-medium text-[#00164d]"
@@ -148,8 +153,13 @@ import Textarea from "primevue/textarea";
 import UiButton from "../../components/ui/UiButton.vue";
 import StockOpScanner from "../../components/stock/StockOpScanner.vue";
 import StockOpItemSummary from "../../components/stock/StockOpItemSummary.vue";
+import EquipmentSerialFields from "../../components/stock/EquipmentSerialFields.vue";
 import { useNotify } from "../../composables/useNotify";
 import api from "../../services/api";
+import {
+    filledSerialNumbers,
+    syncSerialSlots,
+} from "../../utils/equipmentSerials";
 
 const notify = useNotify();
 const barcode = ref("");
@@ -157,6 +167,7 @@ const equipment = ref(null);
 const equipments = ref([]);
 const selectedEquipmentId = ref(null);
 const quantity = ref(0);
+const serialNumbers = ref([""]);
 const remarks = ref("");
 const loading = ref(false);
 
@@ -191,6 +202,22 @@ const newQuantityAfterReceive = computed(() => {
     return (Number(equipment.value.quantity) || 0) + (Number(quantity.value) || 0);
 });
 
+const tracksSerials = computed(
+    () => (equipment.value?.serial_numbers ?? []).length > 0,
+);
+
+watch([quantity, tracksSerials], () => {
+    if (!tracksSerials.value) {
+        serialNumbers.value = [];
+        return;
+    }
+
+    serialNumbers.value = syncSerialSlots(
+        serialNumbers.value,
+        quantity.value || 1,
+    );
+});
+
 function onQuantityInput(event) {
     quantity.value = event.value ?? 0;
 }
@@ -200,6 +227,7 @@ function clearEquipment() {
     barcode.value = "";
     selectedEquipmentId.value = null;
     quantity.value = 0;
+    serialNumbers.value = [""];
     remarks.value = "";
 }
 
@@ -208,6 +236,7 @@ watch(barcode, (next) => {
         if (!selectedEquipmentId.value) {
             equipment.value = null;
             quantity.value = 0;
+            serialNumbers.value = [""];
             remarks.value = "";
         }
     }
@@ -227,6 +256,7 @@ function applyEquipment(row) {
     selectedEquipmentId.value = row.id;
     barcode.value = row.barcode || row.property_number || "";
     quantity.value = 0;
+    serialNumbers.value = [""];
     remarks.value = "";
 }
 
@@ -277,11 +307,32 @@ async function submit() {
         return;
     }
 
+    const serials = tracksSerials.value
+        ? filledSerialNumbers(serialNumbers.value)
+        : [];
+
+    if (tracksSerials.value && serials.length !== receivedQty) {
+        notify.warn(
+            `Enter exactly ${receivedQty} serial number(s), matching the quantity received.`,
+            "Serial numbers required",
+        );
+        return;
+    }
+
+    if (
+        tracksSerials.value &&
+        new Set(serials.map((value) => value.toLowerCase())).size !== serials.length
+    ) {
+        notify.warn("Serial numbers on this equipment must be unique.");
+        return;
+    }
+
     loading.value = true;
     try {
         const { data } = await api.post("/equipments/receive", {
             equipment_id: equipment.value.id,
             quantity: receivedQty,
+            serial_numbers: tracksSerials.value ? serials : [],
             remarks: remarks.value || null,
         });
         notify.success("Equipment received successfully.", "Equipment received");

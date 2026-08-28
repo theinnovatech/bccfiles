@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Collection;
+use InvalidArgumentException;
 
 class Equipment extends Model
 {
@@ -250,5 +252,103 @@ class Equipment extends Model
     public function returns(): HasMany
     {
         return $this->hasMany(ItemReturn::class);
+    }
+
+    public function serialNumbers(): HasMany
+    {
+        return $this->hasMany(EquipmentSerialNumber::class)->orderBy('id');
+    }
+
+    /**
+     * @param  list<string>  $serialNumbers
+     */
+    public function syncInStockSerialNumbers(array $serialNumbers): void
+    {
+        $normalized = collect($serialNumbers)
+            ->map(fn ($value) => trim((string) $value))
+            ->filter()
+            ->values();
+
+        $quantity = (int) $this->quantity;
+        if ($normalized->count() !== $quantity) {
+            throw new InvalidArgumentException(
+                "Enter exactly {$quantity} serial number(s), matching the quantity."
+            );
+        }
+
+        if ($normalized->count() !== $normalized->unique()->count()) {
+            throw new InvalidArgumentException('Serial numbers on this equipment must be unique.');
+        }
+
+        $taken = EquipmentSerialNumber::query()
+            ->whereIn('serial_number', $normalized)
+            ->where(function ($query) {
+                $query->where('equipment_id', '!=', $this->id)
+                    ->orWhere('status', '!=', EquipmentSerialNumber::STATUS_IN_STOCK);
+            })
+            ->pluck('serial_number');
+
+        if ($taken->isNotEmpty()) {
+            throw new InvalidArgumentException(
+                'Serial number already in use: '.$taken->unique()->implode(', ')
+            );
+        }
+
+        $this->serialNumbers()
+            ->inStock()
+            ->get()
+            ->each
+            ->delete();
+
+        foreach ($normalized as $serialNumber) {
+            $this->serialNumbers()->create([
+                'serial_number' => $serialNumber,
+                'status' => EquipmentSerialNumber::STATUS_IN_STOCK,
+            ]);
+        }
+    }
+
+    /**
+     * @param  list<string>  $serialNumbers
+     */
+    public function appendInStockSerialNumbers(array $serialNumbers): void
+    {
+        $normalized = collect($serialNumbers)
+            ->map(fn ($value) => trim((string) $value))
+            ->filter()
+            ->values();
+
+        if ($normalized->isEmpty()) {
+            return;
+        }
+
+        if ($normalized->count() !== $normalized->unique()->count()) {
+            throw new InvalidArgumentException('Serial numbers on this equipment must be unique.');
+        }
+
+        $taken = EquipmentSerialNumber::query()
+            ->whereIn('serial_number', $normalized)
+            ->pluck('serial_number');
+
+        if ($taken->isNotEmpty()) {
+            throw new InvalidArgumentException(
+                'Serial number already in use: '.$taken->unique()->implode(', ')
+            );
+        }
+
+        foreach ($normalized as $serialNumber) {
+            $this->serialNumbers()->create([
+                'serial_number' => $serialNumber,
+                'status' => EquipmentSerialNumber::STATUS_IN_STOCK,
+            ]);
+        }
+    }
+
+    public function inStockSerialNumbers(): Collection
+    {
+        return $this->serialNumbers
+            ->where('status', EquipmentSerialNumber::STATUS_IN_STOCK)
+            ->whereNull('issuance_detail_id')
+            ->values();
     }
 }

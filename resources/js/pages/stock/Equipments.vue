@@ -152,6 +152,10 @@
                         required
                     />
                 </div>
+                <EquipmentSerialFields
+                    v-model="form.serial_numbers"
+                    :quantity="form.quantity || 1"
+                />
                 <div>
                     <label class="mb-1 block text-sm font-medium text-[#00164d]"
                         >Life Span (Years)
@@ -189,7 +193,7 @@
                         v-model="form.specs"
                         class="w-full"
                         rows="3"
-                        placeholder="Specifications, model, serial number, etc."
+                        placeholder="Specifications, model, or other details"
                     />
                 </div>
                 <div class="md:col-span-2 flex flex-col gap-3 sm:flex-row">
@@ -255,8 +259,14 @@ import Textarea from "primevue/textarea";
 import Select from "primevue/select";
 import UiButton from "../../components/ui/UiButton.vue";
 import StockOpScanner from "../../components/stock/StockOpScanner.vue";
+import EquipmentSerialFields from "../../components/stock/EquipmentSerialFields.vue";
 import { useNotify } from "../../composables/useNotify";
 import api from "../../services/api";
+import {
+    filledSerialNumbers,
+    inStockSerials,
+    syncSerialSlots,
+} from "../../utils/equipmentSerials";
 
 defineProps({
     embedded: { type: Boolean, default: false },
@@ -279,6 +289,7 @@ const form = reactive({
     description: "",
     type: "",
     quantity: 1,
+    serial_numbers: [""],
     life_span_years: null,
     specs: "",
 });
@@ -297,6 +308,7 @@ function resetForm() {
     form.description = "";
     form.type = "";
     form.quantity = 1;
+    form.serial_numbers = [""];
     form.life_span_years = null;
     form.specs = "";
 
@@ -317,6 +329,10 @@ function startEdit(equipment) {
     form.description = equipment.description || "";
     form.type = equipment.type;
     form.quantity = equipment.quantity ?? 1;
+    form.serial_numbers = syncSerialSlots(
+        inStockSerials(equipment).map((row) => row.serial_number),
+        equipment.quantity ?? 1,
+    );
     form.life_span_years = equipment.life_span_years ?? null;
     form.specs = equipment.specs || "";
 }
@@ -365,6 +381,13 @@ watch(barcode, (next) => {
     }
 });
 
+watch(
+    () => form.quantity,
+    (quantity) => {
+        form.serial_numbers = syncSerialSlots(form.serial_numbers, quantity);
+    },
+);
+
 async function loadCategories() {
     try {
         const { data } = await api.get("/equipment-categories/list");
@@ -397,6 +420,19 @@ async function save() {
         return;
     }
 
+    const serials = filledSerialNumbers(form.serial_numbers);
+    if (serials.length !== Number(form.quantity)) {
+        notify.warn(
+            `Enter exactly ${form.quantity} serial number(s), matching the quantity.`,
+        );
+        return;
+    }
+
+    if (new Set(serials.map((value) => value.toLowerCase())).size !== serials.length) {
+        notify.warn("Serial numbers on this equipment must be unique.");
+        return;
+    }
+
     if (
         form.life_span_years == null ||
         form.life_span_years < (editingId.value ? 0 : 1)
@@ -415,6 +451,7 @@ async function save() {
             description: form.description || null,
             type: form.type,
             quantity: form.quantity,
+            serial_numbers: serials,
             life_span_years: form.life_span_years,
             specs: form.specs || null,
         };

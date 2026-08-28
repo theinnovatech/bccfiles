@@ -157,9 +157,7 @@ class ReportService
         if ($movementType !== 'receipt') {
             foreach ($issuanceDetails as $detail) {
                 $balance -= $detail->quantity;
-                $department = $detail->issuance?->department?->name
-                    ?? $detail->issuance?->receiver?->department?->name
-                    ?? '';
+                $department = $detail->issuance?->departmentDisplayName() ?? '';
                 $receiver = $detail->issuance?->receiver?->name
                     ?? $detail->issuance?->received_by_name
                     ?? '';
@@ -190,9 +188,7 @@ class ReportService
             if (preg_match('/Issuance\s+(\S+)/i', $movement->remarks ?? '', $matches)) {
                 $issuance = $issuanceDepartments[$matches[1]] ?? null;
 
-                return $issuance?->department?->name
-                    ?? $issuance?->receiver?->department?->name
-                    ?? '—';
+                return $issuance?->departmentDisplayName() ?? '—';
             }
 
             return '—';
@@ -213,9 +209,7 @@ class ReportService
 
             $issuance = $matchedReturn?->issuance;
 
-            return $issuance?->department?->name
-                ?? $issuance?->receiver?->department?->name
-                ?? '—';
+            return $issuance?->departmentDisplayName() ?? '—';
         }
 
         return '—';

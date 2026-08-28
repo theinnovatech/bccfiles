@@ -96,6 +96,11 @@
                         </Column>
                         <Column field="type" header="Type" />
                         <Column field="quantity" header="Qty" />
+                        <Column header="Serial Nos.">
+                            <template #body="{ data }">
+                                <span class="line-clamp-2">{{ formatSerialNumbers(inStockSerials(data)) }}</span>
+                            </template>
+                        </Column>
                         <Column header="Life Span">
                             <template #body="{ data }">
                                 {{
@@ -232,6 +237,10 @@
                 </label>
                 <InputNumber v-model="form.quantity" class="w-full" :min="1" />
             </div>
+            <EquipmentSerialFields
+                v-model="form.serial_numbers"
+                :quantity="form.quantity || 1"
+            />
             <div>
                 <label class="mb-1 block text-sm font-medium text-[#00164d]">
                     Life Span (Years) <span class="text-[#ce1126]">*</span>
@@ -261,7 +270,7 @@
                     v-model="form.specs"
                     class="w-full"
                     rows="3"
-                    placeholder="Specifications, model, serial number, etc."
+                    placeholder="Specifications, model, or other details"
                 />
             </div>
         </form>
@@ -344,7 +353,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import DataTable from 'primevue/datatable';
 import Column from 'primevue/column';
 import Dialog from 'primevue/dialog';
@@ -355,6 +364,7 @@ import Textarea from 'primevue/textarea';
 import UiCard from '../ui/UiCard.vue';
 import UiButton from '../ui/UiButton.vue';
 import TableFilters from '../TableFilters.vue';
+import EquipmentSerialFields from './EquipmentSerialFields.vue';
 import { useNotify } from '../../composables/useNotify';
 import { useTableFilters } from '../../composables/useTableFilters';
 import { confirmDelete } from '../../composables/confirm';
@@ -365,6 +375,12 @@ import {
     equipmentOriginLabel,
     hasNoRemainingLifeSpan,
 } from '../../utils/equipmentLifeSpan';
+import {
+    filledSerialNumbers,
+    formatSerialNumbers,
+    inStockSerials,
+    syncSerialSlots,
+} from '../../utils/equipmentSerials';
 
 const notify = useNotify();
 const auth = useAuthStore();
@@ -389,6 +405,7 @@ const form = reactive({
     description: '',
     type: '',
     quantity: 1,
+    serial_numbers: [''],
     life_span_years: null,
     specs: '',
 });
@@ -416,8 +433,8 @@ const filterConfig = computed(() => [
         key: 'search',
         type: 'search',
         label: 'Search',
-        placeholder: 'Inventory no., property no., name, category, type...',
-        fields: ['barcode', 'inventory_number', 'property_number', 'name', 'category.name', 'type', 'description', 'specs'],
+        placeholder: 'Inventory no., property no., serial no., name, category, type...',
+        fields: ['barcode', 'inventory_number', 'property_number', 'serial_search', 'name', 'category.name', 'type', 'description', 'specs'],
     },
     {
         key: 'category',
@@ -492,7 +509,10 @@ async function loadEquipments() {
 
     try {
         const { data } = await api.get('/equipments/list');
-        equipments.value = data;
+        equipments.value = (Array.isArray(data) ? data : []).map((row) => ({
+            ...row,
+            serial_search: formatSerialNumbers(row.serial_numbers),
+        }));
     } catch {
         notify.error('Unable to load equipments.');
     } finally {
@@ -570,6 +590,10 @@ function editEquipment(equipment) {
     form.description = equipment.description || '';
     form.type = equipment.type || '';
     form.quantity = equipment.quantity ?? 1;
+    form.serial_numbers = syncSerialSlots(
+        inStockSerials(equipment).map((row) => row.serial_number),
+        equipment.quantity ?? 1,
+    );
     form.life_span_years = equipment.life_span_years ?? null;
     form.specs = equipment.specs || '';
     dialogVisible.value = true;
@@ -600,6 +624,17 @@ async function saveEquipment() {
         return;
     }
 
+    const serials = filledSerialNumbers(form.serial_numbers);
+    if (serials.length !== Number(form.quantity)) {
+        notify.warn(`Enter exactly ${form.quantity} serial number(s), matching the quantity.`);
+        return;
+    }
+
+    if (new Set(serials.map((value) => value.toLowerCase())).size !== serials.length) {
+        notify.warn('Serial numbers on this equipment must be unique.');
+        return;
+    }
+
     if (form.life_span_years == null || form.life_span_years < 0) {
         notify.warn('Please enter the equipment life span in years.');
         return;
@@ -615,6 +650,7 @@ async function saveEquipment() {
             description: form.description || null,
             type: form.type,
             quantity: form.quantity,
+            serial_numbers: serials,
             life_span_years: form.life_span_years,
             specs: form.specs || null,
         });
@@ -656,6 +692,13 @@ function confirmRemove(equipment) {
         },
     });
 }
+
+watch(
+    () => form.quantity,
+    (quantity) => {
+        form.serial_numbers = syncSerialSlots(form.serial_numbers, quantity);
+    },
+);
 
 onMounted(async () => {
     await Promise.all([loadEquipments(), loadCategories()]);

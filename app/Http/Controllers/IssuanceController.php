@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Enums\IssuanceType;
 use App\Http\Controllers\Controller;
+use App\Models\Department;
 use App\Models\Equipment;
+use App\Models\EquipmentSerialNumber;
 use App\Models\Issuance;
 use App\Models\IssuanceDetail;
 use App\Models\Item;
@@ -29,7 +31,7 @@ class IssuanceController extends Controller
     {
         return response()->json(
             Issuance::query()
-                ->with(['department', 'issuer', 'receiver.department', 'details.item', 'details.equipment'])
+                ->with(['department', 'issuer', 'receiver.department', 'details.item', 'details.equipment.serialNumbers', 'details.serialNumbers'])
                 ->orderByDesc('id')
                 ->get()
         );
@@ -42,7 +44,8 @@ class IssuanceController extends Controller
         $rules = [
             'issuance_type' => ['required', Rule::enum(IssuanceType::class)],
             'issuance_number' => ['nullable', 'string', 'max:255', 'unique:issuances,issuance_number'],
-            'department_id' => ['required', 'exists:departments,id'],
+            'department_id' => ['nullable', 'exists:departments,id'],
+            'department_name' => ['nullable', 'string', 'max:255'],
             'received_by' => ['nullable', 'exists:employees,id'],
             'received_by_name' => ['nullable', 'string', 'max:255'],
             'remarks' => ['nullable', 'string'],
@@ -57,6 +60,8 @@ class IssuanceController extends Controller
             $rules['items.*.equipment_id'] = ['required', 'exists:equipments,id'];
             $rules['items.*.property_number'] = ['required', 'string', 'max:255'];
             $rules['items.*.date_acquired'] = ['nullable', 'date', 'before_or_equal:today'];
+            $rules['items.*.serial_number_ids'] = ['nullable', 'array'];
+            $rules['items.*.serial_number_ids.*'] = ['integer', 'exists:equipment_serial_numbers,id'];
         } elseif ($issuanceType === IssuanceType::Items) {
             $rules['items.*.item_id'] = ['required', 'exists:items,id'];
         }
@@ -66,6 +71,16 @@ class IssuanceController extends Controller
 
         $receivedBy = $data['received_by'] ?? null;
         $receivedByName = trim((string) ($data['received_by_name'] ?? ''));
+        [$departmentId, $departmentName] = $this->resolveDepartment(
+            $data['department_id'] ?? null,
+            $data['department_name'] ?? null,
+        );
+
+        if (! $departmentId && $departmentName === '') {
+            return response()->json([
+                'message' => 'Please select a department or type the department name.',
+            ], 422);
+        }
 
         if (! $receivedBy && $receivedByName === '') {
             return response()->json([
@@ -81,12 +96,13 @@ class IssuanceController extends Controller
         $manualReference = trim((string) ($data['issuance_number'] ?? ''));
 
         try {
-            $issuance = DB::transaction(function () use ($data, $request, $issuanceType, $receivedBy, $receivedByName, $issuedDate, $manualReference) {
+            $issuance = DB::transaction(function () use ($data, $request, $issuanceType, $receivedBy, $receivedByName, $departmentId, $departmentName, $issuedDate, $manualReference) {
                 $issuance = Issuance::create([
                     'issuance_number' => $manualReference !== ''
                         ? $manualReference
                         : ReferenceNumberGenerator::forIssuance(),
-                    'department_id' => $data['department_id'],
+                    'department_id' => $departmentId,
+                    'department_name' => $departmentId ? null : $departmentName,
                     'issued_by' => $request->user()->id,
                     'received_by' => $receivedBy,
                     'received_by_name' => $receivedBy ? null : $receivedByName,
@@ -115,7 +131,7 @@ class IssuanceController extends Controller
         );
 
         return response()->json(
-            $issuance->load(['department', 'issuer', 'receiver.department', 'details.item', 'details.equipment']),
+            $issuance->load(['department', 'issuer', 'receiver.department', 'details.item', 'details.equipment.serialNumbers', 'details.serialNumbers']),
             201
         );
     }
@@ -123,7 +139,7 @@ class IssuanceController extends Controller
     public function outstandingEquipments(): JsonResponse
     {
         $details = IssuanceDetail::query()
-            ->with(['equipment.category', 'issuance.receiver', 'issuance.department'])
+            ->with(['equipment.category', 'equipment.serialNumbers', 'issuance.receiver', 'issuance.department', 'serialNumbers'])
             ->whereNotNull('equipment_id')
             ->whereNotNull('property_number')
             ->where('property_number', '!=', '')
@@ -169,10 +185,19 @@ class IssuanceController extends Controller
                     'details' => $equipment->description,
                     'origin' => $equipment->origin,
                     'department_id' => $detail->issuance?->department_id,
+                    'department_name' => $detail->issuance?->departmentDisplayName(),
                     'received_by' => $detail->issuance?->received_by,
                     'received_by_name' => $detail->issuance?->receiver?->name
                         ?: $detail->issuance?->received_by_name,
+                    'quantity_issued' => (int) $detail->quantity,
                     'quantity_outstanding' => $outstanding,
+                    'serial_numbers' => $detail->serialNumbers
+                        ->where('status', EquipmentSerialNumber::STATUS_ISSUED)
+                        ->map(fn ($serial) => [
+                            'id' => $serial->id,
+                            'serial_number' => $serial->serial_number,
+                        ])
+                        ->values(),
                 ];
             })
             ->filter()
@@ -184,7 +209,7 @@ class IssuanceController extends Controller
     public function show(Issuance $issuance): JsonResponse
     {
         return response()->json(
-            $issuance->load(['department', 'issuer', 'receiver.department', 'details.item', 'details.equipment'])
+            $issuance->load(['department', 'issuer', 'receiver.department', 'details.item', 'details.equipment.serialNumbers', 'details.serialNumbers'])
         );
     }
 
@@ -247,7 +272,7 @@ class IssuanceController extends Controller
             throw new InvalidArgumentException("Property number {$propertyNumber} is already used by another equipment.");
         }
 
-        $issuance->details()->create([
+        $detail = $issuance->details()->create([
             'equipment_id' => $equipment->id,
             'barcode' => $equipment->barcode ?? $propertyNumber,
             'property_number' => $propertyNumber,
@@ -256,7 +281,43 @@ class IssuanceController extends Controller
             'quantity' => $line['quantity'],
         ]);
 
+        $this->assignIssuedSerials($equipment, $detail, $line);
+
         $equipment->decrement('quantity', $line['quantity']);
+    }
+
+    private function assignIssuedSerials(Equipment $equipment, IssuanceDetail $detail, array $line): void
+    {
+        $inStock = $equipment->serialNumbers()->inStock()->lockForUpdate()->get();
+        if ($inStock->isEmpty()) {
+            return;
+        }
+
+        $ids = collect($line['serial_number_ids'] ?? [])
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($ids->count() !== (int) $line['quantity']) {
+            throw new InvalidArgumentException(
+                "Select exactly {$line['quantity']} serial number(s) for {$equipment->name}."
+            );
+        }
+
+        $selected = $inStock->whereIn('id', $ids->all());
+        if ($selected->count() !== $ids->count()) {
+            throw new InvalidArgumentException(
+                "One or more selected serial numbers are not available for {$equipment->name}."
+            );
+        }
+
+        foreach ($selected as $serial) {
+            $serial->update([
+                'status' => EquipmentSerialNumber::STATUS_ISSUED,
+                'issuance_detail_id' => $detail->id,
+            ]);
+        }
     }
 
     private function resolveIssuedInventoryNumber(array $line, Equipment $equipment): string
@@ -297,5 +358,28 @@ class IssuanceController extends Controller
         if ($itemTaken || $equipmentTaken) {
             throw new InvalidArgumentException("Inventory number {$number} is already in use.");
         }
+    }
+
+    /**
+     * @return array{0: int|null, 1: string}
+     */
+    private function resolveDepartment(mixed $departmentId, mixed $departmentName): array
+    {
+        $id = $departmentId ? (int) $departmentId : null;
+        $name = trim((string) $departmentName);
+
+        if ($id) {
+            return [$id, ''];
+        }
+
+        if ($name === '') {
+            return [null, ''];
+        }
+
+        $matched = Department::query()
+            ->whereRaw('LOWER(name) = ?', [mb_strtolower($name)])
+            ->first();
+
+        return $matched ? [$matched->id, ''] : [null, $name];
     }
 }

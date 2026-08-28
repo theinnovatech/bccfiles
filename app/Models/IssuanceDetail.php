@@ -48,4 +48,9 @@ class IssuanceDetail extends Model
     {
         return $this->hasMany(ItemReturn::class);
     }
+
+    public function serialNumbers(): HasMany
+    {
+        return $this->hasMany(EquipmentSerialNumber::class);
+    }
 }

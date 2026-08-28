@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\Equipment;
+use App\Models\EquipmentSerialNumber;
 use App\Models\IssuanceDetail;
 use App\Models\ItemReturn;
 use App\Services\ActivityLogService;
@@ -13,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use InvalidArgumentException;
 
 class EquipmentController extends Controller
 {
@@ -22,7 +24,7 @@ class EquipmentController extends Controller
     {
         return response()->json(
             Equipment::query()
-                ->with(['category', 'sourceReturn'])
+                ->with(['category', 'sourceReturn', 'serialNumbers'])
                 ->orderBy('name')
                 ->get()
         );
@@ -31,7 +33,7 @@ class EquipmentController extends Controller
     public function findByBarcode(string $barcode): JsonResponse
     {
         $equipment =             Equipment::query()
-                ->with(['category', 'sourceReturn'])
+                ->with(['category', 'sourceReturn', 'serialNumbers'])
                 ->where(function ($query) use ($barcode) {
                     $query->where('barcode', $barcode)
                         ->orWhere('property_number', $barcode)
@@ -48,6 +50,8 @@ class EquipmentController extends Controller
             'equipment_id' => ['nullable', 'integer', 'exists:equipments,id'],
             'barcode' => ['nullable', 'string', 'max:255'],
             'quantity' => ['required', 'integer', 'min:1'],
+            'serial_numbers' => ['nullable', 'array'],
+            'serial_numbers.*' => ['nullable', 'string', 'max:255'],
             'remarks' => ['nullable', 'string'],
         ]);
 
@@ -58,9 +62,9 @@ class EquipmentController extends Controller
         }
 
         $equipment = ! empty($data['equipment_id'])
-            ? Equipment::query()->with('category')->findOrFail($data['equipment_id'])
+            ? Equipment::query()->with(['category', 'serialNumbers'])->findOrFail($data['equipment_id'])
             : Equipment::query()
-                ->with('category')
+                ->with(['category', 'serialNumbers'])
                 ->where(function ($query) use ($data) {
                     $query->where('barcode', $data['barcode'])
                         ->orWhere('property_number', $data['barcode'])
@@ -68,8 +72,32 @@ class EquipmentController extends Controller
                 })
                 ->firstOrFail();
 
-        $equipment->increment('quantity', $data['quantity']);
-        $equipment->refresh()->load('category');
+        try {
+            DB::transaction(function () use ($data, $equipment) {
+                $newSerials = collect($data['serial_numbers'] ?? [])
+                    ->map(fn ($value) => trim((string) $value))
+                    ->filter()
+                    ->values()
+                    ->all();
+                $tracksSerials = $equipment->serialNumbers()->exists();
+
+                if ($tracksSerials && count($newSerials) !== (int) $data['quantity']) {
+                    throw new InvalidArgumentException(
+                        "Enter exactly {$data['quantity']} serial number(s) for the quantity received."
+                    );
+                }
+
+                $equipment->increment('quantity', $data['quantity']);
+
+                if ($tracksSerials) {
+                    $equipment->appendInStockSerialNumbers($newSerials);
+                }
+            });
+        } catch (InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        $equipment->refresh()->load(['category', 'serialNumbers']);
 
         $remarks = trim((string) ($data['remarks'] ?? ''));
         $ref = $equipment->inventory_number ?: $equipment->property_number;
@@ -100,17 +128,29 @@ class EquipmentController extends Controller
             'description' => ['nullable', 'string'],
             'type' => ['required', 'string', 'max:255'],
             'quantity' => ['required', 'integer', 'min:1'],
+            'serial_numbers' => ['required', 'array', 'min:1'],
+            'serial_numbers.*' => ['required', 'string', 'max:255'],
             'life_span_years' => ['required', 'integer', 'min:1', 'max:100'],
             'specs' => ['nullable', 'string'],
         ]);
 
-        $equipment = DB::transaction(function () use ($data) {
-            return Equipment::create([
-                ...$data,
-                'property_number' => ReferenceNumberGenerator::forEquipment(),
-                'inventory_number' => ReferenceNumberGenerator::forInventory(),
-            ]);
-        });
+        try {
+            $equipment = DB::transaction(function () use ($data) {
+                $serialNumbers = $data['serial_numbers'];
+                unset($data['serial_numbers']);
+
+                $equipment = Equipment::create([
+                    ...$data,
+                    'property_number' => ReferenceNumberGenerator::forEquipment(),
+                    'inventory_number' => ReferenceNumberGenerator::forInventory(),
+                ]);
+                $equipment->syncInStockSerialNumbers($serialNumbers);
+
+                return $equipment;
+            });
+        } catch (InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
 
         $this->activityLogService->log(
             $request->user(),
@@ -119,26 +159,29 @@ class EquipmentController extends Controller
             "Created equipment {$equipment->name} ({$equipment->inventory_number})"
         );
 
-        return response()->json($equipment->load('category'), 201);
+        return response()->json($equipment->load(['category', 'serialNumbers']), 201);
     }
 
     public function show(Equipment $equipment): JsonResponse
     {
-        return response()->json($equipment->load(['category', 'sourceReturn']));
+        return response()->json($equipment->load(['category', 'sourceReturn', 'serialNumbers']));
     }
 
     public function history(Equipment $equipment): JsonResponse
     {
         $equipment->load([
             'category',
+            'serialNumbers',
             'sourceReturn.issuanceDetail.issuance.department',
             'sourceReturn.issuanceDetail.issuance.receiver',
             'sourceReturn.issuanceDetail.issuance.issuer',
             'sourceReturn.issuanceDetail.equipment.category',
+            'sourceReturn.issuanceDetail.serialNumbers',
             'sourceReturn.department',
             'sourceReturn.borrower',
             'sourceReturn.returner',
             'sourceReturn.equipment.category',
+            'sourceReturn.equipment.serialNumbers',
         ]);
 
         $events = collect();
@@ -184,6 +227,7 @@ class EquipmentController extends Controller
                 'returns.returner',
                 'returns.equipment.category',
                 'equipment.category',
+                'serialNumbers',
             ])
             ->where('equipment_id', $equipmentId)
             ->orderBy('id')
@@ -212,6 +256,7 @@ class EquipmentController extends Controller
 
     private function registrationHistoryEvent(Equipment $equipment): array
     {
+        $equipment->loadMissing('serialNumbers');
         $lifeSpan = $equipment->life_span_years !== null
             ? $equipment->life_span_years.' '.($equipment->life_span_years === 1 ? 'yr' : 'yrs')
             : null;
@@ -231,6 +276,10 @@ class EquipmentController extends Controller
                 'Inventory No.' => $equipment->inventory_number,
                 'Barcode' => $equipment->barcode,
                 'Qty' => $equipment->quantity,
+                'Serial Nos.' => $equipment->serialNumbers
+                    ->pluck('serial_number')
+                    ->filter()
+                    ->implode(', '),
                 'Life Span' => $lifeSpan,
                 'Date Acquired' => optional($equipment->date_acquired)->toDateString(),
                 'Description' => $equipment->description,
@@ -256,12 +305,16 @@ class EquipmentController extends Controller
             'fields' => $this->historyFields([
                 'Issuance No.' => $issuance?->issuance_number,
                 'Issuance Date' => optional($issuedAt)->toDateTimeString(),
-                'Department' => $issuance?->department?->name,
+                'Department' => $issuance?->departmentDisplayName(),
                 'Received By' => $receivedBy,
                 'Issued By' => $issuance?->issuer?->name,
                 'Property No.' => $detail->property_number,
                 'Inventory No.' => $detail->inventory_number,
                 'Qty' => $detail->quantity,
+                'Serial Nos.' => $detail->serialNumbers
+                    ->pluck('serial_number')
+                    ->filter()
+                    ->implode(', '),
                 'Date Acquired' => optional($acquired)->toDateString(),
                 'Issued as' => $equipment?->isReturnedStock() ? 'Returned' : 'Fresh / New',
                 'Life Span when issued' => $lifeSpan,
@@ -345,11 +398,22 @@ class EquipmentController extends Controller
             'description' => ['nullable', 'string'],
             'type' => ['required', 'string', 'max:255'],
             'quantity' => ['required', 'integer', 'min:1'],
+            'serial_numbers' => ['required', 'array', 'min:1'],
+            'serial_numbers.*' => ['required', 'string', 'max:255'],
             'life_span_years' => ['required', 'integer', 'min:0', 'max:100'],
             'specs' => ['nullable', 'string'],
         ]);
 
-        $equipment->update($data);
+        try {
+            DB::transaction(function () use ($data, $equipment) {
+                $serialNumbers = $data['serial_numbers'];
+                unset($data['serial_numbers']);
+                $equipment->update($data);
+                $equipment->syncInStockSerialNumbers($serialNumbers);
+            });
+        } catch (InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
 
         $this->activityLogService->log(
             $request->user(),
@@ -358,7 +422,7 @@ class EquipmentController extends Controller
             "Updated equipment {$equipment->name} (".($equipment->inventory_number ?: $equipment->property_number).")"
         );
 
-        return response()->json($equipment->load('category'));
+        return response()->json($equipment->load(['category', 'serialNumbers']));
     }
 
     public function updatePropertyNumber(Request $request, Equipment $equipment): JsonResponse
@@ -391,6 +455,7 @@ class EquipmentController extends Controller
     public function destroy(Request $request, Equipment $equipment): JsonResponse
     {
         $name = $equipment->name;
+        $equipment->serialNumbers()->delete();
         $equipment->delete();
 
         $this->activityLogService->log(

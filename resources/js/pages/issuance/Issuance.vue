@@ -94,15 +94,22 @@
                                     >Department
                                     <span class="text-[#ce1126]">*</span></label
                                 >
-                                <Select
-                                    v-model="form.department_id"
-                                    :options="departments"
+                                <AutoComplete
+                                    v-model="departmentInput"
+                                    :suggestions="departmentSuggestions"
                                     optionLabel="name"
-                                    optionValue="id"
-                                    placeholder="Select department"
+                                    dropdown
+                                    :forceSelection="false"
+                                    completeOnFocus
+                                    placeholder="Select or type department"
                                     class="w-full"
-                                    filter
+                                    inputClass="w-full"
+                                    @complete="searchDepartments"
                                 />
+                                <p class="mt-1 text-xs text-[#4a6490]">
+                                    Pick a department or type a name if not in
+                                    the list.
+                                </p>
                             </div>
                             <div>
                                 <label
@@ -119,7 +126,7 @@
                                     placeholder="Select or type receiver name"
                                     class="w-full"
                                     inputClass="w-full"
-                                    :disabled="!form.department_id"
+                                    :disabled="!hasDepartment"
                                     @complete="searchReceivers"
                                 />
                                 <p class="mt-1 text-xs text-[#4a6490]">
@@ -381,6 +388,9 @@
                                         placeholder="Qty"
                                         class="issuance-line-control min-w-0 w-full"
                                         inputClass="w-full"
+                                        @update:model-value="
+                                            trimLineSerials(line)
+                                        "
                                     />
                                 </div>
                                 <div class="issuance-line-field issuance-line-action">
@@ -407,6 +417,67 @@
                                             />
                                         </svg>
                                     </UiButton>
+                                </div>
+                            </div>
+
+                            <div
+                                v-if="
+                                    form.issuance_type === 'equipments' &&
+                                    line.equipment_id &&
+                                    lineTracksSerials(line)
+                                "
+                                class="space-y-2"
+                            >
+                                <div>
+                                    <label class="issuance-line-label">
+                                        Serial numbers
+                                        <span class="text-[#ce1126]">*</span>
+                                    </label>
+                                    <p class="issuance-line-hint">
+                                        Select one serial number for each unit.
+                                        Quantity is {{ line.quantity || 1 }}.
+                                        {{ inStockSerialCount(line) }}
+                                        available.
+                                    </p>
+                                </div>
+                                <div class="grid gap-3 sm:grid-cols-2">
+                                    <div
+                                        v-for="slot in serialSlotCount(line)"
+                                        :key="`${index}-${slot}`"
+                                    >
+                                        <label
+                                            class="mb-1 block text-xs font-medium text-[#4a6490]"
+                                        >
+                                            Unit {{ slot }}
+                                        </label>
+                                        <Select
+                                            :model-value="
+                                                line.serial_number_ids[
+                                                    slot - 1
+                                                ] ?? null
+                                            "
+                                            :options="
+                                                serialOptionsForSlot(
+                                                    line,
+                                                    index,
+                                                    slot - 1,
+                                                )
+                                            "
+                                            optionLabel="serial_number"
+                                            optionValue="id"
+                                            placeholder="Select serial number"
+                                            class="w-full"
+                                            filter
+                                            showClear
+                                            @update:model-value="
+                                                setLineSerial(
+                                                    line,
+                                                    slot - 1,
+                                                    $event,
+                                                )
+                                            "
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
@@ -761,6 +832,19 @@
                                 </template>
                             </Column>
                             <Column field="quantity" header="Qty" />
+                            <Column
+                                v-if="
+                                    issuanceTypeKey(selectedIssuance) !==
+                                    'items'
+                                "
+                                header="Serial Nos."
+                            >
+                                <template #body="{ data }">
+                                    {{
+                                        formatSerialNumbers(data.serial_numbers)
+                                    }}
+                                </template>
+                            </Column>
                         </DataTable>
                     </div>
                 </div>
@@ -982,6 +1066,7 @@ import TableFilters from "../../components/TableFilters.vue";
 import { useTableFilters } from "../../composables/useTableFilters";
 import api from "../../services/api";
 import { formatEquipmentLifeSpan, equipmentOriginLabel } from "../../utils/equipmentLifeSpan";
+import { formatSerialNumbers, inStockSerials, toSerialId, syncSerialIds, filledSerialIds } from "../../utils/equipmentSerials";
 
 const IconItems = {
     render() {
@@ -1071,13 +1156,14 @@ const equipmentInfoRecord = computed(() => {
 const form = reactive({
     issuance_type: "items",
     issuance_number: "",
-    department_id: null,
     remarks: "",
     use_custom_date: false,
     issued_date: "",
     items: [emptyLine()],
 });
 
+const departmentInput = ref(null);
+const departmentSuggestions = ref([]);
 const receivedByInput = ref(null);
 const receiverSuggestions = ref([]);
 
@@ -1091,6 +1177,7 @@ function emptyLine() {
         inventory_number: "",
         date_acquired: "",
         quantity: 1,
+        serial_number_ids: [],
         can_change_property: true,
         default_property_number: "",
     };
@@ -1108,6 +1195,13 @@ function onEquipmentSelected(line, equipmentId) {
     line.inventory_number = equipment?.inventory_number || "";
     line.date_acquired = toDateInputValue(equipment?.date_acquired);
     line.can_change_property = !isReturnedEquipment(equipment);
+    line.serial_number_ids = [];
+    const serials = inStockSerials(equipment);
+    const qty = Number(line.quantity || 1);
+    line.serial_number_ids =
+        serials.length && serials.length === qty
+            ? serials.map((serial) => toSerialId(serial.id))
+            : syncSerialIds([], qty);
 }
 
 function isReturnedEquipment(equipment) {
@@ -1118,6 +1212,58 @@ function isReturnedEquipment(equipment) {
     return (
         equipment.origin === "returned" || Boolean(equipment.source_return_id)
     );
+}
+
+function trimLineSerials(line) {
+    line.serial_number_ids = syncSerialIds(
+        line.serial_number_ids,
+        line.quantity,
+    );
+}
+
+function serialSlotCount(line) {
+    return Math.max(1, Number(line.quantity) || 1);
+}
+
+function lineTracksSerials(line) {
+    return inStockSerialCount(line) > 0;
+}
+
+function inStockSerialCount(line) {
+    const equipment = equipments.value.find(
+        (row) => row.id === line.equipment_id,
+    );
+
+    return inStockSerials(equipment).length;
+}
+
+function setLineSerial(line, slot, value) {
+    const next = syncSerialIds(line.serial_number_ids, line.quantity);
+    next[slot] = toSerialId(value);
+    line.serial_number_ids = next;
+}
+
+function serialOptionsForSlot(line, lineIndex, slot) {
+    const current = toSerialId(line.serial_number_ids?.[slot]);
+    const chosen = filledSerialIds(line.serial_number_ids);
+    const taken = form.items
+        .filter(
+            (row, rowIndex) =>
+                rowIndex !== lineIndex &&
+                row.equipment_id === line.equipment_id,
+        )
+        .flatMap((row) => filledSerialIds(row.serial_number_ids));
+
+    return inStockSerials(
+        equipments.value.find((row) => row.id === line.equipment_id),
+    ).filter((serial) => {
+        const id = toSerialId(serial.id);
+
+        return (
+            id === current ||
+            (!chosen.includes(id) && !taken.includes(id))
+        );
+    });
 }
 
 function usesDefaultFreshProperty(line) {
@@ -1189,14 +1335,53 @@ function equipmentSpecs(equipmentId) {
     return String(equipment?.specs || "").trim();
 }
 
-const employeeOptions = computed(() => {
-    if (!form.department_id) {
-        return [];
+function selectedDepartmentId() {
+    const value = departmentInput.value;
+    return value && typeof value === "object" && value.id ? value.id : null;
+}
+
+function resolveDepartmentPayload() {
+    const value = departmentInput.value;
+
+    if (value && typeof value === "object" && value.id) {
+        return {
+            department_id: value.id,
+            department_name: null,
+        };
     }
 
-    return employees.value.filter(
-        (employee) => employee.department_id === form.department_id,
+    const typedName = typeof value === "string" ? value.trim() : "";
+    if (!typedName) {
+        return {
+            department_id: null,
+            department_name: null,
+        };
+    }
+
+    const match = departments.value.find(
+        (department) =>
+            String(department.name || "").toLowerCase() === typedName.toLowerCase(),
     );
+
+    return match
+        ? { department_id: match.id, department_name: null }
+        : { department_id: null, department_name: typedName };
+}
+
+const employeeOptions = computed(() => {
+    const selectedId = selectedDepartmentId();
+    if (selectedId) {
+        return employees.value.filter(
+            (employee) => employee.department_id === selectedId,
+        );
+    }
+
+    return hasDepartment.value ? employees.value : [];
+});
+
+const hasDepartment = computed(() => {
+    const payload = resolveDepartmentPayload();
+    return Boolean(payload.department_id || payload.department_name);
 });
 
 const filterConfig = computed(() => [
@@ -1208,6 +1393,7 @@ const filterConfig = computed(() => [
         fields: [
             "issuance_number",
             "department.name",
+            "department_name",
             "receiver.department.name",
             "receiver.name",
             "received_by_name",
@@ -1252,7 +1438,7 @@ const visibleIssuances = computed(() =>
 );
 
 watch(
-    () => form.department_id,
+    () => selectedDepartmentId(),
     () => {
         receivedByInput.value = null;
         receiverSuggestions.value = [];
@@ -1274,6 +1460,19 @@ function searchReceivers(event) {
         ? options.filter((employee) =>
               employee.name.toLowerCase().includes(query),
           )
+        : options;
+}
+
+function searchDepartments(event) {
+    const query = (event.query || "").trim().toLowerCase();
+    const options = departments.value;
+
+    departmentSuggestions.value = query
+        ? options.filter((department) => {
+              const name = String(department.name || "").toLowerCase();
+              const code = String(department.code || "").toLowerCase();
+              return name.includes(query) || code.includes(query);
+          })
         : options;
 }
 
@@ -1331,7 +1530,8 @@ function removeLine(index) {
 
 function resetForm() {
     form.issuance_number = "";
-    form.department_id = null;
+    departmentInput.value = null;
+    departmentSuggestions.value = [];
     receivedByInput.value = null;
     receiverSuggestions.value = [];
     form.remarks = "";
@@ -1343,6 +1543,7 @@ function resetForm() {
 function departmentName(issuance) {
     return (
         issuance.department?.name ||
+        issuance.department_name ||
         issuance.receiver?.department?.name ||
         "—"
     );
@@ -1511,7 +1712,7 @@ function totalQuantity(issuance) {
 function buildPayload() {
     const payload = {
         issuance_type: form.issuance_type,
-        department_id: form.department_id,
+        ...resolveDepartmentPayload(),
         ...resolveReceiverPayload(),
         remarks: form.remarks || null,
         use_custom_date: form.use_custom_date,
@@ -1530,6 +1731,7 @@ function buildPayload() {
                 inventory_number: (line.inventory_number || "").trim() || null,
                 date_acquired: (line.date_acquired || "").trim() || null,
                 quantity: line.quantity,
+                serial_number_ids: filledSerialIds(line.serial_number_ids),
             };
         }),
     };
@@ -1547,10 +1749,16 @@ function buildPayload() {
 }
 
 async function submit() {
+    const department = resolveDepartmentPayload();
     const receiver = resolveReceiverPayload();
 
-    if (!form.department_id || (!receiver.received_by && !receiver.received_by_name)) {
-        notify.warn("Please select a department and enter who received the items.");
+    if (!department.department_id && !department.department_name) {
+        notify.warn("Please select a department or type the department name.");
+        return;
+    }
+
+    if (!receiver.received_by && !receiver.received_by_name) {
+        notify.warn("Please select an employee or type the receiver name.");
         return;
     }
 
@@ -1565,13 +1773,28 @@ async function submit() {
             return !line.item_id;
         }
 
-        return !line.equipment_id || !(line.property_number || "").trim();
+        if (!line.equipment_id || !(line.property_number || "").trim()) {
+            return true;
+        }
+
+        const serials = inStockSerials(
+            equipments.value.find((row) => row.id === line.equipment_id),
+        );
+        if (
+            serials.length &&
+            filledSerialIds(line.serial_number_ids).length !==
+                Number(line.quantity)
+        ) {
+            return true;
+        }
+
+        return false;
     });
 
     if (incomplete) {
         notify.warn(
             form.issuance_type === "equipments"
-                ? "Please select equipment, enter a property number, and quantity for every line."
+                ? "Please select equipment, property number, quantity, and matching serial numbers for every line."
                 : "Please complete all issuance lines before submitting.",
         );
         return;
@@ -1637,6 +1860,8 @@ async function loadLookups() {
                 specs: equipment.specs || "",
                 origin: equipment.origin,
                 source_return_id: equipment.source_return_id,
+                quantity: equipment.quantity,
+                serial_numbers: equipment.serial_numbers || [],
                 life_span_years: equipment.life_span_years,
                 lifespan_expires_on: equipment.lifespan_expires_on,
                 label: [

@@ -131,6 +131,7 @@ const rows = computed(() => {
     if (props.type === 'issuance') {
         return props.data.flatMap((issuance) => {
             const department = issuance.department?.name
+                || issuance.department_name
                 || issuance.receiver?.department?.name
                 || '-';
             const details = issuance.details || [];

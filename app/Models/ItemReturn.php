@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\ReturnCondition;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ItemReturn extends Model
@@ -32,6 +33,7 @@ class ItemReturn extends Model
         'borrower_employee_id',
         'borrower_name',
         'quantity',
+        'serial_numbers',
         'reason',
         'condition',
         'restocked',
@@ -49,6 +51,7 @@ class ItemReturn extends Model
     {
         return [
             'quantity' => 'integer',
+            'serial_numbers' => 'array',
             'date_returned' => 'datetime',
             'custom_date_issued' => 'date',
             'custom_date_acquired' => 'date',
@@ -75,6 +78,16 @@ class ItemReturn extends Model
     public function equipment(): BelongsTo
     {
         return $this->belongsTo(Equipment::class);
+    }
+
+    public function returnedSerialNumbers(): HasMany
+    {
+        return $this->hasMany(EquipmentSerialNumber::class);
+    }
+
+    public function returnedStock(): HasMany
+    {
+        return $this->hasMany(Equipment::class, 'source_return_id');
     }
 
     public function department(): BelongsTo

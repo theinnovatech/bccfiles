@@ -38,9 +38,48 @@
                 </UiCard>
             </div>
             <div class="dashboard-fade-in" style="animation-delay: 680ms">
-                <UiCard title="Monthly Issuance" description="Total items issued per month this year.">
+                <UiCard>
+                    <template #header>
+                        <div class="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                                <h3 class="shadcn-card-title">Monthly Issuance</h3>
+                                <p class="shadcn-card-description">Total items issued per month.</p>
+                                <p class="mt-2 text-sm font-semibold text-[#00164d]">
+                                    Currently showing: {{ monthlyPeriodLabel }}
+                                </p>
+                            </div>
+                            <div class="flex flex-wrap items-end gap-2">
+                                <label class="space-y-1">
+                                    <span class="block text-xs font-medium text-[#4a6490]">Month</span>
+                                    <select v-model="monthlyMonth" class="shadcn-input min-w-[9.5rem]">
+                                        <option value="">All months</option>
+                                        <option
+                                            v-for="month in monthOptions"
+                                            :key="month.value"
+                                            :value="month.value"
+                                        >
+                                            {{ month.label }}
+                                        </option>
+                                    </select>
+                                </label>
+                                <label class="space-y-1">
+                                    <span class="block text-xs font-medium text-[#4a6490]">Year</span>
+                                    <select v-model.number="monthlyYear" class="shadcn-input min-w-[6.5rem]">
+                                        <option
+                                            v-for="year in monthlyYears"
+                                            :key="year"
+                                            :value="year"
+                                        >
+                                            {{ year }}
+                                        </option>
+                                    </select>
+                                </label>
+                            </div>
+                        </div>
+                    </template>
                     <apexchart
                         v-if="loaded"
+                        :key="monthlyChartKey"
                         type="bar"
                         height="280"
                         class="w-full min-w-0"
@@ -104,7 +143,7 @@
                         >
                             <div>
                                 <p class="text-sm font-medium text-[#00164d]">{{ issue.issuance_number }}</p>
-                                <p class="text-xs text-[#4a6490]">{{ issue.department?.name || '—' }}</p>
+                                <p class="text-xs text-[#4a6490]">{{ issue.department?.name || issue.department_name || '—' }}</p>
                             </div>
                         </li>
                         <li v-if="loaded && !recentIssuance.length" class="py-8 text-center text-sm text-[#4a6490]">No recent issuances.</li>
@@ -146,7 +185,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import UiCard from '../components/ui/UiCard.vue';
 import UiBadge from '../components/ui/UiBadge.vue';
 import UiButton from '../components/ui/UiButton.vue';
@@ -166,9 +205,32 @@ function viewAllIssuance() {
 
 const loaded = ref(false);
 const summary = ref({});
-const charts = ref({ inventory_status: {}, monthly_issuance: [], low_stock_items: [] });
+const charts = ref({
+    inventory_status: {},
+    monthly_issuance: [],
+    monthly_issuance_years: [],
+    monthly_issuance_period: '',
+    low_stock_items: [],
+});
 const recentMovements = ref([]);
 const recentIssuance = ref([]);
+const monthlyYear = ref(new Date().getFullYear());
+const monthlyMonth = ref('');
+
+const monthOptions = [
+    { value: 1, label: 'January' },
+    { value: 2, label: 'February' },
+    { value: 3, label: 'March' },
+    { value: 4, label: 'April' },
+    { value: 5, label: 'May' },
+    { value: 6, label: 'June' },
+    { value: 7, label: 'July' },
+    { value: 8, label: 'August' },
+    { value: 9, label: 'September' },
+    { value: 10, label: 'October' },
+    { value: 11, label: 'November' },
+    { value: 12, label: 'December' },
+];
 
 const chartAnimations = {
     enabled: true,
@@ -218,9 +280,41 @@ const inventoryOptions = computed(() => ({
     },
 }));
 
+const monthlyRows = computed(() => charts.value.monthly_issuance || []);
+
+const monthlyYears = computed(() => {
+    const years = [...(charts.value.monthly_issuance_years || [])]
+        .map((year) => Number(year))
+        .filter((year) => Number.isFinite(year));
+
+    if (!years.includes(Number(monthlyYear.value))) {
+        years.push(Number(monthlyYear.value));
+    }
+
+    return [...new Set(years)].sort((a, b) => b - a);
+});
+
+const monthlyPeriodLabel = computed(() => {
+    if (charts.value.monthly_issuance_period) {
+        return charts.value.monthly_issuance_period;
+    }
+
+    const year = monthlyYear.value;
+    if (monthlyMonth.value === '' || monthlyMonth.value == null) {
+        return `January – December ${year}`;
+    }
+
+    const month = monthOptions.find((row) => row.value === Number(monthlyMonth.value));
+    return month ? `${month.label} ${year}` : String(year);
+});
+
+const monthlyChartKey = computed(
+    () => `${monthlyYear.value}-${monthlyMonth.value || 'all'}-${monthlyRows.value.length}`,
+);
+
 const monthlySeries = computed(() => [{
     name: 'Issuance',
-    data: (charts.value.monthly_issuance || []).map((row) => row.total),
+    data: monthlyRows.value.map((row) => row.total),
 }]);
 
 const monthlyOptions = computed(() => ({
@@ -233,31 +327,62 @@ const monthlyOptions = computed(() => ({
     plotOptions: {
         bar: {
             borderRadius: 4,
-            columnWidth: '45%',
+            columnWidth: monthlyRows.value.length === 1 ? '28%' : '45%',
         },
     },
     dataLabels: { enabled: false },
     grid: { borderColor: '#a8b8d4', strokeDashArray: 4 },
     xaxis: {
-        categories: (charts.value.monthly_issuance || []).map((row) => `M${row.month}`),
+        categories: monthlyRows.value.map((row) => row.month_name || monthOptions[(row.month || 1) - 1]?.label),
         axisBorder: { show: false },
         axisTicks: { show: false },
+        labels: {
+            rotate: monthlyRows.value.length > 6 ? -45 : 0,
+            hideOverlappingLabels: false,
+            trim: false,
+            style: { colors: '#4a6490', fontSize: '12px' },
+        },
     },
     yaxis: { labels: { style: { colors: '#4a6490' } } },
 }));
 
 const lowStockItems = computed(() => charts.value.low_stock_items || []);
 
+async function loadCharts() {
+    const params = { year: monthlyYear.value };
+    if (monthlyMonth.value !== '' && monthlyMonth.value != null) {
+        params.month = monthlyMonth.value;
+    }
+
+    const { data } = await api.get('/dashboard/charts', { params });
+    charts.value = data;
+
+    if (data.monthly_issuance_year) {
+        monthlyYear.value = data.monthly_issuance_year;
+    }
+}
+
+watch([monthlyYear, monthlyMonth], async () => {
+    if (!loaded.value) {
+        return;
+    }
+
+    try {
+        await loadCharts();
+    } catch {
+        // Keep the last successful chart if a filter refresh fails.
+    }
+});
+
 onMounted(async () => {
-    const [summaryRes, chartsRes, movementsRes, issuanceRes] = await Promise.all([
+    const [summaryRes, movementsRes, issuanceRes] = await Promise.all([
         api.get('/dashboard/summary'),
-        api.get('/dashboard/charts'),
         api.get('/dashboard/recent-movements'),
         api.get('/dashboard/recent-issuance'),
+        loadCharts(),
     ]);
 
     summary.value = summaryRes.data;
-    charts.value = chartsRes.data;
     recentMovements.value = movementsRes.data;
     recentIssuance.value = issuanceRes.data;
 

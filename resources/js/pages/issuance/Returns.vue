@@ -456,15 +456,88 @@
                     <div>
                         <label
                             class="mb-1 block text-sm font-medium text-[#00164d]"
-                            >Quantity
+                            >Quantity returning
                             <span class="text-[#ce1126]">*</span></label
                         >
                         <InputNumber
                             v-model="form.quantity"
                             class="w-full"
                             :min="1"
+                            :max="quantityMax"
+                            :useGrouping="false"
                             inputClass="w-full"
                         />
+                        <p class="mt-1 text-xs text-[#4a6490]">
+                            Enter how many units are being returned now.
+                            <template v-if="outstandingQty != null">
+                                Issued:
+                                {{ issuedQty }}
+                                · Outstanding:
+                                {{ outstandingQty }}.
+                            </template>
+                        </p>
+                        <p
+                            v-if="isPartialReturn"
+                            class="mt-1 text-xs font-medium text-[#8a5a00]"
+                        >
+                            Partial return: {{ form.quantity }} of
+                            {{ outstandingQty }} outstanding unit{{
+                                outstandingQty === 1 ? "" : "s"
+                            }}
+                            will be recorded. The remaining
+                            {{ remainingQty }} will stay outstanding.
+                        </p>
+                    </div>
+
+                    <div
+                        v-if="!form.useCustom && issuedSerialOptions.length"
+                        class="md:col-span-2 space-y-2"
+                    >
+                        <div>
+                            <label
+                                class="mb-1 block text-sm font-medium text-[#00164d]"
+                            >
+                                Serial numbers returning
+                                <span class="text-[#ce1126]">*</span>
+                            </label>
+                            <p class="text-xs text-[#4a6490]">
+                                Select one serial number for each unit returning.
+                                Quantity is {{ form.quantity || 1 }}.
+                            </p>
+                        </div>
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <div
+                                v-for="slot in Math.max(
+                                    1,
+                                    Number(form.quantity) || 1,
+                                )"
+                                :key="slot"
+                            >
+                                <label
+                                    class="mb-1 block text-xs font-medium text-[#4a6490]"
+                                >
+                                    Unit {{ slot }}
+                                </label>
+                                <Select
+                                    :model-value="
+                                        form.serial_number_ids[slot - 1] ??
+                                        null
+                                    "
+                                    :options="
+                                        returnSerialOptionsForSlot(slot - 1)
+                                    "
+                                    optionLabel="serial_number"
+                                    optionValue="id"
+                                    placeholder="Select serial number"
+                                    class="w-full"
+                                    filter
+                                    showClear
+                                    @update:model-value="
+                                        setReturnSerial(slot - 1, $event)
+                                    "
+                                />
+                            </div>
+                        </div>
                     </div>
 
                     <div>
@@ -589,8 +662,17 @@
                         <label
                             class="mb-1 block text-sm font-medium text-[#00164d]"
                         >
-                            Condition / Remarks
+                            {{
+                                isPartialReturn
+                                    ? "Reason for partial return"
+                                    : "Condition / Remarks"
+                            }}
                             <span
+                                v-if="isPartialReturn"
+                                class="text-[#ce1126]"
+                            >*</span>
+                            <span
+                                v-else
                                 class="ml-1 text-xs font-normal text-[#4a6490]"
                                 >(optional)</span
                             >
@@ -599,7 +681,11 @@
                             v-model="form.reason"
                             class="w-full"
                             rows="2"
-                            placeholder="Optional notes (missing parts, hard-copy reference, etc.)"
+                            :placeholder="
+                                isPartialReturn
+                                    ? 'Required. Why is the full quantity not being returned?'
+                                    : 'Optional notes (missing parts, hard-copy reference, etc.)'
+                            "
                         />
                     </div>
                 </div>
@@ -614,10 +700,19 @@
                         {{ selectedIssuedLine.issuance_number || "—" }}
                         · Outstanding:
                         {{ selectedIssuedLine.quantity_outstanding ?? 0 }}
+                        · Returning now:
+                        {{ form.quantity ?? 0 }}
                         <template v-if="selectedIssuedLine.received_by_name">
                             · Received by:
                             {{ selectedIssuedLine.received_by_name }}
                         </template>
+                    </p>
+                    <p
+                        v-if="issuedSerialOptions.length"
+                        class="mt-1 text-[#4a6490]"
+                    >
+                        Serial Nos.:
+                        {{ formatSerialNumbers(issuedSerialOptions) }}
                     </p>
                     <p
                         v-if="selectedEquipmentReachedLifespan"
@@ -899,6 +994,18 @@
                     </div>
                     <div>
                         <p class="text-xs uppercase tracking-wide text-[#4a6490]">
+                            Serial Nos.
+                        </p>
+                        <p class="mt-0.5 font-medium">
+                            {{
+                                formatSerialNumbers(
+                                    selectedReturn.serial_numbers,
+                                )
+                            }}
+                        </p>
+                    </div>
+                    <div>
+                        <p class="text-xs uppercase tracking-wide text-[#4a6490]">
                             Department
                         </p>
                         <p class="mt-0.5 font-medium">
@@ -1034,6 +1141,48 @@
                 >
             </template>
         </Dialog>
+
+        <Dialog
+            v-model:visible="partialReasonVisible"
+            modal
+            header="Reason for partial return"
+            :style="{ width: '32rem' }"
+            :closable="true"
+            @hide="onPartialReasonHide"
+        >
+            <div class="space-y-3 pt-1 text-sm text-[#00164d]">
+                <p>
+                    You entered
+                    <span class="font-semibold">{{ form.quantity }}</span>
+                    of
+                    <span class="font-semibold">{{ outstandingQty }}</span>
+                    outstanding unit{{ outstandingQty === 1 ? "" : "s" }}.
+                    Please enter why the full quantity is not being returned.
+                </p>
+                <p class="text-xs text-[#4a6490]">
+                    Only this quantity will be recorded as returned. The remaining
+                    {{ remainingQty }} unit{{ remainingQty === 1 ? "" : "s" }}
+                    stay outstanding.
+                </p>
+                <label class="block text-sm font-medium text-[#00164d]">
+                    Reason
+                    <span class="text-[#ce1126]">*</span>
+                </label>
+                <Textarea
+                    v-model="partialReasonDraft"
+                    class="w-full"
+                    rows="3"
+                    autofocus
+                    placeholder="Required. Why is the full quantity not being returned?"
+                />
+            </div>
+            <template #footer>
+                <UiButton variant="outline" @click="cancelPartialReason">
+                    Return full quantity
+                </UiButton>
+                <UiButton @click="savePartialReason">Save reason</UiButton>
+            </template>
+        </Dialog>
     </div>
 </template>
 
@@ -1057,6 +1206,7 @@ import {
     formatEquipmentLifeSpan,
     hasReachedLifespan,
 } from "../../utils/equipmentLifeSpan";
+import { formatSerialNumbers, filledSerialIds, syncSerialIds, toSerialId } from "../../utils/equipmentSerials";
 
 const notify = useNotify();
 const departments = ref([]);
@@ -1073,6 +1223,9 @@ const propertyLookupError = ref("");
 let skipBorrowerReset = false;
 const viewDialogVisible = ref(false);
 const selectedReturn = ref(null);
+const partialReasonVisible = ref(false);
+const partialReasonDraft = ref("");
+let skipPartialReasonRevert = false;
 
 const form = reactive({
     useCustom: false,
@@ -1092,6 +1245,7 @@ const form = reactive({
     property_number: "",
     inventory_number: "",
     quantity: 1,
+    serial_number_ids: [],
     reason: "",
     condition: "good",
     date_returned: "",
@@ -1125,6 +1279,126 @@ const selectedIssuedLine = computed(
             (row) => row.issuance_detail_id === form.issuance_detail_id,
         ) ?? null,
 );
+
+const issuedSerialOptions = computed(
+    () => selectedIssuedLine.value?.serial_numbers ?? [],
+);
+
+function setReturnSerial(slot, value) {
+    const next = syncSerialIds(form.serial_number_ids, form.quantity);
+    next[slot] = toSerialId(value);
+    form.serial_number_ids = next;
+}
+
+function returnSerialOptionsForSlot(slot) {
+    const current = toSerialId(form.serial_number_ids?.[slot]);
+    const chosen = filledSerialIds(form.serial_number_ids);
+
+    return issuedSerialOptions.value.filter((serial) => {
+        const id = toSerialId(serial.id);
+
+        return id === current || !chosen.includes(id);
+    });
+}
+
+const outstandingQty = computed(() => {
+    if (form.useCustom || !selectedIssuedLine.value) {
+        return null;
+    }
+
+    return Number(selectedIssuedLine.value.quantity_outstanding ?? 0);
+});
+
+const issuedQty = computed(() => {
+    if (!selectedIssuedLine.value) {
+        return null;
+    }
+
+    return Number(
+        selectedIssuedLine.value.quantity_issued ??
+            selectedIssuedLine.value.quantity_outstanding ??
+            0,
+    );
+});
+
+const quantityMax = computed(() => {
+    if (outstandingQty.value == null || outstandingQty.value < 1) {
+        return undefined;
+    }
+
+    return outstandingQty.value;
+});
+
+const remainingQty = computed(() => {
+    if (outstandingQty.value == null) {
+        return 0;
+    }
+
+    return Math.max(outstandingQty.value - Number(form.quantity || 0), 0);
+});
+
+const isPartialReturn = computed(() => {
+    if (outstandingQty.value == null || outstandingQty.value < 2) {
+        return false;
+    }
+
+    const qty = Number(form.quantity || 0);
+    return qty >= 1 && qty < outstandingQty.value;
+});
+
+watch(isPartialReturn, (partial) => {
+    if (partial) {
+        openPartialReasonPrompt();
+        return;
+    }
+
+    if (partialReasonVisible.value) {
+        skipPartialReasonRevert = true;
+        partialReasonVisible.value = false;
+    }
+});
+
+function openPartialReasonPrompt() {
+    partialReasonDraft.value = String(form.reason || "").trim();
+    partialReasonVisible.value = true;
+}
+
+function savePartialReason() {
+    const reason = String(partialReasonDraft.value || "").trim();
+    if (!reason) {
+        notify.warn(
+            `Please enter the reason why only ${form.quantity} of ${outstandingQty.value} outstanding unit(s) are being returned.`,
+        );
+        return;
+    }
+
+    form.reason = reason;
+    skipPartialReasonRevert = true;
+    partialReasonVisible.value = false;
+}
+
+function cancelPartialReason() {
+    skipPartialReasonRevert = true;
+    if (outstandingQty.value) {
+        form.quantity = outstandingQty.value;
+    }
+    partialReasonVisible.value = false;
+}
+
+function onPartialReasonHide() {
+    if (skipPartialReasonRevert) {
+        skipPartialReasonRevert = false;
+        return;
+    }
+
+    if (!isPartialReturn.value) {
+        return;
+    }
+
+    if (!String(form.reason || "").trim() && outstandingQty.value) {
+        form.quantity = outstandingQty.value;
+    }
+}
 
 const issuedStockWord = computed(() => {
     if (!selectedIssuedLine.value) {
@@ -1335,6 +1609,19 @@ watch(propertyNumberInput, (value) => {
         propertyLookupError.value = "";
     }
 });
+
+watch(
+    () => form.quantity,
+    (qty) => {
+        const validIds = new Set(
+            issuedSerialOptions.value.map((serial) => toSerialId(serial.id)),
+        );
+        form.serial_number_ids = syncSerialIds(
+            form.serial_number_ids,
+            qty,
+        ).map((id) => (validIds.has(id) ? id : null));
+    },
+);
 
 watch(
     () => form.department_id,
@@ -1573,12 +1860,13 @@ function findIssuedLineByProperty(value) {
     );
 }
 
-function applyIssuedLine(row) {
+function applyIssuedLine(row, { fillQuantity = true } = {}) {
     if (!row) {
         form.issuance_detail_id = null;
         form.equipment_id = null;
         form.property_number = propertyNumberQuery(propertyNumberInput.value);
         form.inventory_number = "";
+        form.serial_number_ids = [];
         return;
     }
 
@@ -1586,11 +1874,33 @@ function applyIssuedLine(row) {
         skipBorrowerReset = true;
     }
 
+    const sameLine = form.issuance_detail_id === row.issuance_detail_id;
     form.issuance_detail_id = row.issuance_detail_id;
     form.equipment_id = row.equipment_id || null;
     form.property_number = row.property_number || "";
     form.inventory_number = row.inventory_number || "";
-    form.quantity = row.quantity_outstanding || 1;
+
+    const outstanding = Number(row.quantity_outstanding || 1);
+    if (fillQuantity && !sameLine) {
+        form.quantity = outstanding;
+    } else if (Number(form.quantity || 0) > outstanding) {
+        form.quantity = outstanding;
+    }
+
+    const serials = row.serial_numbers || [];
+    const returnQty = Number(form.quantity || 0);
+    if (!sameLine) {
+        form.serial_number_ids =
+            serials.length && returnQty === serials.length
+                ? serials.map((serial) => toSerialId(serial.id))
+                : syncSerialIds([], returnQty);
+    } else {
+        form.serial_number_ids = syncSerialIds(
+            form.serial_number_ids,
+            returnQty,
+        );
+    }
+
     if (row.department_id) {
         form.department_id = row.department_id;
     }
@@ -1706,6 +2016,7 @@ function resetForm() {
     form.custom_details = "";
     form.department_id = null;
     form.quantity = 1;
+    form.serial_number_ids = [];
     form.reason = "";
     form.condition = "good";
     form.date_returned = "";
@@ -1728,7 +2039,7 @@ async function submit() {
     if (!form.useCustom) {
         const row = findIssuedLineByProperty(propertyNumberInput.value);
         if (row) {
-            applyIssuedLine(row);
+            applyIssuedLine(row, { fillQuantity: false });
             propertyNumberInput.value = row.property_number || "";
         }
     }
@@ -1738,18 +2049,45 @@ async function submit() {
     const hasEquipment = form.useCustom
         ? customName.length > 0
         : !!form.issuance_detail_id;
+    const returnQty = Number(form.quantity || 0);
 
     if (
         !hasEquipment ||
         !form.department_id ||
-        !form.quantity ||
-        form.quantity < 1 ||
+        !returnQty ||
+        returnQty < 1 ||
         (!borrower.borrower_employee_id && !borrower.borrower_name)
     ) {
         notify.warn(
             form.useCustom
                 ? "Please complete equipment, quantity, department, and returned by."
                 : "Please enter a valid property number, then complete quantity, department, and returned by.",
+        );
+        return;
+    }
+
+    if (outstandingQty.value != null && returnQty > outstandingQty.value) {
+        notify.warn(
+            `Only ${outstandingQty.value} outstanding unit(s) can be returned for this issuance.`,
+        );
+        form.quantity = outstandingQty.value;
+        return;
+    }
+
+    if (isPartialReturn.value && !String(form.reason || "").trim()) {
+        openPartialReasonPrompt();
+        notify.warn(
+            `Please enter the reason why only ${returnQty} of ${outstandingQty.value} outstanding unit(s) are being returned.`,
+        );
+        return;
+    }
+
+    if (
+        issuedSerialOptions.value.length &&
+        filledSerialIds(form.serial_number_ids).length !== returnQty
+    ) {
+        notify.warn(
+            `Select exactly ${returnQty} serial number(s), matching the quantity returning.`,
         );
         return;
     }
@@ -1780,19 +2118,27 @@ async function submit() {
                   inventory_number: (form.inventory_number || "").trim() || null,
               };
 
+        const remainingAfterReturn = remainingQty.value;
+        const recordedPartial = isPartialReturn.value;
+
         await api.post("/returns", {
             ...payload,
             reference_number:
                 (form.reference_number || "").trim() || null,
             department_id: form.department_id,
-            quantity: form.quantity,
-            reason: form.reason || null,
+            quantity: returnQty,
+            serial_number_ids: form.useCustom
+                ? []
+                : filledSerialIds(form.serial_number_ids),
+            reason: String(form.reason || "").trim() || null,
             condition: form.condition,
             date_returned: formatDateForPayload(form.date_returned),
             ...borrower,
         });
         notify.success(
-            form.condition === "good" && !selectedEquipmentReachedLifespan.value && !form.useCustom
+            recordedPartial
+                ? `Recorded return of ${returnQty} unit(s). ${remainingAfterReturn} unit(s) remain outstanding.`
+                : form.condition === "good" && !selectedEquipmentReachedLifespan.value && !form.useCustom
                 ? "Return recorded. A Returned equipment record was added to Supply Master."
                 : "Equipment return recorded successfully.",
             "Return completed",

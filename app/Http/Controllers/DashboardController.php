@@ -9,7 +9,9 @@ use App\Models\Issuance;
 use App\Models\Item;
 use App\Models\ItemReturn;
 use App\Models\StockMovement;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
@@ -56,7 +58,7 @@ class DashboardController extends Controller
         );
     }
 
-    public function charts(): JsonResponse
+    public function charts(Request $request): JsonResponse
     {
         $inventoryStatus = [
             'in_stock' => Item::query()->where('status', 'active')->whereColumn('current_stock', '>', 'minimum_stock')->count(),
@@ -64,14 +66,58 @@ class DashboardController extends Controller
             'out_of_stock' => Item::query()->where('status', 'active')->where('current_stock', 0)->count(),
         ];
 
-        $monthlyIssuance = StockMovement::query()
+        $currentYear = (int) now()->year;
+        $year = $request->integer('year') ?: $currentYear;
+        $month = $request->filled('month') ? $request->integer('month') : null;
+
+        if ($month !== null && ($month < 1 || $month > 12)) {
+            $month = null;
+        }
+
+        $availableYears = StockMovement::query()
+            ->where('transaction_type', TransactionType::Out->value)
+            ->selectRaw('DISTINCT YEAR(created_at) as year')
+            ->orderByDesc('year')
+            ->pluck('year')
+            ->map(fn ($value) => (int) $value)
+            ->filter()
+            ->values();
+
+        if (! $availableYears->contains($currentYear)) {
+            $availableYears = $availableYears->prepend($currentYear);
+        }
+
+        if (! $availableYears->contains($year)) {
+            $availableYears = $availableYears->prepend($year);
+        }
+
+        $availableYears = $availableYears->unique()->sortDesc()->values();
+
+        $totalsQuery = StockMovement::query()
             ->selectRaw('MONTH(created_at) as month, SUM(quantity) as total')
             ->where('transaction_type', TransactionType::Out->value)
-            ->whereYear('created_at', now()->year)
+            ->whereYear('created_at', $year);
+
+        if ($month) {
+            $totalsQuery->whereMonth('created_at', $month);
+        }
+
+        $totals = $totalsQuery
             ->groupBy('month')
             ->orderBy('month')
             ->get()
-            ->map(fn ($row) => ['month' => (int) $row->month, 'total' => (int) $row->total]);
+            ->mapWithKeys(fn ($row) => [(int) $row->month => (int) $row->total]);
+
+        $monthsToShow = $month ? [$month] : range(1, 12);
+        $monthlyIssuance = collect($monthsToShow)->map(fn (int $monthNumber) => [
+            'month' => $monthNumber,
+            'month_name' => Carbon::createFromDate($year, $monthNumber, 1)->format('F'),
+            'total' => $totals[$monthNumber] ?? 0,
+        ])->values();
+
+        $periodLabel = $month
+            ? Carbon::createFromDate($year, $month, 1)->format('F Y')
+            : 'January – December '.$year;
 
         $lowStockItems = Item::query()
             ->with(['category', 'unit', 'location'])
@@ -84,6 +130,10 @@ class DashboardController extends Controller
         return response()->json([
             'inventory_status' => $inventoryStatus,
             'monthly_issuance' => $monthlyIssuance,
+            'monthly_issuance_year' => $year,
+            'monthly_issuance_month' => $month,
+            'monthly_issuance_years' => $availableYears,
+            'monthly_issuance_period' => $periodLabel,
             'low_stock_items' => $lowStockItems,
         ]);
     }
