@@ -29,6 +29,12 @@ class PagePermissionService
                 'always_on' => true,
             ],
             [
+                'key' => 'equipment-dashboard',
+                'label' => 'Equipment Dashboard',
+                'description' => 'View equipment counts by status, warranty cases and status lists.',
+                'group' => 'Overview',
+            ],
+            [
                 'key' => 'items',
                 'label' => 'Supply Master',
                 'description' => 'Browse and manage supply items.',
@@ -53,6 +59,12 @@ class PagePermissionService
                 'group' => 'Inventory',
             ],
             [
+                'key' => 'delivery-inspection',
+                'label' => 'Delivery Inspection',
+                'description' => 'Inspect deliveries and post accepted quantities to stock.',
+                'group' => 'Inventory',
+            ],
+            [
                 'key' => 'catalog-details',
                 'label' => 'Catalog Details',
                 'description' => 'Search and view full item or equipment details.',
@@ -65,6 +77,12 @@ class PagePermissionService
                 'group' => 'Transactions',
             ],
             [
+                'key' => 'scan-issue',
+                'label' => 'Scan to Issue',
+                'description' => 'Scan a QR code / barcode and issue through the issuance workflow.',
+                'group' => 'Transactions',
+            ],
+            [
                 'key' => 'returns',
                 'label' => 'Equipment Returns',
                 'description' => 'Record equipment returns.',
@@ -74,6 +92,12 @@ class PagePermissionService
                 'key' => 'person-lookup',
                 'label' => 'Records Lookup',
                 'description' => 'Look up issuance and return history by person, item, or equipment.',
+                'group' => 'Transactions',
+            ],
+            [
+                'key' => 'employee-directory',
+                'label' => 'Employee Directory',
+                'description' => 'Manage employees from other units who request or receive stock.',
                 'group' => 'Transactions',
             ],
             [
@@ -108,6 +132,10 @@ class PagePermissionService
 
         return match ($path) {
             '' => 'dashboard',
+            'equipment-dashboard' => 'equipment-dashboard',
+            'scan-issue' => 'scan-issue',
+            'delivery-inspection' => 'delivery-inspection',
+            'employee-directory' => 'employee-directory',
             'items' => 'items',
             'inventory/predictions' => 'inventory.predictions',
             'stock/operations' => 'stock.operations',

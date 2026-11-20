@@ -27,6 +27,10 @@ class PageController extends Controller
     {
         return match ($page) {
             'dashboard' => 'Dashboard',
+            'equipment-dashboard' => 'Equipment Dashboard',
+            'scan-issue' => 'Scan to Issue',
+            'delivery-inspection' => 'Delivery Inspection',
+            'employee-directory' => 'Employee Directory',
             'items' => 'Supply Master',
             'stock.operations' => 'Stock Operations',
             'stock.registration' => 'Registration',

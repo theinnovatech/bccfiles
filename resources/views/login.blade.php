@@ -16,6 +16,6 @@
     @php
         $turnstileSiteKey = config('services.turnstile.enabled') ? config('services.turnstile.site_key') : '';
     @endphp
-    <div id="login-app" data-page="login" data-props='@json(["organizationName" => $organizationName, "turnstileSiteKey" => $turnstileSiteKey])'></div>
+    <div id="login-app" data-page="login" data-props='@json(array_merge(["organizationName" => $organizationName, "turnstileSiteKey" => $turnstileSiteKey], $authProps ?? []))'></div>
 </body>
 </html>

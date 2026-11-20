@@ -4,11 +4,16 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\Equipment;
+use App\Models\EquipmentCase;
 use App\Models\EquipmentSerialNumber;
 use App\Models\IssuanceDetail;
 use App\Models\ItemReturn;
 use App\Services\ActivityLogService;
-use App\Support\ReferenceNumberGenerator;
+use App\Services\DocumentNumberService;
+use App\Support\NumberScopes;
+use Illuminate\Validation\ValidationException;
+use App\Support\EquipmentStatus;
+use App\Support\PropertyClass;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -18,7 +23,10 @@ use InvalidArgumentException;
 
 class EquipmentController extends Controller
 {
-    public function __construct(private readonly ActivityLogService $activityLogService) {}
+    public function __construct(
+        private readonly ActivityLogService $activityLogService,
+        private readonly DocumentNumberService $numbers,
+    ) {}
 
     public function index(): JsonResponse
     {
@@ -124,6 +132,11 @@ class EquipmentController extends Controller
         $data = $request->validate([
             'barcode' => ['nullable', 'string', 'max:255', 'unique:equipments,barcode'],
             'name' => ['required', 'string', 'max:255'],
+            'brand' => ['nullable', 'string', 'max:255'],
+            'model' => ['nullable', 'string', 'max:255'],
+            'property_number' => ['nullable', 'string', 'max:255'],
+            'inventory_number' => ['nullable', 'string', 'max:255'],
+            'property_card_number' => ['nullable', 'string', 'max:255'],
             'equipment_category_id' => ['required', 'exists:equipment_categories,id'],
             'description' => ['nullable', 'string'],
             'type' => ['required', 'string', 'max:255'],
@@ -132,6 +145,8 @@ class EquipmentController extends Controller
             'serial_numbers.*' => ['required', 'string', 'max:255'],
             'life_span_years' => ['required', 'integer', 'min:1', 'max:100'],
             'specs' => ['nullable', 'string'],
+            'unit_cost' => ['nullable', 'numeric', 'min:0', 'max:9999999999999'],
+            'property_class' => ['nullable', Rule::in(PropertyClass::keys())],
         ]);
 
         try {
@@ -139,12 +154,29 @@ class EquipmentController extends Controller
                 $serialNumbers = $data['serial_numbers'];
                 unset($data['serial_numbers']);
 
+                // Official numbers: typed by the user, or generated from the organization's
+                // configured format (Settings > Document numbering).
+                $numbers = [
+                    'property_number' => $this->numbers->resolve('equipment_property_number', $data['property_number'] ?? null, NumberScopes::equipmentProperty(), null, 'property_number'),
+                    'inventory_number' => $this->numbers->resolve('equipment_inventory_number', $data['inventory_number'] ?? null, NumberScopes::equipmentInventory(), null, 'inventory_number'),
+                    'property_card_number' => $this->numbers->resolve('property_card_number', $data['property_card_number'] ?? null, NumberScopes::propertyCard(), null, 'property_card_number'),
+                ];
+
                 $equipment = Equipment::create([
                     ...$data,
-                    'property_number' => ReferenceNumberGenerator::forEquipment(),
-                    'inventory_number' => ReferenceNumberGenerator::forInventory(),
+                    ...$numbers,
+                    'brand' => $this->clean($data['brand'] ?? null),
+                    'model' => $this->clean($data['model'] ?? null),
                 ]);
                 $equipment->syncInStockSerialNumbers($serialNumbers);
+
+                // A single-unit record: the record's numbers are the unit's numbers.
+                if ((int) $equipment->quantity === 1) {
+                    $equipment->serialNumbers()->update([
+                        'property_number' => $equipment->property_number,
+                        'inventory_number' => $equipment->inventory_number,
+                    ]);
+                }
 
                 return $equipment;
             });
@@ -207,6 +239,8 @@ class EquipmentController extends Controller
             $this->appendIssueReturnHistory($events, $equipment->id);
         }
 
+        $this->appendCaseHistory($events, $equipment->id);
+
         return response()->json([
             'equipment' => $equipment,
             'events' => $events
@@ -254,6 +288,38 @@ class EquipmentController extends Controller
         }
     }
 
+    /**
+     * Repair / warranty / disposal transitions (Revision 7) in the equipment timeline.
+     */
+    private function appendCaseHistory(Collection $events, int $equipmentId): void
+    {
+        $cases = EquipmentCase::query()
+            ->with(['events.performer', 'serialNumber'])
+            ->where('equipment_id', $equipmentId)
+            ->orderBy('id')
+            ->get();
+
+        foreach ($cases as $case) {
+            foreach ($case->events as $event) {
+                $events->push([
+                    'type' => 'case',
+                    'title' => $case->case_number.' — '.ucfirst(str_replace('_', ' ', $event->action)),
+                    'sort_at' => optional($event->event_date)->toDateString().' '.optional($event->created_at)->format('H:i:s'),
+                    'order' => 5,
+                    'date' => optional($event->event_date)->toDateString(),
+                    'fields' => $this->historyFields([
+                        'Status' => trim(($event->from_status ? EquipmentStatus::label($event->from_status).' → ' : '').($event->to_status ? EquipmentStatus::label($event->to_status) : '')),
+                        'Serial No.' => $case->serialNumber?->serial_number,
+                        'Qty' => $case->quantity,
+                        'Reason' => $event->reason,
+                        'Reference' => $event->reference,
+                        'Responsible user' => $event->performer?->name,
+                    ]),
+                ]);
+            }
+        }
+    }
+
     private function registrationHistoryEvent(Equipment $equipment): array
     {
         $equipment->loadMissing('serialNumbers');
@@ -294,7 +360,7 @@ class EquipmentController extends Controller
         $acquired = $detail->date_acquired ?: $equipment?->date_acquired;
         $issuedAt = $issuance?->issued_date ?? $detail->created_at;
         $lifeSpan = $equipment?->formattedRemainingLifeSpan($issuedAt, $acquired);
-        $receivedBy = $issuance?->receiver?->name ?: $issuance?->received_by_name;
+        $receivedBy = $issuance?->recipientDisplayName();
 
         return [
             'type' => 'issued',
@@ -394,6 +460,11 @@ class EquipmentController extends Controller
         $data = $request->validate([
             'barcode' => ['nullable', 'string', 'max:255', Rule::unique('equipments', 'barcode')->ignore($equipment->id)],
             'name' => ['required', 'string', 'max:255'],
+            'brand' => ['nullable', 'string', 'max:255'],
+            'model' => ['nullable', 'string', 'max:255'],
+            'property_number' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'inventory_number' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'property_card_number' => ['sometimes', 'nullable', 'string', 'max:255'],
             'equipment_category_id' => ['required', 'exists:equipment_categories,id'],
             'description' => ['nullable', 'string'],
             'type' => ['required', 'string', 'max:255'],
@@ -402,14 +473,36 @@ class EquipmentController extends Controller
             'serial_numbers.*' => ['required', 'string', 'max:255'],
             'life_span_years' => ['required', 'integer', 'min:0', 'max:100'],
             'specs' => ['nullable', 'string'],
+            'unit_cost' => ['nullable', 'numeric', 'min:0', 'max:9999999999999'],
+            'property_class' => ['nullable', Rule::in(PropertyClass::keys())],
         ]);
 
+        $numberChanges = $this->numberChanges($request, $equipment, $data);
+
         try {
-            DB::transaction(function () use ($data, $equipment) {
+            DB::transaction(function () use ($data, $equipment, $numberChanges) {
                 $serialNumbers = $data['serial_numbers'];
-                unset($data['serial_numbers']);
-                $equipment->update($data);
+                unset($data['serial_numbers'], $data['property_number'], $data['inventory_number'], $data['property_card_number']);
+
+                $previous = [
+                    'property_number' => $equipment->property_number,
+                    'inventory_number' => $equipment->inventory_number,
+                ];
+
+                $equipment->update([
+                    ...$data,
+                    ...$numberChanges,
+                    'brand' => $this->clean($data['brand'] ?? null),
+                    'model' => $this->clean($data['model'] ?? null),
+                ]);
                 $equipment->syncInStockSerialNumbers($serialNumbers);
+
+                // Units that carried the record's old number follow the corrected number.
+                foreach (['property_number', 'inventory_number'] as $field) {
+                    if (array_key_exists($field, $numberChanges) && $previous[$field]) {
+                        $equipment->serialNumbers()->where($field, $previous[$field])->update([$field => $numberChanges[$field]]);
+                    }
+                }
             });
         } catch (InvalidArgumentException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
@@ -423,6 +516,99 @@ class EquipmentController extends Controller
         );
 
         return response()->json($equipment->load(['category', 'serialNumbers']));
+    }
+
+    /**
+     * Official numbers changed in an edit. An unchanged number is never re-validated (no false
+     * duplicate); a changed number is checked within its real scope, excluding this record.
+     *
+     * @return array<string, ?string>
+     */
+    private function numberChanges(Request $request, Equipment $equipment, array $data): array
+    {
+        $changes = [];
+        $checks = [
+            'property_number' => ['equipment_property_number', NumberScopes::equipmentProperty($equipment->id), true],
+            'inventory_number' => ['equipment_inventory_number', NumberScopes::equipmentInventory($equipment->id), false],
+            'property_card_number' => ['property_card_number', NumberScopes::propertyCard($equipment->id), false],
+        ];
+
+        foreach ($checks as $field => [$type, $exists, $required]) {
+            if (! array_key_exists($field, $data)) {
+                continue;
+            }
+
+            $value = $this->numbers->clean($data[$field]);
+            if ($value === $this->numbers->clean($equipment->{$field})) {
+                continue;
+            }
+
+            if (! $request->user()->isAdmin() && ! $request->user()->isSupplyOfficer()) {
+                throw ValidationException::withMessages([$field => 'Only administrators and supply officers can change official numbers.']);
+            }
+
+            if ($value === null && $required) {
+                throw ValidationException::withMessages([$field => 'The property number cannot be blank.']);
+            }
+
+            if ($value !== null && $exists($value)) {
+                throw ValidationException::withMessages([$field => DocumentNumberService::TYPES[$type]['label']." {$value} is already used by another record."]);
+            }
+
+            $changes[$field] = $value;
+        }
+
+        return $changes;
+    }
+
+    /**
+     * Correct the numbers recorded on one physical unit (serial).
+     */
+    public function updateUnit(Request $request, Equipment $equipment, EquipmentSerialNumber $unit): JsonResponse
+    {
+        abort_unless((int) $unit->equipment_id === (int) $equipment->id, 404);
+
+        $data = $request->validate([
+            'property_number' => ['nullable', 'string', 'max:255'],
+            'inventory_number' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $property = $this->numbers->clean($data['property_number'] ?? null);
+        if ($property !== null && strcasecmp($property, (string) $equipment->property_number) !== 0
+            && NumberScopes::equipmentProperty($equipment->id)($property)) {
+            throw ValidationException::withMessages(['property_number' => "Property number {$property} is the official number of another equipment record."]);
+        }
+
+        if ($property !== null) {
+            $elsewhere = EquipmentSerialNumber::query()
+                ->where('property_number', $property)
+                ->where('equipment_id', '!=', $equipment->id)
+                ->exists();
+            if ($elsewhere) {
+                throw ValidationException::withMessages(['property_number' => "Property number {$property} is recorded on a unit of another equipment record."]);
+            }
+        }
+
+        $unit->update([
+            'property_number' => $property,
+            'inventory_number' => $this->numbers->clean($data['inventory_number'] ?? null),
+        ]);
+
+        $this->activityLogService->log(
+            $request->user(),
+            'Updated',
+            'Equipments',
+            "Recorded numbers for unit {$unit->serial_number} of {$equipment->name}: property {$property}"
+        );
+
+        return response()->json($unit->fresh());
+    }
+
+    private function clean(?string $value): ?string
+    {
+        $value = trim((string) $value);
+
+        return $value === '' ? null : $value;
     }
 
     public function updatePropertyNumber(Request $request, Equipment $equipment): JsonResponse

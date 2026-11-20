@@ -111,11 +111,11 @@ class PredictiveInventoryService
             ->where('issuance_details.item_id', $itemId)
             ->where('issuances.issued_date', '>=', $windowStart)
             ->select(
-                DB::raw("COALESCE(employees.name, issuances.received_by_name, 'Unknown') as name"),
+                DB::raw("COALESCE(issuances.received_by_name, employees.name, 'Unknown') as name"),
                 DB::raw('SUM(issuance_details.quantity) as quantity_issued'),
                 DB::raw('COUNT(*) as request_count')
             )
-            ->groupBy(DB::raw("COALESCE(employees.name, issuances.received_by_name, 'Unknown')"))
+            ->groupBy(DB::raw("COALESCE(issuances.received_by_name, employees.name, 'Unknown')"))
             ->orderByDesc('quantity_issued')
             ->get()
             ->map(function ($row) use ($netConsumption) {

@@ -298,6 +298,8 @@ const itemDetailFields = computed(() => {
         { label: "Storage Location", value: item.location?.name || "—" },
         { label: "Current Stock", value: item.current_stock ?? "—" },
         { label: "Minimum Stock", value: item.minimum_stock ?? "—" },
+        { label: "Reference Stock", value: item.reference_stock ?? "Not set" },
+        { label: "Stock Status", value: item.stock_status_label ?? "—" },
     ];
 });
 

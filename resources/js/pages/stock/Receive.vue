@@ -39,8 +39,11 @@
                 :fields="[
                     { label: 'Barcode', value: item.barcode || '—' },
                     { label: 'Inventory No.', value: item.inventory_number || '—' },
-                    { label: 'Item No.', value: item.item_number || '—' },
+                    { label: 'Stock No.', value: item.item_number || '—' },
                     { label: 'Current stock', value: item.current_stock },
+                    { label: 'Reference stock', value: item.reference_stock ? formatQty(item.reference_stock) : 'Not configured' },
+                    { label: 'Low-stock threshold', value: item.reference_stock ? `${formatQty(item.low_stock_threshold)} (${formatQty(item.effective_low_stock_percent)}%)` : '—' },
+                    { label: 'Status', value: item.stock_status_label || '—' },
                     { label: 'Category', value: item.category?.name || '—' },
                     { label: 'Location', value: item.location?.name || '—' },
                 ]"
@@ -90,6 +93,32 @@
                             newStockAfterReceive
                         }}</strong>
                     </div>
+                    <p
+                        v-if="item.reference_stock"
+                        class="text-xs text-[#4a6490]"
+                    >
+                        After receiving:
+                        <strong>{{ statusLabel(afterStatus) }}</strong>
+                        (threshold {{ formatQty(afterThreshold) }} of reference
+                        {{ formatQty(updateReference ? newStockAfterReceive : item.reference_stock) }}).
+                    </p>
+                    <label class="flex items-start gap-2 text-sm text-[#00164d]">
+                        <input
+                            v-model="updateReference"
+                            type="checkbox"
+                            class="mt-1"
+                        />
+                        <span>
+                            Full replenishment: set the reference stock to the
+                            new balance ({{ formatQty(newStockAfterReceive) }}).
+                            <span class="block text-xs text-[#4a6490]">
+                                Leave unticked to keep the current reference
+                                ({{ item.reference_stock ? formatQty(item.reference_stock) : "not configured" }}).
+                                Receiving never changes the reference by
+                                itself.
+                            </span>
+                        </span>
+                    </label>
                     <div class="flex flex-col gap-3 sm:flex-row">
                         <UiButton type="submit" :loading="loading"
                             >Receive Stock</UiButton
@@ -142,6 +171,25 @@ import StockOpScanner from "../../components/stock/StockOpScanner.vue";
 import StockOpItemSummary from "../../components/stock/StockOpItemSummary.vue";
 import { useNotify } from "../../composables/useNotify";
 import api from "../../services/api";
+import {
+    classifyStock,
+    formatQty,
+    loadStockRule,
+    thresholdFor,
+} from "../../utils/stockThreshold";
+
+const updateReference = ref(false);
+loadStockRule();
+
+const STATUS_LABELS = {
+    in_stock: "In Stock",
+    low_stock: "Low Stock",
+    out_of_stock: "Out of Stock",
+};
+
+function statusLabel(status) {
+    return STATUS_LABELS[status] || "—";
+}
 
 defineProps({
     embedded: { type: Boolean, default: false },
@@ -154,6 +202,16 @@ const items = ref([]);
 const selectedItemId = ref(null);
 const quantity = ref(0);
 const remarks = ref("");
+
+const afterReference = computed(() =>
+    updateReference.value ? newStockAfterReceive.value : item.value?.reference_stock,
+);
+const afterThreshold = computed(() =>
+    thresholdFor(afterReference.value, item.value?.low_stock_percent),
+);
+const afterStatus = computed(() =>
+    classifyStock(newStockAfterReceive.value, afterReference.value, item.value?.low_stock_percent),
+);
 const loading = ref(false);
 
 const itemOptions = computed(() =>
@@ -189,6 +247,7 @@ function clearItem() {
     selectedItemId.value = null;
     quantity.value = 0;
     remarks.value = "";
+    updateReference.value = false;
 }
 
 function applyItem(row) {
@@ -197,6 +256,7 @@ function applyItem(row) {
     barcode.value = itemLookupCode(row);
     quantity.value = 0;
     remarks.value = "";
+    updateReference.value = false;
 }
 
 watch(barcode, (next) => {
@@ -204,6 +264,7 @@ watch(barcode, (next) => {
         item.value = null;
         quantity.value = 0;
         remarks.value = "";
+    updateReference.value = false;
     }
 });
 
@@ -276,6 +337,7 @@ async function submit() {
             barcode: code,
             quantity: receivedQty,
             remarks: remarks.value || null,
+            update_reference: updateReference.value,
         });
         notify.success("Stock received successfully.", "Stock received");
         if (data.item) {

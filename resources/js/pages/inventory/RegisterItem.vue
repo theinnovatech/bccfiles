@@ -154,14 +154,84 @@
                 </div>
                 <div>
                     <label class="mb-1 block text-sm font-medium text-[#00164d]"
+                        >Stock No.
+                        <span
+                            v-if="!numbering.isAuto('stock_card_number')"
+                            class="text-[#ce1126]"
+                            >*</span
+                        ></label
+                    >
+                    <InputText
+                        v-model="form.item_number"
+                        class="w-full"
+                        :placeholder="numbering.placeholder('stock_card_number')"
+                    />
+                    <p class="mt-1 text-xs text-[#4a6490]">
+                        {{ numbering.hint("stock_card_number") }}
+                    </p>
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-[#00164d]"
                         >Minimum Stock
                         <span class="text-[#ce1126]">*</span></label
                     >
                     <InputNumber
                         v-model="form.minimum_stock"
                         class="w-full"
-                        :min="0"
+                        :min="1"
                     />
+                    <p class="mt-1 text-xs text-[#4a6490]">Must be at least 1.</p>
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-[#00164d]"
+                        >Reference (Target) Stock
+                        <span class="text-[#ce1126]">*</span></label
+                    >
+                    <InputNumber
+                        v-model="form.reference_stock"
+                        class="w-full"
+                        :min="1"
+                        placeholder="e.g. 20"
+                    />
+                    <p class="mt-1 text-xs text-[#4a6490]">
+                        {{ thresholdExplanation(form.reference_stock, form.low_stock_percent) }}
+                    </p>
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-[#00164d]"
+                        >Low-stock percentage</label
+                    >
+                    <InputNumber
+                        v-model="form.low_stock_percent"
+                        class="w-full"
+                        :min="1"
+                        :max="100"
+                        :maxFractionDigits="2"
+                        suffix="%"
+                        :placeholder="`Default: ${stockRuleState.defaultPercent}%`"
+                    />
+                    <p class="mt-1 text-xs text-[#4a6490]">
+                        Between 1 and 100. Leave blank to use the default
+                        ({{ stockRuleState.defaultPercent }}%, Settings ›
+                        Inventory).
+                    </p>
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-[#00164d]"
+                        >Unit cost</label
+                    >
+                    <InputNumber
+                        v-model="form.unit_cost"
+                        class="w-full"
+                        mode="decimal"
+                        :minFractionDigits="2"
+                        :maxFractionDigits="2"
+                        :min="0"
+                        placeholder="Optional"
+                    />
+                    <p class="mt-1 text-xs text-[#4a6490]">
+                        Printed on the Local RIV. Leave blank if unknown.
+                    </p>
                 </div>
                 <div class="md:col-span-2">
                     <label class="mb-1 block text-sm font-medium text-[#00164d]"
@@ -220,6 +290,15 @@ import BarcodeScannerInput from "../../components/BarcodeScannerInput.vue";
 import StockOpScanner from "../../components/stock/StockOpScanner.vue";
 import { useNotify } from "../../composables/useNotify";
 import api from "../../services/api";
+import { useDocumentNumbering } from "../../composables/useDocumentNumbering";
+import {
+    loadStockRule,
+    stockRule,
+    thresholdExplanation,
+} from "../../utils/stockThreshold";
+
+const numbering = useDocumentNumbering();
+const stockRuleState = stockRule();
 
 defineProps({
     embedded: { type: Boolean, default: false },
@@ -241,7 +320,11 @@ const form = reactive({
     category_id: null,
     unit_id: null,
     location_id: null,
-    minimum_stock: 0,
+    minimum_stock: 1,
+    reference_stock: null,
+    low_stock_percent: null,
+    item_number: "",
+    unit_cost: null,
     description: "",
 });
 
@@ -256,7 +339,11 @@ function resetForm() {
     form.category_id = null;
     form.unit_id = null;
     form.location_id = null;
-    form.minimum_stock = 0;
+    form.minimum_stock = 1;
+    form.reference_stock = null;
+    form.low_stock_percent = null;
+    form.item_number = "";
+    form.unit_cost = null;
     form.description = "";
 }
 
@@ -313,31 +400,59 @@ async function save() {
         return;
     }
 
-    if (form.minimum_stock === null || form.minimum_stock === undefined || form.minimum_stock < 0) {
-        notify.warn("Please enter the minimum stock.");
+    if (form.minimum_stock === null || form.minimum_stock === undefined || form.minimum_stock < 1) {
+        notify.warn("Minimum stock must be at least 1.");
+        return;
+    }
+
+    if (!form.reference_stock || form.reference_stock < 1) {
+        notify.warn("Enter the reference (target) stock. It must be at least 1.");
+        return;
+    }
+
+    if (
+        form.low_stock_percent !== null &&
+        form.low_stock_percent !== undefined &&
+        (form.low_stock_percent < 1 || form.low_stock_percent > 100)
+    ) {
+        notify.warn("The low-stock percentage must be between 1 and 100.");
+        return;
+    }
+
+    if (!numbering.isAuto("stock_card_number") && !form.item_number?.trim()) {
+        notify.warn("Enter the Stock No. assigned by the organization (numbering is set to manual).");
         return;
     }
 
     saving.value = true;
     try {
         const { data } = await api.post("/items", {
+            item_number: form.item_number?.trim() || null,
+            low_stock_percent: form.low_stock_percent ?? null,
             barcode: form.barcode || null,
             item_name: form.item_name,
             brand: form.brand || null,
             category_id: form.category_id,
             unit_id: form.unit_id,
             location_id: form.location_id,
-            minimum_stock: form.minimum_stock ?? 0,
+            minimum_stock: form.minimum_stock ?? 1,
+            reference_stock: form.reference_stock,
+            unit_cost: form.unit_cost ?? null,
             description: form.description || null,
         });
         notify.success(
-            `Item registered with inventory no. ${data.inventory_number}.`,
+            `Item registered with Stock No. ${data.item_number}.`,
             "Item registered",
         );
+        numbering.load(true);
         resetForm();
     } catch (error) {
+        const errors = error.response?.data?.errors;
+        const first = errors ? Object.values(errors)[0] : null;
         notify.error(
-            error.response?.data?.message || "Unable to register item.",
+            (Array.isArray(first) ? first[0] : first) ||
+                error.response?.data?.message ||
+                "Unable to register item.",
             "Registration failed",
         );
     } finally {
@@ -346,6 +461,8 @@ async function save() {
 }
 
 onMounted(async () => {
+    numbering.load();
+    loadStockRule();
     const [cat, uni, loc] = await Promise.all([
         api.get("/categories/list"),
         api.get("/units/list"),

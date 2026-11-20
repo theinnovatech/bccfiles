@@ -48,6 +48,7 @@ const props = defineProps({
     type: { type: String, default: '' },
     hasData: { type: Boolean, default: false },
     params: { type: Object, default: () => ({}) },
+    baseUrl: { type: String, default: '' },
 });
 
 const loading = ref(false);
@@ -73,7 +74,7 @@ function buildPdfUrl() {
         }
     });
 
-    return `/reports/${props.type}/pdf?${params.toString()}`;
+    return `${props.baseUrl || `/reports/${props.type}/pdf`}?${params.toString()}`;
 }
 
 function loadPdf() {
@@ -119,7 +120,7 @@ function onIframeLoad(event) {
 }
 
 watch(
-    () => [props.type, props.hasData, JSON.stringify(props.params)],
+    () => [props.type, props.hasData, props.baseUrl, JSON.stringify(props.params)],
     () => loadPdf(),
     { immediate: true },
 );

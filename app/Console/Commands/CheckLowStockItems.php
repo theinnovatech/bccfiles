@@ -13,6 +13,12 @@ class CheckLowStockItems extends Command
 
     public function handle(LowStockAlertService $lowStockAlertService): int
     {
+        if (\App\Services\DatabaseRestoreService::isLocked()) {
+            $this->warn('Skipped: a database restore is in progress.');
+
+            return self::SUCCESS;
+        }
+
         $alerted = $lowStockAlertService->scanAllActiveItems();
 
         $this->info("Low-stock scan complete. New alerts for {$alerted} item(s).");

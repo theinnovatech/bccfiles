@@ -36,7 +36,7 @@
                             data.inventory_number || "—"
                         }}</template>
                     </Column>
-                    <Column field="item_number" header="Item No." />
+                    <Column field="item_number" header="Stock No." />
                     <Column field="item_name" header="Item Name" />
                     <Column field="brand" header="Brand" />
                     <Column header="Category">
@@ -49,8 +49,35 @@
                             data.unit?.abbreviation
                         }}</template>
                     </Column>
-                    <Column field="current_stock" header="Stock" />
-                    <Column field="minimum_stock" header="Min Stock" />
+                    <Column field="current_stock" header="Remaining" />
+                    <Column header="Reference">
+                        <template #body="{ data }">
+                            <span v-if="!data.reference_stock_missing">{{ formatQty(data.reference_stock) }}</span>
+                            <button
+                                v-else
+                                type="button"
+                                class="text-xs font-semibold text-[#ce1126] underline-offset-2 hover:underline"
+                                title="Reference stock is not configured. Status uses 2 × minimum stock until it is set."
+                                @click="openEdit(data)"
+                            >
+                                Not set
+                            </button>
+                        </template>
+                    </Column>
+                    <Column header="Low-stock %">
+                        <template #body="{ data }">{{
+                            data.effective_low_stock_percent != null
+                                ? `${formatQty(data.effective_low_stock_percent)}%`
+                                : "—"
+                        }}</template>
+                    </Column>
+                    <Column header="Threshold">
+                        <template #body="{ data }">{{
+                            data.reference_stock_missing
+                                ? `Min. ${data.minimum_stock}`
+                                : formatQty(data.low_stock_threshold)
+                        }}</template>
+                    </Column>
                     <Column header="Location">
                         <template #body="{ data }">{{
                             data.location?.name
@@ -136,13 +163,17 @@
                 </div>
                 <div>
                     <label class="mb-1 block text-sm font-medium text-[#00164d]"
-                        >Item No.</label
+                        >Stock No.</label
                     >
                     <InputText
-                        :model-value="form.item_number || '—'"
+                        v-model="form.item_number"
                         class="w-full"
-                        readonly
+                        :readonly="!(auth.isAdmin || auth.isSupplyOfficer)"
                     />
+                    <p class="mt-1 text-xs text-[#4a6490]">
+                        Stock Card number. Saving it unchanged never reports a
+                        duplicate; leading zeros are kept.
+                    </p>
                 </div>
                 <div>
                     <label class="mb-1 block text-sm font-medium text-[#00164d]"
@@ -223,8 +254,60 @@
                     <InputNumber
                         v-model="form.minimum_stock"
                         class="w-full"
-                        :min="0"
+                        :min="1"
                     />
+                    <p class="mt-1 text-xs text-[#4a6490]">Must be at least 1.</p>
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-[#00164d]"
+                        >Reference (Target) Stock
+                        <span class="text-[#ce1126]">*</span></label
+                    >
+                    <InputNumber
+                        v-model="form.reference_stock"
+                        class="w-full"
+                        :min="1"
+                        placeholder="e.g. 20"
+                    />
+                    <p class="mt-1 text-xs text-[#4a6490]">
+                        {{ thresholdExplanation(form.reference_stock, form.low_stock_percent) }}
+                    </p>
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-[#00164d]"
+                        >Low-stock percentage</label
+                    >
+                    <InputNumber
+                        v-model="form.low_stock_percent"
+                        class="w-full"
+                        :min="1"
+                        :max="100"
+                        :maxFractionDigits="2"
+                        suffix="%"
+                        :placeholder="`Default: ${stockRuleState.defaultPercent}%`"
+                    />
+                    <p class="mt-1 text-xs text-[#4a6490]">
+                        Between 1 and 100. Leave blank to use the default
+                        ({{ stockRuleState.defaultPercent }}%, Settings ›
+                        Inventory).
+                    </p>
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-[#00164d]"
+                        >Unit cost</label
+                    >
+                    <InputNumber
+                        v-model="form.unit_cost"
+                        class="w-full"
+                        mode="decimal"
+                        :minFractionDigits="2"
+                        :maxFractionDigits="2"
+                        :min="0"
+                        placeholder="Optional"
+                    />
+                    <p class="mt-1 text-xs text-[#4a6490]">
+                        Printed on the Local RIV. Leave blank if unknown.
+                    </p>
                 </div>
                 <div class="md:col-span-2">
                     <label class="mb-1 block text-sm font-medium text-[#00164d]"
@@ -264,6 +347,15 @@ import { useNotify } from "../../composables/useNotify";
 import { useTableFilters } from "../../composables/useTableFilters";
 import { useAuthStore } from "../../stores/auth";
 import api from "../../services/api";
+import {
+    formatQty,
+    loadStockRule,
+    stockRule,
+    thresholdExplanation,
+} from "../../utils/stockThreshold";
+
+const stockRuleState = stockRule();
+loadStockRule();
 
 const notify = useNotify();
 const auth = useAuthStore();
@@ -293,7 +385,10 @@ const form = reactive({
     category_id: null,
     unit_id: null,
     location_id: null,
-    minimum_stock: 0,
+    minimum_stock: 1,
+    reference_stock: null,
+    low_stock_percent: null,
+    unit_cost: null,
     status: "active",
 });
 
@@ -342,17 +437,12 @@ const filterConfig = computed(() => [
             { label: "In stock", value: "in_stock" },
             { label: "Low stock", value: "low_stock" },
             { label: "Out of stock", value: "out_of_stock" },
+            { label: "Reference stock not set", value: "reference_missing" },
         ],
+        // Status is computed on the server with the shared 50% rule.
         predicate: (row, value) => {
-            if (value === "out_of_stock") return row.current_stock <= 0;
-            if (value === "low_stock")
-                return (
-                    row.current_stock > 0 &&
-                    row.current_stock <= row.minimum_stock
-                );
-            if (value === "in_stock")
-                return row.current_stock > row.minimum_stock;
-            return true;
+            if (value === "reference_missing") return row.reference_stock_missing;
+            return row.stock_status === value;
         },
     },
 ]);
@@ -361,15 +451,16 @@ const { filters, filteredItems, hasActiveFilters, resetFilters } =
     useTableFilters(items, filterConfig);
 
 function stockBadge(item) {
-    if (item.current_stock <= 0) {
-        return { label: "Out of stock", variant: "destructive" };
-    }
+    const variants = {
+        out_of_stock: "destructive",
+        low_stock: "gold",
+        in_stock: "default",
+    };
 
-    if (item.current_stock <= item.minimum_stock) {
-        return { label: "Low stock", variant: "gold" };
-    }
-
-    return { label: "In stock", variant: "default" };
+    return {
+        label: item.stock_status_label || "—",
+        variant: variants[item.stock_status] || "outline",
+    };
 }
 
 function openEdit(item) {
@@ -383,7 +474,10 @@ function openEdit(item) {
     form.category_id = item.category_id;
     form.unit_id = item.unit_id;
     form.location_id = item.location_id;
-    form.minimum_stock = item.minimum_stock ?? 0;
+    form.minimum_stock = Math.max(1, item.minimum_stock ?? 1);
+    form.reference_stock = item.reference_stock ?? null;
+    form.low_stock_percent = item.low_stock_percent ?? null;
+    form.unit_cost = item.unit_cost != null ? Number(item.unit_cost) : null;
     form.status = item.status || "active";
     dialogVisible.value = true;
 }
@@ -403,9 +497,35 @@ async function saveItem() {
         return;
     }
 
+    if (!form.minimum_stock || form.minimum_stock < 1) {
+        notify.warn("Minimum stock must be at least 1.");
+        return;
+    }
+
+    if (!form.reference_stock || form.reference_stock < 1) {
+        notify.warn("Enter the reference (target) stock. It must be at least 1.");
+        return;
+    }
+
+    if (
+        form.low_stock_percent !== null &&
+        form.low_stock_percent !== undefined &&
+        (form.low_stock_percent < 1 || form.low_stock_percent > 100)
+    ) {
+        notify.warn("The low-stock percentage must be between 1 and 100.");
+        return;
+    }
+
+    if (!form.item_number?.trim()) {
+        notify.warn("The Stock No. cannot be blank.");
+        return;
+    }
+
     saving.value = true;
     try {
         await api.put(`/items/${editingId.value}`, {
+            item_number: form.item_number.trim(),
+            low_stock_percent: form.low_stock_percent ?? null,
             barcode: form.barcode || null,
             item_name: form.item_name,
             brand: form.brand || null,
@@ -413,14 +533,18 @@ async function saveItem() {
             category_id: form.category_id,
             unit_id: form.unit_id,
             location_id: form.location_id,
-            minimum_stock: form.minimum_stock ?? 0,
+            minimum_stock: form.minimum_stock,
+            reference_stock: form.reference_stock,
+            unit_cost: form.unit_cost ?? null,
             status: form.status || "active",
         });
         notify.success("Item updated successfully.");
         dialogVisible.value = false;
         await load();
     } catch (error) {
-        notify.error(error.response?.data?.message || "Unable to update item.");
+        const errors = error.response?.data?.errors;
+        const first = errors ? Object.values(errors)[0] : null;
+        notify.error((Array.isArray(first) ? first[0] : first) || error.response?.data?.message || "Unable to update item.");
     } finally {
         saving.value = false;
     }
@@ -464,7 +588,7 @@ async function loadLookups() {
 async function load() {
     loading.value = true;
     try {
-        const { data } = await api.get("/items/list");
+        const { data } = await api.get("/items/list", { params: { all: 1 } });
         items.value = data.data ?? data;
 
         const stockStatus = new URLSearchParams(window.location.search).get(

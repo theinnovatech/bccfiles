@@ -16,18 +16,24 @@ class DatabaseBackupService
     /**
      * @return array{filename: string, path: string, size: int, created_at: string}
      */
-    public function create(): array
+    public function create(?string $connection = null, string $directory = self::DIRECTORY): array
     {
-        Storage::disk('local')->makeDirectory(self::DIRECTORY);
+        $connection ??= (string) config('database.default');
+        Storage::disk('local')->makeDirectory($directory);
 
-        $filename = 'obims-'.now()->format('Y-m-d-His').'.sql';
-        $relativePath = self::DIRECTORY.'/'.$filename;
+        $stamp = now();
+        do {
+            $filename = 'obims-'.$stamp->format('Y-m-d-His').'.sql';
+            $relativePath = $directory.'/'.$filename;
+            $stamp = $stamp->copy()->addSecond();
+        } while (Storage::disk('local')->exists($relativePath));
+
         $absolutePath = Storage::disk('local')->path($relativePath);
 
-        $driver = DB::connection()->getDriverName();
+        $driver = DB::connection($connection)->getDriverName();
 
-        if ($driver === 'mysql') {
-            $this->exportMysql($absolutePath);
+        if (in_array($driver, ['mysql', 'mariadb'], true)) {
+            $this->exportMysql($absolutePath, $connection);
         } elseif ($driver === 'sqlite') {
             $this->exportSqlite($absolutePath);
         } else {
@@ -38,7 +44,9 @@ class DatabaseBackupService
             throw new RuntimeException('Backup file was not created or is empty.');
         }
 
-        return $this->formatBackup($filename);
+        return $directory === self::DIRECTORY
+            ? $this->formatBackup($filename)
+            : ['filename' => $filename, 'path' => $relativePath, 'size' => (int) filesize($absolutePath), 'created_at' => date('c')];
     }
 
     /**
@@ -81,18 +89,18 @@ class DatabaseBackupService
         Storage::disk('local')->delete($relativePath);
     }
 
-    private function exportMysql(string $absolutePath): void
+    private function exportMysql(string $absolutePath, string $connectionName): void
     {
-        if ($this->tryMysqldump($absolutePath)) {
+        if ($this->tryMysqldump($absolutePath, $connectionName)) {
             return;
         }
 
-        $this->exportMysqlWithPhp($absolutePath);
+        $this->exportMysqlWithPhp($absolutePath, $connectionName);
     }
 
-    private function tryMysqldump(string $absolutePath): bool
+    private function tryMysqldump(string $absolutePath, string $connectionName): bool
     {
-        $connection = config('database.connections.mysql');
+        $connection = config("database.connections.{$connectionName}");
         $binary = $this->findMysqldumpBinary();
 
         if (! $binary) {
@@ -163,10 +171,11 @@ class DatabaseBackupService
         return null;
     }
 
-    private function exportMysqlWithPhp(string $absolutePath): void
+    private function exportMysqlWithPhp(string $absolutePath, string $connectionName): void
     {
-        $pdo = DB::connection()->getPdo();
-        $database = (string) config('database.connections.mysql.database');
+        $db = DB::connection($connectionName);
+        $pdo = $db->getPdo();
+        $database = (string) $db->getDatabaseName();
         $handle = fopen($absolutePath, 'wb');
 
         if ($handle === false) {
@@ -180,13 +189,13 @@ class DatabaseBackupService
             fwrite($handle, "SET FOREIGN_KEY_CHECKS=0;\n");
             fwrite($handle, "SET SQL_MODE='NO_AUTO_VALUE_ON_ZERO';\n\n");
 
-            $tables = collect(DB::select('SHOW FULL TABLES WHERE Table_type = \'BASE TABLE\''))
+            $tables = collect($db->select('SHOW FULL TABLES WHERE Table_type = \'BASE TABLE\''))
                 ->map(fn ($row) => array_values((array) $row)[0])
                 ->filter()
                 ->values();
 
             foreach ($tables as $table) {
-                $create = DB::selectOne('SHOW CREATE TABLE `'.str_replace('`', '``', $table).'`');
+                $create = $db->selectOne('SHOW CREATE TABLE `'.str_replace('`', '``', $table).'`');
                 $createSql = array_values((array) $create)[1] ?? null;
 
                 if (! is_string($createSql) || $createSql === '') {
@@ -196,7 +205,7 @@ class DatabaseBackupService
                 fwrite($handle, "DROP TABLE IF EXISTS `{$table}`;\n");
                 fwrite($handle, $createSql.";\n\n");
 
-                $rows = DB::table($table)->orderByRaw('1')->get();
+                $rows = $db->table($table)->orderByRaw('1')->get();
 
                 if ($rows->isEmpty()) {
                     fwrite($handle, "\n");

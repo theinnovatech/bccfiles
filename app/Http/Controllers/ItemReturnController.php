@@ -7,10 +7,13 @@ use App\Http\Controllers\Controller;
 use App\Models\Equipment;
 use App\Models\EquipmentSerialNumber;
 use App\Models\IssuanceDetail;
-use App\Models\Item;
 use App\Models\ItemReturn;
 use App\Services\ActivityLogService;
-use App\Support\ReferenceNumberGenerator;
+use App\Services\EquipmentCaseService;
+use App\Services\EquipmentStockService;
+use App\Models\EquipmentCase;
+use App\Support\EquipmentStatus;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -20,7 +23,11 @@ use InvalidArgumentException;
 
 class ItemReturnController extends Controller
 {
-    public function __construct(private readonly ActivityLogService $activityLogService) {}
+    public function __construct(
+        private readonly ActivityLogService $activityLogService,
+        private readonly EquipmentStockService $equipmentStock,
+        private readonly EquipmentCaseService $caseService,
+    ) {}
 
     public function index(): JsonResponse
     {
@@ -56,9 +63,24 @@ class ItemReturnController extends Controller
             'serial_number_ids' => ['nullable', 'array'],
             'serial_number_ids.*' => ['integer', 'exists:equipment_serial_numbers,id'],
             'reason' => ['nullable', 'string'],
-            'condition' => ['required', Rule::enum(ReturnCondition::class)],
-            'date_returned' => ['nullable', 'date'],
+            'condition' => ['required_without:next_status', 'nullable', Rule::enum(ReturnCondition::class)],
+            'next_status' => ['nullable', Rule::in(['available', 'for_repair', 'unserviceable'])],
+            'idempotency_key' => ['nullable', 'string', 'max:64'],
+            'date_returned' => ['required', 'date', 'before_or_equal:today'],
+        ], [
+            'date_returned.required' => 'Returned Date is required before the return can be finalized.',
+            'date_returned.before_or_equal' => 'Returned Date cannot be in the future.',
         ]);
+
+        // Next status (as in the desktop app): Available = returned in good condition and back in
+        // stock; For Repair = opens a repair case; Unserviceable = waits for assessment.
+        $nextStatus = $data['next_status'] ?? (($data['condition'] ?? 'good') === 'good' ? 'available' : 'unserviceable');
+        $data['condition'] = $nextStatus === 'available' ? ReturnCondition::Good->value : ReturnCondition::Damaged->value;
+        $idempotencyKey = filled($data['idempotency_key'] ?? null) ? trim($data['idempotency_key']) : null;
+
+        if ($idempotencyKey && ($existing = ItemReturn::query()->where('idempotency_key', $idempotencyKey)->first())) {
+            return $this->duplicateReturn($existing);
+        }
 
         $borrowerEmployeeId = $data['borrower_employee_id'] ?? null;
         $borrowerName = trim((string) ($data['borrower_name'] ?? ''));
@@ -84,25 +106,37 @@ class ItemReturnController extends Controller
         }
 
         try {
-            $return = DB::transaction(function () use ($data, $request, $borrowerEmployeeId, $borrowerName, $equipmentId, $customName) {
+            $return = DB::transaction(function () use ($data, $request, $borrowerEmployeeId, $borrowerName, $equipmentId, $customName, $nextStatus, $idempotencyKey) {
                 if ($data['quantity'] < 1) {
                     throw new InvalidArgumentException('Return quantity must be at least 1.');
                 }
 
                 $condition = ReturnCondition::from($data['condition']);
-                $dateReturned = ! empty($data['date_returned'])
-                    ? Carbon::parse($data['date_returned'])
-                    : now();
+                $dateReturned = Carbon::parse($data['date_returned']);
                 $restocked = false;
                 $detail = null;
                 $reachedLifespan = false;
                 $equipment = null;
 
                 if (! empty($data['issuance_detail_id'])) {
+                    // Locked so two simultaneous returns of the same line cannot both pass the
+                    // outstanding-quantity check.
                     $detail = IssuanceDetail::query()
-                        ->with('equipment')
+                        ->with(['equipment', 'issuance'])
+                        ->lockForUpdate()
                         ->findOrFail($data['issuance_detail_id']);
                     $equipmentId = $detail->equipment_id;
+                }
+
+                // Revision 9: a return cannot be dated before the equipment was issued.
+                $issuedOn = $detail?->issuance?->issued_date
+                    ?? (filled($data['custom_date_issued'] ?? null) ? Carbon::parse($data['custom_date_issued']) : null);
+                if ($issuedOn && $dateReturned->copy()->startOfDay()->lt($issuedOn->copy()->startOfDay())) {
+                    throw new InvalidArgumentException(sprintf(
+                        'Returned Date (%s) cannot be earlier than the issuance date (%s).',
+                        $dateReturned->toDateString(),
+                        $issuedOn->toDateString()
+                    ));
                 }
 
                 if ($equipmentId) {
@@ -137,6 +171,7 @@ class ItemReturnController extends Controller
 
                 $return = ItemReturn::create([
                     'reference_number' => $referenceNumber !== '' ? $referenceNumber : null,
+                    'idempotency_key' => $idempotencyKey,
                     'issuance_id' => $detail?->issuance_id,
                     'issuance_detail_id' => $detail?->id,
                     'equipment_id' => $equipmentId,
@@ -160,17 +195,28 @@ class ItemReturnController extends Controller
                     'date_returned' => $dateReturned,
                 ]);
 
-                $returnedListing = null;
+                // Good returns go back into the equipment record the unit was issued from: same
+                // record, same numbers and serials. No new record is created.
                 if ($equipmentId && $condition === ReturnCondition::Good && ! $reachedLifespan) {
-                    $returnedListing = $this->returnToSupplyMaster($equipment, $return, $detail, $data, $dateReturned);
+                    $this->equipmentStock->restoreToRecord($equipment, (int) $return->quantity);
                     $return->update(['restocked' => true]);
                     $restocked = true;
                 }
 
-                $this->settleReturnedSerials($detail, $return, $data['serial_number_ids'] ?? [], $returnedListing);
+                $units = $this->settleReturnedSerials($detail, $return, $data['serial_number_ids'] ?? [], $restocked);
+
+                if ($nextStatus === 'for_repair' && $equipmentId) {
+                    $this->openRepairCases($request, $return, $units, $data);
+                }
 
                 return $return->refresh();
             });
+        } catch (UniqueConstraintViolationException $e) {
+            if ($idempotencyKey && ($existing = ItemReturn::query()->where('idempotency_key', $idempotencyKey)->first())) {
+                return $this->duplicateReturn($existing);
+            }
+
+            throw $e;
         } catch (InvalidArgumentException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
@@ -187,7 +233,11 @@ class ItemReturnController extends Controller
         $return->equipment?->refresh();
 
         $equipmentLabel = $return->equipment?->name ?? $return->custom_equipment_name ?? 'custom equipment';
-        $restockNote = $return->restocked ? ' and added to Supply Master as returned equipment' : '';
+        $restockNote = match (true) {
+            (bool) $return->restocked => ' and returned to Available on its original equipment record',
+            $nextStatus === 'for_repair' => ' and sent For Repair',
+            default => ' as Unserviceable',
+        };
         $returnedStock = Equipment::query()->where('source_return_id', $return->id)->first();
         $asOf = $return->date_returned;
         $remainingLabel = $returnedStock?->formattedRemainingLifeSpan($asOf)
@@ -209,61 +259,22 @@ class ItemReturnController extends Controller
         return response()->json($return, 201);
     }
 
-    private function returnToSupplyMaster(
-        Equipment $source,
-        ItemReturn $return,
-        ?IssuanceDetail $detail,
-        array $data,
-        Carbon $dateReturned
-    ): Equipment {
-        $acquired = $detail?->date_acquired ?: $source->date_acquired;
-        $expires = $source->expiryFromAcquired($acquired);
-        $remaining = $source->remainingLifeSpanYears($dateReturned, $acquired) ?? $source->life_span_years ?? 0;
-
-        if ($source->isReturnedStock()) {
-            $source->reduceRemainingLifeSpan($dateReturned);
-            $source->increment('quantity', $return->quantity);
-
-            return $source->refresh();
-        }
-
-        $preferredProperty = trim((string) ($data['property_number'] ?? ''))
-            ?: trim((string) ($detail?->property_number ?? ''))
-            ?: (string) $source->property_number;
-        $preferredInventory = trim((string) ($data['inventory_number'] ?? ''))
-            ?: trim((string) ($detail?->inventory_number ?? ''))
-            ?: (string) $source->inventory_number;
-
-        return Equipment::create([
-            'name' => $source->name,
-            'property_number' => $this->uniquePropertyNumber($preferredProperty, $source->id),
-            'inventory_number' => $this->uniqueInventoryNumber($preferredInventory, $source->id),
-            'barcode' => null,
-            'equipment_category_id' => $source->equipment_category_id,
-            'description' => $source->description,
-            'type' => $source->type,
-            'quantity' => $return->quantity,
-            'life_span_years' => $remaining,
-            'specs' => $source->specs,
-            'date_acquired' => $acquired,
-            'lifespan_expires_on' => $expires?->toDateString(),
-            'source_return_id' => $return->id,
-        ]);
-    }
-
+    /**
+     * @return \Illuminate\Support\Collection<int, EquipmentSerialNumber>
+     */
     private function settleReturnedSerials(
         ?IssuanceDetail $detail,
         ItemReturn $return,
         array $serialIds,
-        ?Equipment $returnedListing
-    ): void {
+        bool $restocked
+    ) {
         if (! $detail) {
-            return;
+            return collect();
         }
 
         $issued = $detail->serialNumbers()->issued()->lockForUpdate()->get();
         if ($issued->isEmpty()) {
-            return;
+            return collect();
         }
 
         $ids = collect($serialIds)
@@ -286,11 +297,11 @@ class ItemReturnController extends Controller
         }
 
         foreach ($selected as $serial) {
+            // The unit stays on its own equipment record (equipment_id unchanged).
             $serial->update([
-                'equipment_id' => $returnedListing?->id ?? $serial->equipment_id,
                 'issuance_detail_id' => null,
                 'item_return_id' => $return->id,
-                'status' => $returnedListing
+                'status' => $restocked
                     ? EquipmentSerialNumber::STATUS_IN_STOCK
                     : EquipmentSerialNumber::STATUS_UNAVAILABLE,
             ]);
@@ -305,39 +316,45 @@ class ItemReturnController extends Controller
                 ->values()
                 ->all(),
         ]);
+
+        return $selected->values();
     }
 
-    private function uniquePropertyNumber(string $preferred, int $sourceId): string
+    /**
+     * "Return for repair": open a For Repair case for every returned unit, in the same
+     * transaction as the return.
+     */
+    private function openRepairCases(Request $request, ItemReturn $return, $units, array $data): void
     {
-        $number = trim($preferred);
-        if ($number !== '') {
-            $owner = Equipment::query()->where('property_number', $number)->first();
-            if (! $owner) {
-                return $number;
-            }
-            if ((int) $owner->id !== $sourceId) {
-                throw new InvalidArgumentException("Property number {$number} is already used by another equipment.");
-            }
+        $base = [
+            'origin' => EquipmentCase::ORIGIN_RETURN,
+            'item_return_id' => $return->id,
+            'status' => EquipmentStatus::FOR_REPAIR,
+            'reason' => trim((string) ($data['reason'] ?? '')) ?: 'Returned for repair.',
+            'event_date' => Carbon::parse($return->date_returned)->toDateString(),
+            'reference' => $return->reference_number ?: 'Return #'.$return->id,
+        ];
+
+        if ($units->isEmpty()) {
+            $this->caseService->open($request->user(), $base + ['quantity' => (int) $return->quantity]);
+
+            return;
         }
 
-        return ReferenceNumberGenerator::forEquipment();
+        foreach ($units as $unit) {
+            $this->caseService->open($request->user(), $base + ['serial_number_id' => $unit->id, 'quantity' => 1]);
+        }
     }
 
-    private function uniqueInventoryNumber(string $preferred, int $sourceId): string
+    private function duplicateReturn(ItemReturn $return): JsonResponse
     {
-        $number = trim($preferred);
-        if ($number !== '') {
-            $itemTaken = Item::query()->where('inventory_number', $number)->exists();
-            $owner = Equipment::query()->where('inventory_number', $number)->first();
-            if (! $itemTaken && ! $owner) {
-                return $number;
-            }
-            if ($itemTaken || ($owner && (int) $owner->id !== $sourceId)) {
-                throw new InvalidArgumentException("Inventory number {$number} is already in use.");
-            }
-        }
+        $return->load(['equipment.category', 'department', 'borrower', 'returner', 'issuanceDetail', 'returnedSerialNumbers']);
+        $return->setAttribute('serial_numbers', $this->visibleReturnSerials($return));
 
-        return ReferenceNumberGenerator::forInventory();
+        return response()->json(array_merge($return->toArray(), [
+            'duplicate' => true,
+            'message' => 'This return was already recorded. Nothing was processed again.',
+        ]), 200);
     }
 
     private function equipmentReturnRows()

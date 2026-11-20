@@ -1,0 +1,1 @@
+function r(t="iss"){return window.crypto?.randomUUID?`${t}-${window.crypto.randomUUID()}`:`${t}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,12)}`}function a(){const t=new Date,n=String(t.getMonth()+1).padStart(2,"0"),o=String(t.getDate()).padStart(2,"0");return`${t.getFullYear()}-${n}-${o}`}export{r as n,a as t};

@@ -113,9 +113,9 @@
                         >
                             <div>
                                 <p class="text-sm font-medium text-[#00164d]">{{ movement.item?.item_name }}</p>
-                                <p class="text-xs text-[#4a6490]">{{ movement.transaction_type }} · {{ movement.quantity }} units</p>
+                                <p class="text-xs text-[#4a6490]">{{ movementLabel(movement.transaction_type) }} · {{ movement.quantity }} units</p>
                             </div>
-                            <UiBadge variant="outline">{{ movement.transaction_type }}</UiBadge>
+                            <UiBadge variant="outline">{{ movementLabel(movement.transaction_type) }}</UiBadge>
                         </li>
                         <li v-if="loaded && !recentMovements.length" class="py-8 text-center text-sm text-[#4a6490]">No recent movements.</li>
                     </ul>
@@ -157,7 +157,11 @@
                         <div class="flex flex-wrap items-center justify-between gap-3">
                             <div>
                                 <h3 class="shadcn-card-title">Low Stock Alert</h3>
-                                <p class="shadcn-card-description">Items at or below minimum stock level.</p>
+                                <p class="shadcn-card-description">Items at or below their low-stock threshold (reference stock × percentage), or out of stock.</p>
+                                <p v-if="summary.reference_stock_missing" class="mt-1 text-xs font-medium text-[#ce1126]">
+                                    {{ summary.reference_stock_missing }} item(s) need a reference stock.
+                                    <a href="/items?stockStatus=reference_missing" class="underline">Configure</a>
+                                </p>
                             </div>
                             <UiButton variant="outline" size="sm" @click="goTo('/items?stockStatus=low_stock')">
                                 View All
@@ -172,7 +176,15 @@
                         >
                             <div>
                                 <p class="text-sm font-medium text-[#00164d]">{{ item.item_name }}</p>
-                                <p class="text-xs text-[#4a6490]">Min: {{ item.minimum_stock }}</p>
+                                <p class="text-xs text-[#4a6490]">
+                                    {{ item.stock_status_label }} · {{ fmtQty(item.current_stock) }} remaining
+                                    <template v-if="!item.reference_stock_missing">
+                                        · Reference {{ fmtQty(item.reference_stock) }}
+                                        · {{ fmtQty(item.effective_low_stock_percent) }}%
+                                        · Threshold {{ fmtQty(item.low_stock_threshold) }}
+                                    </template>
+                                    <span v-else class="text-[#ce1126]">(reference not set; minimum {{ item.minimum_stock }})</span>
+                                </p>
                             </div>
                             <UiBadge variant="destructive">{{ item.current_stock }} left</UiBadge>
                         </li>
@@ -191,6 +203,8 @@ import UiBadge from '../components/ui/UiBadge.vue';
 import UiButton from '../components/ui/UiButton.vue';
 import AnimatedCounter from '../components/ui/AnimatedCounter.vue';
 import api from '../services/api';
+import { formatQty as fmtQty } from '../utils/stockThreshold';
+import { movementLabel } from '../utils/terminology';
 function goTo(url) {
     window.location.href = url;
 }
@@ -249,7 +263,7 @@ const chartAnimations = {
 const statCards = computed(() => [
     { label: 'Total Items', value: summary.value.total_items ?? 0, badge: 'Items', hint: 'Registered in inventory' },
     { label: 'Available Stocks', value: summary.value.available_stocks ?? 0, badge: 'Units', hint: 'Total units on hand' },
-    { label: 'Low Stock', value: summary.value.low_stock_items ?? 0, badge: 'Alert', hint: 'At or below minimum' },
+    { label: 'Low Stock', value: summary.value.low_stock_items ?? 0, badge: 'Alert', hint: 'At or below 50% of reference stock' },
     { label: 'Out of Stock', value: summary.value.out_of_stock ?? 0, badge: 'Critical', hint: 'Zero quantity items' },
     { label: "Today's Issuance", value: summary.value.todays_issuance ?? 0, badge: 'Out', hint: 'Issued today' },
     { label: "Today's Received", value: summary.value.todays_received ?? 0, badge: 'In', hint: 'Received today' },

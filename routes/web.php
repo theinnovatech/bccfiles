@@ -1,13 +1,19 @@
 <?php
 
 use App\Http\Controllers\ActivityLogController;
+use App\Http\Controllers\AdminSetupController;
+use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BackupController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeletedDataController;
+use App\Http\Controllers\DeliveryInspectionController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\EmployeeDirectoryController;
+use App\Http\Controllers\EquipmentDashboardController;
+use App\Http\Controllers\FormController;
 use App\Http\Controllers\EquipmentCategoryController;
 use App\Http\Controllers\EquipmentController;
 use App\Http\Controllers\IssuanceController;
@@ -20,6 +26,7 @@ use App\Http\Controllers\PersonLookupController;
 use App\Http\Controllers\GlobalSearchController;
 use App\Http\Controllers\PredictiveInventoryController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\ScanIssueController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\StockController;
 use App\Http\Controllers\StorageLocationController;
@@ -34,7 +41,17 @@ Route::get('/about', fn (PageController $pages) => $pages->show('about'));
 
 Route::middleware('guest')->group(function () {
     Route::post('/login', [AuthController::class, 'login']);
+
+    // Forgot password: emailed 6-digit code or one-time link.
+    Route::get('/reset-password', [PasswordResetController::class, 'show']);
+    Route::post('/forgot-password', [PasswordResetController::class, 'sendCode'])->middleware('throttle:5,1');
+    Route::post('/forgot-password/verify', [PasswordResetController::class, 'checkCode'])->middleware('throttle:10,1');
+    Route::post('/reset-password', [PasswordResetController::class, 'reset'])->middleware('throttle:10,1');
 });
+
+// First-time setup: only while no administrator account exists (see RedirectToAdminSetup).
+Route::get('/setup', [AdminSetupController::class, 'show']);
+Route::post('/setup', [AdminSetupController::class, 'store'])->middleware('throttle:10,1');
 
 Route::get('/', function (PageController $pages) {
     if (Auth::check()) {
@@ -70,7 +87,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/locations/list', [StorageLocationController::class, 'index']);
 
     // Shared item lookups for inventory / transaction pages employees may be granted.
-    Route::middleware('staff_or_page:items,stock.operations,stock.registration,issuance,returns,inventory.predictions,reports,person-lookup,catalog-details')->group(function () {
+    Route::middleware('staff_or_page:items,stock.operations,stock.registration,issuance,returns,inventory.predictions,reports,person-lookup,catalog-details,scan-issue,delivery-inspection,equipment-dashboard')->group(function () {
         Route::get('/items/barcode/{barcode}', [ItemController::class, 'findByBarcode']);
         Route::get('/items/list', [ItemController::class, 'index']);
         Route::get('/items/{item}', [ItemController::class, 'show'])->whereNumber('item');
@@ -84,7 +101,90 @@ Route::middleware('auth')->group(function () {
 
     Route::middleware('staff_or_page:reports')->group(function () {
         Route::get('/reports/{type}/pdf', [ReportController::class, 'pdf']);
+        Route::get('/reports/{type}/xlsx', [ReportController::class, 'xlsx']);
         Route::get('/reports/{type}', [ReportController::class, 'show']);
+    });
+
+    // Revision 6 & 10: Local RIV / ICS per issuance, IIRUP for unserviceable property.
+    Route::middleware('staff_or_page:issuance,reports,person-lookup,scan-issue')->group(function () {
+        Route::get('/forms/{form}/{issuance}', [FormController::class, 'status'])
+            ->whereIn('form', ['riv', 'ics'])
+            ->whereNumber('issuance');
+        Route::get('/forms/{form}/{issuance}/{format}', [FormController::class, 'issuanceForm'])
+            ->whereIn('form', ['riv', 'ics'])
+            ->whereIn('format', ['pdf', 'xlsx'])
+            ->whereNumber('issuance');
+    });
+
+    Route::post('/forms/{form}/{issuance}/issue', [FormController::class, 'issue'])
+        ->whereIn('form', ['riv', 'ics'])
+        ->whereNumber('issuance')
+        ->middleware('staff_or_page:issuance,scan-issue');
+
+    Route::get('/forms/iirup/{format}', [FormController::class, 'iirup'])
+        ->whereIn('format', ['pdf', 'xlsx'])
+        ->middleware('staff_or_page:reports,equipment-dashboard');
+    Route::get('/forms/iirup-documents', [FormController::class, 'iirupDocuments'])
+        ->middleware('staff_or_page:reports,equipment-dashboard');
+    Route::get('/forms/iirup-documents/{document}/{format}', [FormController::class, 'iirupDocument'])
+        ->whereNumber('document')
+        ->whereIn('format', ['pdf', 'xlsx'])
+        ->middleware('staff_or_page:reports,equipment-dashboard');
+    Route::post('/forms/iirup/issue', [FormController::class, 'issueIirup'])
+        ->middleware('role:admin,supply_officer');
+
+    // Feedback item 5: the default low-stock percentage used for items without their own.
+    Route::get('/stock-rule', fn () => response()->json([
+        'default_percent' => \App\Support\StockStatus::defaultPercent(),
+    ]));
+
+    // Feedback item 4: organization-defined document numbering.
+    Route::get('/document-numbering', [\App\Http\Controllers\DocumentNumberController::class, 'index']);
+    Route::middleware('role:admin')->group(function () {
+        Route::post('/document-numbering/preview', [\App\Http\Controllers\DocumentNumberController::class, 'preview']);
+        Route::put('/document-numbering/{type}', [\App\Http\Controllers\DocumentNumberController::class, 'update']);
+    });
+    Route::put('/equipments/{equipment}/units/{unit}', [EquipmentController::class, 'updateUnit'])
+        ->whereNumber('equipment')
+        ->whereNumber('unit')
+        ->middleware('role:admin,supply_officer');
+
+    // Revision 5: unit employee directory.
+    Route::get('/employee-directory/list', [EmployeeDirectoryController::class, 'index'])
+        ->middleware('staff_or_page:employee-directory,issuance,scan-issue,returns');
+
+    Route::middleware('staff_or_page:employee-directory')->group(function () {
+        Route::post('/employee-directory', [EmployeeDirectoryController::class, 'store']);
+        Route::put('/employee-directory/{employee}', [EmployeeDirectoryController::class, 'update'])->whereNumber('employee');
+        Route::put('/employee-directory/{employee}/active', [EmployeeDirectoryController::class, 'setActive'])->whereNumber('employee');
+    });
+
+    // Revision 1 & 7: equipment dashboard + repair / warranty / disposal workflow.
+    Route::middleware('staff_or_page:equipment-dashboard')->group(function () {
+        Route::get('/equipment-status/summary', [EquipmentDashboardController::class, 'summary']);
+        Route::get('/equipment-status/list', [EquipmentDashboardController::class, 'list']);
+        Route::get('/equipment-status/cases/{case}', [EquipmentDashboardController::class, 'showCase'])->whereNumber('case');
+    });
+
+    Route::middleware('role:admin,supply_officer')->group(function () {
+        Route::post('/equipment-status/cases', [EquipmentDashboardController::class, 'openCase']);
+        Route::post('/equipment-status/cases/{case}/{action}', [EquipmentDashboardController::class, 'transition'])
+            ->whereNumber('case')
+            ->whereIn('action', ['warranty-decision', 'repair', 'serviceability', 'return-to-available', 'move-to-disposal', 'back-to-repair', 'disposal-assessment', 'disposal-approval', 'dispose', 'iirup-values']);
+        Route::put('/equipments/{equipment}/warranty', [EquipmentDashboardController::class, 'updateWarranty'])->whereNumber('equipment');
+    });
+
+    // Revision 2: scan to issue (confirmation posts to /issuances).
+    Route::get('/scan-issue/lookup', [ScanIssueController::class, 'lookup'])->middleware('staff_or_page:scan-issue');
+
+    // Revision 8: delivery inspection.
+    Route::middleware('staff_or_page:delivery-inspection')->group(function () {
+        Route::get('/delivery-inspections/list', [DeliveryInspectionController::class, 'index']);
+        Route::get('/delivery-inspections/{inspection}', [DeliveryInspectionController::class, 'show'])->whereNumber('inspection');
+        Route::post('/delivery-inspections', [DeliveryInspectionController::class, 'store']);
+        Route::put('/delivery-inspections/{inspection}', [DeliveryInspectionController::class, 'update'])->whereNumber('inspection');
+        Route::post('/delivery-inspections/{inspection}/post', [DeliveryInspectionController::class, 'post'])->whereNumber('inspection');
+        Route::delete('/delivery-inspections/{inspection}', [DeliveryInspectionController::class, 'destroy'])->whereNumber('inspection');
     });
 
     // Master-data mutations stay with admin / supply officer (Settings page).
@@ -117,7 +217,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/equipments/receive', [EquipmentController::class, 'receive']);
     });
 
-    Route::middleware('staff_or_page:items,stock.operations,stock.registration,issuance,returns,person-lookup,catalog-details')->group(function () {
+    Route::middleware('staff_or_page:items,stock.operations,stock.registration,issuance,returns,person-lookup,catalog-details,scan-issue,delivery-inspection,equipment-dashboard')->group(function () {
         Route::get('/equipments/barcode/{barcode}', [EquipmentController::class, 'findByBarcode']);
         Route::get('/equipments/{equipment}/history', [EquipmentController::class, 'history'])->whereNumber('equipment');
         Route::get('/equipments/{equipment}', [EquipmentController::class, 'show'])->whereNumber('equipment');
@@ -137,13 +237,13 @@ Route::middleware('auth')->group(function () {
         ->middleware('role:admin,supply_officer')
         ->whereNumber('item');
 
-    Route::middleware('staff_or_page:issuance,person-lookup,reports')->group(function () {
+    Route::middleware('staff_or_page:issuance,person-lookup,reports,scan-issue')->group(function () {
         Route::get('/issuances/list', [IssuanceController::class, 'index']);
         Route::get('/issuances/outstanding-equipments', [IssuanceController::class, 'outstandingEquipments']);
         Route::get('/issuances/{issuance}', [IssuanceController::class, 'show'])->whereNumber('issuance');
     });
 
-    Route::middleware('staff_or_page:issuance')->group(function () {
+    Route::middleware('staff_or_page:issuance,scan-issue')->group(function () {
         Route::post('/issuances', [IssuanceController::class, 'store']);
     });
 
@@ -205,6 +305,9 @@ Route::middleware('auth')->group(function () {
         Route::post('/backups', [BackupController::class, 'store']);
         Route::get('/backups/{filename}/download', [BackupController::class, 'download'])->where('filename', 'obims-[\d\-]+\.sql');
         Route::delete('/backups/{filename}', [BackupController::class, 'destroy'])->where('filename', 'obims-[\d\-]+\.sql');
+        Route::get('/backups/restore-log', [BackupController::class, 'restoreLog']);
+        Route::get('/backups/{filename}/inspect', [BackupController::class, 'inspect'])->where('filename', 'obims-[\d\-]+\.sql');
+        Route::post('/backups/{filename}/restore', [BackupController::class, 'restore'])->where('filename', 'obims-[\d\-]+\.sql');
     });
 
     Route::get('/stock/operations', fn (PageController $pages) => $pages->show('stock.operations'))->middleware('staff_or_page:stock.operations');
@@ -215,6 +318,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/stock/adjust', fn () => redirect('/stock/operations?tab=adjust'))->middleware('staff_or_page:stock.operations');
     Route::get('/items/register', fn () => redirect('/stock/registration#register-item'))->middleware('staff_or_page:stock.registration');
     Route::get('/issuance', fn (PageController $pages) => $pages->show('issuance'))->middleware('staff_or_page:issuance');
+    Route::get('/scan-issue', fn (PageController $pages) => $pages->show('scan-issue'))->middleware('staff_or_page:scan-issue');
+    Route::get('/equipment-dashboard', fn (PageController $pages) => $pages->show('equipment-dashboard'))->middleware('staff_or_page:equipment-dashboard');
+    Route::get('/delivery-inspection', fn (PageController $pages) => $pages->show('delivery-inspection'))->middleware('staff_or_page:delivery-inspection');
+    Route::get('/employee-directory', fn (PageController $pages) => $pages->show('employee-directory'))->middleware('staff_or_page:employee-directory');
     Route::get('/returns', fn (PageController $pages) => $pages->show('returns'))->middleware('staff_or_page:returns');
     Route::get('/person-lookup', fn (PageController $pages) => $pages->show('person-lookup'))->middleware('staff_or_page:person-lookup');
     Route::get('/catalog-details', fn (PageController $pages) => $pages->show('catalog-details'))->middleware('staff_or_page:catalog-details');

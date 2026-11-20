@@ -9,14 +9,17 @@ use App\Models\IssuanceDetail;
 use App\Models\Item;
 use App\Models\ItemReturn;
 use App\Models\StockMovement;
+use App\Support\StockStatus;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class ReportService
 {
-    public function inventory(): Collection
+    public function inventory(?string $stockStatus = null): Collection
     {
         return Item::query()
             ->with(['category', 'unit', 'location'])
+            ->when($stockStatus, fn ($query) => $query->withStockStatus($stockStatus))
             ->orderBy('item_name')
             ->get();
     }
@@ -29,9 +32,13 @@ class ReportService
             ->get();
     }
 
-    public function stockMovements(?string $from = null, ?string $to = null): Collection
+    public function stockMovements(?string $from = null, ?string $to = null, ?string $transactionType = null): Collection
     {
         $query = StockMovement::query()->with(['item', 'performer'])->orderByDesc('created_at');
+
+        if ($transactionType) {
+            $query->where('transaction_type', $transactionType);
+        }
 
         if ($from) {
             $query->whereDate('created_at', '>=', $from);
@@ -158,8 +165,7 @@ class ReportService
             foreach ($issuanceDetails as $detail) {
                 $balance -= $detail->quantity;
                 $department = $detail->issuance?->departmentDisplayName() ?? '';
-                $receiver = $detail->issuance?->receiver?->name
-                    ?? $detail->issuance?->received_by_name
+                $receiver = $detail->issuance?->recipientDisplayName()
                     ?? '';
                 $officeOfficer = trim(implode(' / ', array_filter([$department, $receiver])));
 
@@ -215,7 +221,7 @@ class ReportService
         return '—';
     }
 
-    public function issuances(?int $departmentId = null): Collection
+    public function issuances(?int $departmentId = null, ?string $from = null, ?string $to = null): Collection
     {
         $query = Issuance::query()->with([
             'department',
@@ -228,44 +234,77 @@ class ReportService
         if ($departmentId) {
             $query->where(function ($q) use ($departmentId) {
                 $q->where('department_id', $departmentId)
-                    ->orWhereHas('receiver', fn ($receiver) => $receiver->where('department_id', $departmentId));
+                    ->orWhere(fn ($legacy) => $legacy->whereNull('department_id')
+                        ->whereHas('receiver', fn ($receiver) => $receiver->where('department_id', $departmentId)));
             });
+        }
+
+        if ($from) {
+            $query->whereDate('issued_date', '>=', $from);
+        }
+
+        if ($to) {
+            $query->whereDate('issued_date', '<=', $to);
         }
 
         return $query->orderByDesc('issued_date')->get();
     }
 
-    public function returns(): Collection
+    public function returns(?string $from = null, ?string $to = null, ?string $condition = null, ?int $departmentId = null): Collection
     {
         return ItemReturn::query()
-            ->with(['equipment', 'department', 'borrower', 'returner'])
+            ->with(['equipment', 'department', 'borrower', 'returner', 'issuanceDetail'])
             ->whereNotNull('equipment_id')
+            ->when($from, fn ($query) => $query->whereDate('date_returned', '>=', $from))
+            ->when($to, fn ($query) => $query->whereDate('date_returned', '<=', $to))
+            ->when($condition, fn ($query) => $query->where('condition', $condition))
+            ->when($departmentId, fn ($query) => $query->where('department_id', $departmentId))
             ->orderByDesc('date_returned')
             ->get();
     }
 
-    public function lowStock(): Collection
+    public function lowStock(?string $stockStatus = null): Collection
     {
+        $status = in_array($stockStatus, [StockStatus::LOW, StockStatus::OUT], true)
+            ? $stockStatus
+            : 'alerting';
+
         return Item::query()
             ->with(['category', 'unit', 'location'])
-            ->whereColumn('current_stock', '<=', 'minimum_stock')
+            ->withStockStatus($status)
             ->orderBy('current_stock')
             ->get();
     }
 
-    public function monthlyConsumption(): Collection
+    /**
+     * Supplies issued per department for a year.
+     *
+     * Sums the supply lines of each issuance once, attributed to the unit recorded on that
+     * issuance (snapshot name first, then the linked department). The previous version joined
+     * every OUT stock movement to every issuance line of the same item, so each movement was
+     * counted once per issuance of that item and credited to every department that ever
+     * received it; legacy issuances with only a typed department name were dropped.
+     */
+    public function monthlyConsumption(?int $year = null): Collection
     {
-        return StockMovement::query()
-            ->selectRaw('departments.name as department, SUM(stock_movements.quantity) as total')
-            ->join('issuance_details', function ($join) {
-                $join->on('issuance_details.item_id', '=', 'stock_movements.item_id');
+        $lines = IssuanceDetail::query()
+            ->join('issuances', function ($join) {
+                $join->on('issuances.id', '=', 'issuance_details.issuance_id')
+                    ->whereNull('issuances.deleted_at');
             })
-            ->join('issuances', 'issuances.id', '=', 'issuance_details.issuance_id')
-            ->join('departments', 'departments.id', '=', 'issuances.department_id')
-            ->where('stock_movements.transaction_type', TransactionType::Out->value)
-            ->whereYear('stock_movements.created_at', now()->year)
-            ->groupBy('departments.id', 'departments.name')
+            ->leftJoin('departments', 'departments.id', '=', 'issuances.department_id')
+            ->whereNotNull('issuance_details.item_id')
+            ->whereYear('issuances.issued_date', $year ?: now()->year)
+            ->selectRaw("COALESCE(NULLIF(issuances.department_name, ''), departments.name, 'Unspecified') as department")
+            ->addSelect('issuance_details.quantity');
+
+        // Grouped in an outer query so strict ONLY_FULL_GROUP_BY (MySQL and MariaDB) accepts it.
+        return DB::query()
+            ->fromSub($lines->toBase(), 'consumption_lines')
+            ->selectRaw('department, SUM(quantity) as total')
+            ->groupBy('department')
             ->orderByDesc('total')
+            ->orderBy('department')
             ->get();
     }
 }

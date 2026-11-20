@@ -126,6 +126,14 @@
                 </UiButton>
             </div>
         </form>
+
+        <div
+            v-if="!loadingPage"
+            class="border-t border-[#e2e8f2]"
+            :class="embedded ? 'mt-6 pt-6' : 'p-4 sm:p-6'"
+        >
+            <DocumentNumberingPanel />
+        </div>
     </div>
 </template>
 
@@ -134,6 +142,7 @@ import { computed, onMounted, ref } from 'vue';
 import InputText from 'primevue/inputtext';
 import Checkbox from 'primevue/checkbox';
 import UiButton from '../components/ui/UiButton.vue';
+import DocumentNumberingPanel from '../components/DocumentNumberingPanel.vue';
 import { useNotify } from '../composables/useNotify';
 import api from '../services/api';
 import { updateOrganizationNameDisplay } from '../utils/organizationDisplay';
@@ -159,6 +168,10 @@ const GROUP_META = {
     permissions: {
         label: 'Employee access',
         description: 'Choose which pages department users can open in OBIMS.',
+    },
+    forms: {
+        label: 'Forms (Local RIV, ICS, IIRUP)',
+        description: 'Header and signatory details printed on the office forms (layouts from the SDO Reports Reference Pack). Issued Local RIVs and ICSs keep the values in force when they were issued.',
     },
 };
 

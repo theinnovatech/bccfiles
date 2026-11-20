@@ -10,8 +10,10 @@ enum ReturnCondition: string
     public function label(): string
     {
         return match ($this) {
-            self::Good => 'Returned well',
-            self::Damaged => 'Returned with damage',
+            // Desktop app condition term.
+            self::Good => 'Good',
+            // Stored value stays 'damaged'; display label aligned with desktop app terminology.
+            self::Damaged => 'Unserviceable',
         };
     }
 }

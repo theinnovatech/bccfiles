@@ -20,6 +20,7 @@ class StockController extends Controller
             'barcode' => ['required', 'string'],
             'quantity' => ['required', 'integer', 'min:1'],
             'remarks' => ['nullable', 'string'],
+            'update_reference' => ['sometimes', 'boolean'],
         ]);
 
         $item = Item::findByCode($data['barcode']);
@@ -29,6 +30,21 @@ class StockController extends Controller
         }
 
         $movement = $this->inventoryService->receiveStock($item, $data['quantity'], $request->user(), $data['remarks'] ?? null);
+
+        // Replenishment rule: receiving never changes the reference stock by itself. Staff may
+        // explicitly reset the reference to the new balance (a full replenishment).
+        if ($request->boolean('update_reference')) {
+            $fresh = $item->fresh();
+            $previous = $fresh->reference_stock;
+            $fresh->update(['reference_stock' => max(1, (int) $fresh->current_stock)]);
+            app(\App\Services\LowStockAlertService::class)->evaluateItem($fresh);
+            app(\App\Services\ActivityLogService::class)->log(
+                $request->user(),
+                'Updated',
+                'Items',
+                "Reference stock of {$fresh->item_name} set to the new balance {$fresh->current_stock} (was ".($previous ?? 'not set').') after receiving'
+            );
+        }
 
         return response()->json([
             'item' => $item->fresh()->load(['category', 'unit', 'location']),

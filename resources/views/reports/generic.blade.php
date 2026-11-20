@@ -405,7 +405,7 @@
     @if($type === 'stock-card')
         <div class="stock-card-header">
             <div class="stock-card-title">Stock Card</div>
-            <div class="stock-card-regional-office">Department of Education Regional Office No. V</div>
+            <div class="stock-card-regional-office">{{ $formSettings['agency'] ?? '' }}&nbsp;</div>
             <div class="stock-card-agency">Agency</div>
         </div>
         <div class="stock-card-full-line"></div>
@@ -416,9 +416,9 @@
         <table class="property-card-meta-table">
             <tr>
                 <td style="width: 14%;" class="property-card-meta-label"><strong>Entity Name :</strong></td>
-                <td style="width: 36%;"><div class="property-card-meta-line">&nbsp;</div></td>
+                <td style="width: 36%;"><div class="property-card-meta-line">{{ $formSettings['entity_name'] ?? '' }}&nbsp;</div></td>
                 <td style="width: 14%;" class="property-card-meta-label"><strong>Fund Cluster:</strong></td>
-                <td style="width: 36%;"><div class="property-card-meta-line">&nbsp;</div></td>
+                <td style="width: 36%;"><div class="property-card-meta-line">{{ $formSettings['fund_cluster'] ?? '' }}&nbsp;</div></td>
             </tr>
         </table>
     @else
@@ -435,6 +435,9 @@
                     <div class="system-line">OBIMS · Supply Unit Inventory Management System</div>
                     <div class="report-title">{{ $title }}</div>
                     <div class="meta">Generated: {{ $generatedAt }}</div>
+                    @if(!empty($filterLabels))
+                        <div class="meta">Filters: {{ collect($filterLabels)->map(fn ($value, $key) => $key.': '.$value)->implode(' · ') }}</div>
+                    @endif
                 </td>
                 <td class="logo-right">
                     @if($logoRight)
@@ -543,12 +546,16 @@
                         <td rowspan="2" class="info-property-side">
                             <strong>Property Number:</strong>
                             <span class="info-property-line">{{ $equipment->property_number ?: '' }}</span>
+                            @if ($equipment->property_card_number)
+                                <br><strong>Property Card No.:</strong>
+                                <span class="info-property-line">{{ $equipment->property_card_number }}</span>
+                            @endif
                         </td>
                     </tr>
                     <tr>
                         <td class="info-main-left">
                             <strong>Description :</strong>
-                            <span class="info-value">{{ $equipment->description ?: '' }}</span>
+                            <span class="info-value">{{ collect([$equipment->brand_model, $equipment->description])->filter()->implode(' — ') }}</span>
                         </td>
                     </tr>
                 </tbody>
@@ -611,6 +618,8 @@
                     <th>Category</th>
                     <th>Current Stock</th>
                     <th>Minimum Stock</th>
+                    <th>Reference Stock</th>
+                    <th>Status</th>
                     <th>Location</th>
                 </tr>
             </thead>
@@ -622,6 +631,8 @@
                         <td>{{ $row->category->name ?? '' }}</td>
                         <td>{{ $row->current_stock }}</td>
                         <td>{{ $row->minimum_stock }}</td>
+                        <td>{{ $row->reference_stock ?? 'Not set' }}</td>
+                        <td>{{ $row->stock_status_label }}</td>
                         <td>{{ $row->location->name ?? '' }}</td>
                     </tr>
                 @endforeach
@@ -676,7 +687,7 @@
                         <td>{{ $row->created_at }}</td>
                         <td>{{ $row->item->barcode ?? $row->item->item_number ?? '' }}</td>
                         <td>{{ $row->item->item_name ?? '' }}</td>
-                        <td>{{ $row->transaction_type->value ?? $row->transaction_type }}</td>
+                        <td>{{ $row->transaction_type?->label() ?? $row->transaction_type }}</td>
                         <td>{{ $row->quantity }}</td>
                         <td>{{ $row->new_stock }}</td>
                     </tr>
@@ -687,20 +698,26 @@
         <table class="data-table">
             <thead>
                 <tr>
-                    <th>Barcode</th>
+                    <th>Stock No.</th>
                     <th>Item</th>
-                    <th>Current Stock</th>
-                    <th>Minimum Stock</th>
+                    <th>Remaining</th>
+                    <th>Reference Stock</th>
+                    <th>Low-Stock %</th>
+                    <th>Threshold</th>
+                    <th>Status</th>
                     <th>Location</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach($rows as $row)
                     <tr>
-                        <td>{{ $row->barcode ?: ($row->item_number ?? '') }}</td>
+                        <td>{{ $row->item_number ?: ($row->barcode ?? '') }}</td>
                         <td>{{ $row->item_name }}</td>
-                        <td>{{ $row->current_stock }}</td>
-                        <td>{{ $row->minimum_stock }}</td>
+                        <td>{{ number_format($row->current_stock) }}</td>
+                        <td>{{ $row->reference_stock ? number_format($row->reference_stock) : 'Not configured' }}</td>
+                        <td>{{ $row->effective_low_stock_percent !== null ? rtrim(rtrim(number_format($row->effective_low_stock_percent, 2), '0'), '.').'%' : '—' }}</td>
+                        <td>{{ $row->reference_stock ? rtrim(rtrim(number_format($row->low_stock_threshold, 2), '0'), '.') : 'Min. '.max(1, (int) $row->minimum_stock) }}</td>
+                        <td>{{ $row->stock_status_label }}</td>
                         <td>{{ $row->location->name ?? '' }}</td>
                     </tr>
                 @endforeach
@@ -712,6 +729,7 @@
                 <tr>
                     <th>Issuance No.</th>
                     <th>Department</th>
+                    <th>Received By</th>
                     <th>Type</th>
                     <th>Item / Equipment</th>
                     <th>Barcode / Property No.</th>
@@ -722,17 +740,17 @@
             <tbody>
                 @foreach($rows as $row)
                     @php
-                        $departmentName = $row->department->name
-                            ?? $row->receiver->department->name
-                            ?? '';
+                        $departmentName = $row->departmentDisplayName() ?? '';
+                        $recipientName = $row->recipientDisplayName() ?? '';
                     @endphp
                     @forelse($row->details as $detail)
                         <tr>
                             <td>{{ $row->issuance_number }}</td>
                             <td>{{ $departmentName }}</td>
+                            <td>{{ $recipientName }}</td>
                             <td>{{ $detail->equipment_id || $detail->equipment ? 'Equipment' : 'Item' }}</td>
                             <td>{{ $detail->equipment->name ?? $detail->item->item_name ?? '' }}</td>
-                            <td>{{ $detail->equipment->property_number ?? $detail->barcode ?? $detail->item->barcode ?? $detail->item->item_number ?? '' }}</td>
+                            <td>{{ $detail->property_number ?? $detail->equipment->property_number ?? $detail->barcode ?? $detail->item->barcode ?? $detail->item->item_number ?? '' }}</td>
                             <td>{{ $detail->quantity }}</td>
                             <td>{{ $row->issued_date }}</td>
                         </tr>
@@ -740,6 +758,7 @@
                         <tr>
                             <td>{{ $row->issuance_number }}</td>
                             <td>{{ $departmentName }}</td>
+                            <td>{{ $recipientName }}</td>
                             <td>-</td>
                             <td>-</td>
                             <td>-</td>
@@ -759,6 +778,7 @@
                     <th>Department</th>
                     <th>Qty</th>
                     <th>Returned By</th>
+                    <th>Condition</th>
                     <th>Remarks</th>
                 </tr>
             </thead>
@@ -770,6 +790,7 @@
                         <td>{{ $row->department->name ?? '' }}</td>
                         <td>{{ $row->quantity }}</td>
                         <td>{{ $row->borrower->name ?? $row->borrower_name ?? '' }}</td>
+                        <td>{{ $row->condition_label }}</td>
                         <td>{{ $row->reason ?? '' }}</td>
                     </tr>
                 @endforeach
@@ -789,6 +810,80 @@
                         <td>{{ $row->department }}</td>
                         <td>{{ $row->total }}</td>
                     </tr>
+                @endforeach
+            </tbody>
+        </table>
+    @elseif($type === 'equipment-status')
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Status</th>
+                    <th>Case No.</th>
+                    <th>Equipment</th>
+                    <th>Property No.</th>
+                    <th>Serial No(s).</th>
+                    <th>Qty</th>
+                    <th>Condition</th>
+                    <th>Custody / Holder</th>
+                    <th>Date</th>
+                    <th>Issue / Remarks</th>
+                    <th>Warranty</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($rows as $row)
+                    <tr>
+                        <td>{{ $row['status_label'] ?? '' }}</td>
+                        <td>{{ $row['case_number'] ?? '' }}</td>
+                        <td>{{ $row['name'] ?? '' }}</td>
+                        <td>{{ $row['property_number'] ?? '' }}</td>
+                        <td>{{ $row['serial_number'] ?? '' }}</td>
+                        <td>{{ $row['quantity'] ?? '' }}</td>
+                        <td>{{ $row['condition_label'] ?? '' }}</td>
+                        <td>{{ trim(($row['custody_label'] ?? '').(!empty($row['holder']) ? ' — '.$row['holder'] : '')) }}</td>
+                        <td>{{ $row['date'] ?? '' }}</td>
+                        <td>{{ $row['reported_issue'] ?? ($row['reason'] ?? '') }}</td>
+                        <td>{{ !empty($row['warranty_active']) ? 'Pending review' : ($row['warranty_outcome_label'] ?? '') }}</td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    @elseif($type === 'delivery-inspections')
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Inspection No.</th>
+                    <th>DR / PO</th>
+                    <th>Supplier</th>
+                    <th>Inspection Date</th>
+                    <th>Inspector</th>
+                    <th>Status</th>
+                    <th>Item / Equipment</th>
+                    <th>Expected</th>
+                    <th>Delivered</th>
+                    <th>Accepted</th>
+                    <th>Rejected</th>
+                    <th>Condition / Remarks</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($rows as $row)
+                    @foreach($row->lines as $line)
+                        <tr>
+                            <td>{{ $row->inspection_number }}</td>
+                            <td>{{ collect([$row->delivery_reference ? 'DR '.$row->delivery_reference : null, $row->purchase_reference ? 'PO '.$row->purchase_reference : null])->filter()->implode(' / ') }}</td>
+                            <td>{{ $row->supplier }}</td>
+                            <td>{{ optional($row->inspection_date)->toDateString() }}</td>
+                            <td>{{ $row->inspector_name }}</td>
+                            <td>{{ ucfirst($row->status) }}</td>
+                            <td>{{ $line->item->item_name ?? $line->equipment->name ?? $line->description }}</td>
+                            <td>{{ $line->expected_quantity }}</td>
+                            <td>{{ $line->delivered_quantity }}</td>
+                            <td>{{ $line->accepted_quantity }}</td>
+                            <td>{{ $line->rejected_quantity }}</td>
+                            <td>{{ $line->condition_label }}{{ $line->discrepancy_remarks ? ' — '.$line->discrepancy_remarks : '' }}</td>
+                        </tr>
+                    @endforeach
                 @endforeach
             </tbody>
         </table>

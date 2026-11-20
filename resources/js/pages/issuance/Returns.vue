@@ -606,40 +606,55 @@
                         <label
                             class="mb-1 block text-sm font-medium text-[#00164d]"
                         >
-                            Date Returned
-                            <span class="ml-1 text-xs font-normal text-[#4a6490]"
-                                >(optional)</span
-                            >
+                            Returned Date
+                            <span class="text-[#ce1126]">*</span>
                         </label>
-                        <input
-                            v-model="form.date_returned"
-                            type="date"
-                            :max="todayIso"
-                            class="w-full rounded-md border border-[#a8b8d4] bg-white px-3 py-2 text-sm text-[#00164d] focus:border-[#00164d] focus:outline-none focus:ring-1 focus:ring-[#00164d]"
-                        />
-                        <p class="mt-1 text-xs text-[#4a6490]">
-                            Set this only when recording a past return.
-                            Defaults to today.
+                        <div class="flex gap-2">
+                            <input
+                                v-model="form.date_returned"
+                                type="date"
+                                :max="todayIso"
+                                :min="minReturnDate || undefined"
+                                required
+                                class="w-full rounded-md border bg-white px-3 py-2 text-sm text-[#00164d] focus:border-[#00164d] focus:outline-none focus:ring-1 focus:ring-[#00164d]"
+                                :class="returnDateError ? 'border-[#ce1126]' : 'border-[#a8b8d4]'"
+                            />
+                            <UiButton
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                @click="form.date_returned = todayIso"
+                            >
+                                Today
+                            </UiButton>
+                        </div>
+                        <p
+                            class="mt-1 text-xs"
+                            :class="returnDateError ? 'font-medium text-[#ce1126]' : 'text-[#4a6490]'"
+                        >
+                            {{ returnDateError || (minReturnDate
+                                ? `Required. Cannot be earlier than the issuance date (${minReturnDate}).`
+                                : 'Required before the return can be finalized.') }}
                         </p>
                     </div>
 
                     <div class="md:col-span-2">
                         <p class="mb-2 text-sm font-medium text-[#00164d]">
-                            Return condition
+                            Next status
                             <span class="text-[#ce1126]">*</span>
                         </p>
-                        <div class="grid gap-2 sm:grid-cols-2">
+                        <div class="grid gap-2 sm:grid-cols-3">
                             <button
-                                v-for="option in conditionOptions"
+                                v-for="option in visibleNextStatusOptions"
                                 :key="option.value"
                                 type="button"
                                 class="rounded-md border px-3 py-2.5 text-left transition"
                                 :class="
-                                    form.condition === option.value
+                                    form.next_status === option.value
                                         ? 'border-[#00164d] bg-[#00164d] text-white'
                                         : 'border-[#a8b8d4] bg-transparent text-[#00164d]'
                                 "
-                                @click="form.condition = option.value"
+                                @click="setNextStatus(option.value)"
                             >
                                 <span class="block text-sm font-medium">{{
                                     option.label
@@ -647,7 +662,7 @@
                                 <span
                                     class="mt-0.5 block text-xs"
                                     :class="
-                                        form.condition === option.value
+                                        form.next_status === option.value
                                             ? 'text-white/80'
                                             : 'text-[#4a6490]'
                                     "
@@ -694,7 +709,14 @@
                         v-if="!form.useCustom && selectedIssuedLine"
                         class="border border-[#a8b8d4] bg-transparent p-4 text-sm text-[#00164d]"
                     >
-                    <p class="font-medium">{{ selectedIssuedLine.name }}</p>
+                    <p class="font-medium">
+                        {{ selectedIssuedLine.name }}
+                        <span
+                            v-if="selectedIssuedLine.brand_model"
+                            class="font-normal text-[#4a6490]"
+                            >· {{ selectedIssuedLine.brand_model }}</span
+                        >
+                    </p>
                     <p class="mt-1 text-[#4a6490]">
                         Issuance:
                         {{ selectedIssuedLine.issuance_number || "—" }}
@@ -719,20 +741,31 @@
                         class="mt-3 text-xs font-medium text-[#ce1126]"
                     >
                         This equipment has reached its life span. Even if
-                        returned well, it will not be added back to Supply
+                        returned in Good condition, it will not be added back to Supply
                         Master.
                     </p>
                     <p
-                        v-else-if="form.condition === 'good'"
+                        v-else-if="form.next_status === 'available'"
                         class="mt-3 text-xs text-[#4a6490]"
                     >
-                        Returned well before the life-span limit is added to
-                        Supply Master as a separate Returned record, using the
-                        issuance Property No. and Inventory No.
+                        The returned unit goes back to Available on its
+                        original equipment record. It keeps its Property No.,
+                        Inventory No., serial number and history; no new record
+                        or number is created.
+                    </p>
+                    <p
+                        v-else-if="form.next_status === 'for_repair'"
+                        class="mt-3 text-xs text-[#4a6490]"
+                    >
+                        A repair case is opened for each returned unit. When
+                        the repair is completed and the unit is found
+                        serviceable, it returns to Available on the same
+                        record with the same numbers.
                     </p>
                     <p v-else class="mt-3 text-xs text-[#4a6490]">
-                        Damaged returns are logged only and are not added back
-                        for re-issue.
+                        Unserviceable returns wait for assessment and are not
+                        re-issued. Open a repair or disposal case from the
+                        Equipment Dashboard.
                     </p>
                 </div>
 
@@ -1207,6 +1240,7 @@ import {
     hasReachedLifespan,
 } from "../../utils/equipmentLifeSpan";
 import { formatSerialNumbers, filledSerialIds, syncSerialIds, toSerialId } from "../../utils/equipmentSerials";
+import { newIdempotencyKey } from "../../utils/idempotency";
 
 const notify = useNotify();
 const departments = ref([]);
@@ -1248,21 +1282,46 @@ const form = reactive({
     serial_number_ids: [],
     reason: "",
     condition: "good",
+    next_status: "available",
     date_returned: "",
 });
 
-const conditionOptions = [
+// One key per logical return; kept on retries after a network error so the server never
+// records the same return twice.
+const returnSubmissionKey = ref(newIdempotencyKey("ret"));
+
+const nextStatusOptions = [
     {
-        value: "good",
-        label: "Returned well",
-        description: "No damage. Added to Supply Master as Returned stock if still within life span.",
+        value: "available",
+        condition: "good",
+        label: "Available",
+        description: "Serviceable. Back in stock on its original record, same numbers.",
     },
     {
-        value: "damaged",
-        label: "Returned with damage",
-        description: "Logged only. This equipment will not be re-issued.",
+        value: "for_repair",
+        condition: "damaged",
+        label: "For Repair",
+        description: "Opens a repair case for each returned unit.",
+    },
+    {
+        value: "unserviceable",
+        condition: "damaged",
+        label: "Unserviceable",
+        description: "Waits for assessment. Not re-issued.",
     },
 ];
+
+const visibleNextStatusOptions = computed(() =>
+    form.useCustom
+        ? nextStatusOptions.filter((option) => option.value !== "for_repair")
+        : nextStatusOptions,
+);
+
+function setNextStatus(value) {
+    const option = nextStatusOptions.find((row) => row.value === value);
+    form.next_status = option.value;
+    form.condition = option.condition;
+}
 
 const issuedPropertyOptions = computed(() =>
     equipmentRows.value.filter(
@@ -1437,6 +1496,30 @@ const selectedEquipmentReachedLifespan = computed(() =>
     ),
 );
 
+const minReturnDate = computed(() => {
+    const issued = form.useCustom
+        ? form.custom_date_issued
+        : selectedIssuedLine.value?.date_issued;
+
+    return issued ? String(issued).slice(0, 10) : "";
+});
+
+const returnDateError = computed(() => {
+    if (!form.date_returned) {
+        return "";
+    }
+
+    if (form.date_returned > todayIso.value) {
+        return "Returned Date cannot be in the future.";
+    }
+
+    if (minReturnDate.value && form.date_returned < minReturnDate.value) {
+        return `Returned Date cannot be earlier than the issuance date (${minReturnDate.value}).`;
+    }
+
+    return "";
+});
+
 const todayIso = computed(() => {
     const d = new Date();
     const pad = (n) => String(n).padStart(2, "0");
@@ -1573,21 +1656,21 @@ const damagedReturnedEquipments = computed(() =>
 const returnTables = computed(() => [
     {
         key: "good",
-        title: "Equipments Returned Well",
+        title: "Good Returns",
         description:
-            "No-damage returns. Units still within life span are added to Supply Master as Returned equipment, separate from Fresh stock.",
+            "Serviceable returns. Units still within life span are added to Supply Master as Returned equipment, separate from Fresh stock.",
         rows: goodReturnedEquipments.value,
-        emptyTitle: "No well-returned equipments yet",
-        emptyText: "Returns marked as well / no damage will appear here.",
+        emptyTitle: "No Good returns yet",
+        emptyText: "Returns recorded in Good condition will appear here.",
     },
     {
         key: "damaged",
-        title: "Equipments Returned with Damage",
+        title: "Unserviceable Equipment Returns",
         description:
-            "Damaged returns are logged here and are not added back for re-issue.",
+            "Unserviceable returns are logged here and are not added back for re-issue.",
         rows: damagedReturnedEquipments.value,
-        emptyTitle: "No damaged returns yet",
-        emptyText: "Returns marked as damaged will appear here.",
+        emptyTitle: "No unserviceable returns yet",
+        emptyText: "Returns marked as Unserviceable will appear here.",
     },
 ]);
 
@@ -1693,7 +1776,7 @@ function returnCondition(row) {
 
 function returnStatus(row) {
     if (returnCondition(row) === "damaged") {
-        return "Damaged — not re-issuable";
+        return "Unserviceable — not re-issuable";
     }
 
     if (row?.restocked) {
@@ -1801,6 +1884,9 @@ function issuedOriginLabel(row) {
 
 function setUseCustom(useCustom) {
     form.useCustom = useCustom;
+    if (useCustom && form.next_status === "for_repair") {
+        setNextStatus("unserviceable");
+    }
     if (useCustom) {
         form.equipment_id = null;
         form.issuance_detail_id = null;
@@ -2019,7 +2105,9 @@ function resetForm() {
     form.serial_number_ids = [];
     form.reason = "";
     form.condition = "good";
+    form.next_status = "available";
     form.date_returned = "";
+    returnSubmissionKey.value = newIdempotencyKey("ret");
     returnedByInput.value = null;
     borrowerSuggestions.value = [];
 }
@@ -2063,6 +2151,16 @@ async function submit() {
                 ? "Please complete equipment, quantity, department, and returned by."
                 : "Please enter a valid property number, then complete quantity, department, and returned by.",
         );
+        return;
+    }
+
+    if (!form.date_returned) {
+        notify.warn("Enter the Returned Date before finalizing the return.");
+        return;
+    }
+
+    if (returnDateError.value) {
+        notify.warn(returnDateError.value);
         return;
     }
 
@@ -2132,15 +2230,24 @@ async function submit() {
                 : filledSerialIds(form.serial_number_ids),
             reason: String(form.reason || "").trim() || null,
             condition: form.condition,
+            next_status:
+                form.useCustom && form.next_status === "for_repair"
+                    ? "unserviceable"
+                    : form.next_status,
+            idempotency_key: returnSubmissionKey.value,
             date_returned: formatDateForPayload(form.date_returned),
             ...borrower,
         });
+        const outcome =
+            form.next_status === "available" && !selectedEquipmentReachedLifespan.value && !form.useCustom
+                ? "The unit is Available again on its original equipment record."
+                : form.next_status === "for_repair" && !form.useCustom
+                  ? "A repair case was opened for the returned unit(s)."
+                  : "Recorded as Unserviceable.";
         notify.success(
             recordedPartial
-                ? `Recorded return of ${returnQty} unit(s). ${remainingAfterReturn} unit(s) remain outstanding.`
-                : form.condition === "good" && !selectedEquipmentReachedLifespan.value && !form.useCustom
-                ? "Return recorded. A Returned equipment record was added to Supply Master."
-                : "Equipment return recorded successfully.",
+                ? `Recorded return of ${returnQty} unit(s). ${remainingAfterReturn} unit(s) remain outstanding. ${outcome}`
+                : `Return recorded. ${outcome}`,
             "Return completed",
         );
         resetForm();

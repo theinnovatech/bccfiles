@@ -9,6 +9,7 @@ use App\Models\Issuance;
 use App\Models\Item;
 use App\Models\ItemReturn;
 use App\Models\StockMovement;
+use App\Support\StockStatus;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,8 +24,11 @@ class DashboardController extends Controller
         return response()->json([
             'total_items' => (clone $itemsQuery)->count(),
             'available_stocks' => (clone $itemsQuery)->sum('current_stock'),
-            'low_stock_items' => (clone $itemsQuery)->whereColumn('current_stock', '<=', 'minimum_stock')->where('current_stock', '>', 0)->count(),
-            'out_of_stock' => (clone $itemsQuery)->where('current_stock', 0)->count(),
+            'low_stock_items' => (clone $itemsQuery)->withStockStatus(StockStatus::LOW)->count(),
+            'out_of_stock' => (clone $itemsQuery)->withStockStatus(StockStatus::OUT)->count(),
+            'reference_stock_missing' => (clone $itemsQuery)->where(function ($query) {
+                $query->whereNull('reference_stock')->orWhere('reference_stock', '<', 1);
+            })->count(),
             'todays_issuance' => (clone $movementsQuery)->where('transaction_type', TransactionType::Out->value)->sum('quantity'),
             'todays_received' => (clone $movementsQuery)->where('transaction_type', TransactionType::In->value)->sum('quantity'),
             'todays_issuance_records' => Issuance::query()->whereDate('issued_date', today())->count(),
@@ -61,9 +65,9 @@ class DashboardController extends Controller
     public function charts(Request $request): JsonResponse
     {
         $inventoryStatus = [
-            'in_stock' => Item::query()->where('status', 'active')->whereColumn('current_stock', '>', 'minimum_stock')->count(),
-            'low_stock' => Item::query()->where('status', 'active')->whereColumn('current_stock', '<=', 'minimum_stock')->where('current_stock', '>', 0)->count(),
-            'out_of_stock' => Item::query()->where('status', 'active')->where('current_stock', 0)->count(),
+            'in_stock' => Item::query()->where('status', 'active')->withStockStatus(StockStatus::IN)->count(),
+            'low_stock' => Item::query()->where('status', 'active')->withStockStatus(StockStatus::LOW)->count(),
+            'out_of_stock' => Item::query()->where('status', 'active')->withStockStatus(StockStatus::OUT)->count(),
         ];
 
         $currentYear = (int) now()->year;
@@ -122,7 +126,7 @@ class DashboardController extends Controller
         $lowStockItems = Item::query()
             ->with(['category', 'unit', 'location'])
             ->where('status', 'active')
-            ->whereColumn('current_stock', '<=', 'minimum_stock')
+            ->withStockStatus('alerting')
             ->orderBy('current_stock')
             ->limit(5)
             ->get();

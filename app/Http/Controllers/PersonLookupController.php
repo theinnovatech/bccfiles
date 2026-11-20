@@ -326,8 +326,7 @@ class PersonLookupController extends Controller
                 ->map(fn ($detail) => [
                     'issuance_number' => $issuance->issuance_number,
                     'issued_date' => optional($issuance->issued_date)?->toDateString(),
-                    'person_name' => $issuance->receiver?->name
-                        ?? $issuance->received_by_name
+                    'person_name' => $issuance->recipientDisplayName()
                         ?? '—',
                     'department' => $issuance->departmentDisplayName() ?? '—',
                     'barcode' => $detail->barcode ?: ($item->barcode ?? '—'),
@@ -417,8 +416,7 @@ class PersonLookupController extends Controller
                 ->map(fn ($detail) => [
                     'issuance_number' => $issuance->issuance_number,
                     'issued_date' => optional($issuance->issued_date)?->toDateString(),
-                    'person_name' => $issuance->receiver?->name
-                        ?? $issuance->received_by_name
+                    'person_name' => $issuance->recipientDisplayName()
                         ?? '—',
                     'department' => $issuance->departmentDisplayName() ?? '—',
                     'quantity' => (int) $detail->quantity,

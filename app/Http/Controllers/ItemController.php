@@ -3,11 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Enums\ItemStatus;
+use App\Enums\TransactionType;
 use App\Http\Controllers\Controller;
 use App\Models\Item;
+use App\Models\StockMovement;
 use App\Services\ActivityLogService;
 use App\Services\LowStockAlertService;
+use App\Services\DocumentNumberService;
+use App\Support\NumberScopes;
+use Illuminate\Validation\ValidationException;
 use App\Support\ReferenceNumberGenerator;
+use App\Support\StockStatus;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -17,12 +23,13 @@ class ItemController extends Controller
 {
     public function __construct(
         private readonly ActivityLogService $activityLogService,
-        private readonly LowStockAlertService $lowStockAlertService
+        private readonly LowStockAlertService $lowStockAlertService,
+        private readonly DocumentNumberService $numbers,
     ) {}
 
     public function index(Request $request): JsonResponse
     {
-        $query = Item::query()->with(['category', 'unit', 'location']);
+        $query = Item::query()->select('items.*')->with(['category', 'unit', 'location']);
 
         if ($request->filled('search')) {
             $search = $request->string('search');
@@ -39,12 +46,25 @@ class ItemController extends Controller
             $query->where('status', $request->string('status'));
         }
 
+        if ($request->filled('stock_status')) {
+            $query->withStockStatus((string) $request->string('stock_status'));
+        }
+
         if ($request->boolean('low_stock')) {
-            $query->whereColumn('current_stock', '<=', 'minimum_stock')->where('current_stock', '>', 0);
+            $query->withStockStatus(StockStatus::LOW);
         }
 
         if ($request->boolean('out_of_stock')) {
-            $query->where('current_stock', 0);
+            $query->withStockStatus(StockStatus::OUT);
+        }
+
+        if ($request->boolean('with_receipts')) {
+            $query->addSelect([
+                'last_received_on' => StockMovement::query()
+                    ->selectRaw('DATE(MAX(stock_movements.created_at))')
+                    ->whereColumn('stock_movements.item_id', 'items.id')
+                    ->where('stock_movements.transaction_type', TransactionType::In->value),
+            ]);
         }
 
         if ($request->boolean('all')) {
@@ -64,9 +84,13 @@ class ItemController extends Controller
             'category_id' => ['required', 'exists:categories,id'],
             'unit_id' => ['required', 'exists:units,id'],
             'location_id' => ['required', 'exists:storage_locations,id'],
-            'minimum_stock' => ['required', 'integer', 'min:0'],
+            'minimum_stock' => ['required', 'integer', 'min:1'],
+            'reference_stock' => ['required', 'integer', 'min:1'],
+            'low_stock_percent' => ['nullable', 'numeric', 'min:1', 'max:100'],
+            'unit_cost' => ['nullable', 'numeric', 'min:0', 'max:9999999999999'],
             'status' => ['nullable', Rule::enum(ItemStatus::class)],
-        ]);
+            'item_number' => ['nullable', 'string', 'max:255'],
+        ], $this->messages());
 
         $data['barcode'] = filled($data['barcode'] ?? null) ? trim($data['barcode']) : null;
         $data['status'] = $data['status'] ?? ItemStatus::Active->value;
@@ -75,7 +99,8 @@ class ItemController extends Controller
         $item = DB::transaction(function () use ($data) {
             return Item::create([
                 ...$data,
-                'item_number' => ReferenceNumberGenerator::forItem(),
+                // Stock No. (Stock Card number): typed, or generated from the configured format.
+                'item_number' => $this->numbers->resolve('stock_card_number', $data['item_number'] ?? null, NumberScopes::stockCard(), null, 'item_number'),
                 'inventory_number' => ReferenceNumberGenerator::forInventory(),
             ]);
         });
@@ -120,11 +145,33 @@ class ItemController extends Controller
             'category_id' => ['required', 'exists:categories,id'],
             'unit_id' => ['required', 'exists:units,id'],
             'location_id' => ['required', 'exists:storage_locations,id'],
-            'minimum_stock' => ['required', 'integer', 'min:0'],
+            'minimum_stock' => ['required', 'integer', 'min:1'],
+            'reference_stock' => ['required', 'integer', 'min:1'],
+            'low_stock_percent' => ['nullable', 'numeric', 'min:1', 'max:100'],
+            'unit_cost' => ['nullable', 'numeric', 'min:0', 'max:9999999999999'],
             'status' => ['required', Rule::enum(ItemStatus::class)],
-        ]);
+            'item_number' => ['sometimes', 'nullable', 'string', 'max:255'],
+        ], $this->messages());
 
         $data['barcode'] = filled($data['barcode'] ?? null) ? trim($data['barcode']) : null;
+
+        if (array_key_exists('item_number', $data)) {
+            $stockNo = $this->numbers->clean($data['item_number']);
+            if ($stockNo === $this->numbers->clean($item->item_number)) {
+                unset($data['item_number']);
+            } else {
+                if (! $request->user()->isAdmin() && ! $request->user()->isSupplyOfficer()) {
+                    throw ValidationException::withMessages(['item_number' => 'Only administrators and supply officers can change the Stock No.']);
+                }
+                if ($stockNo === null) {
+                    throw ValidationException::withMessages(['item_number' => 'The Stock No. cannot be blank.']);
+                }
+                if (NumberScopes::stockCard($item->id)($stockNo)) {
+                    throw ValidationException::withMessages(['item_number' => "Stock No. {$stockNo} is already used by another item."]);
+                }
+                $data['item_number'] = $stockNo;
+            }
+        }
 
         $item->update($data);
         $item->refresh();
@@ -132,6 +179,15 @@ class ItemController extends Controller
         $this->activityLogService->log($request->user(), 'Updated', 'Items', "Updated item {$item->item_name}");
 
         return response()->json($item->load(['category', 'unit', 'location']));
+    }
+
+    private function messages(): array
+    {
+        return [
+            'low_stock_percent.min' => 'The low-stock percentage must be between 1 and 100.',
+            'low_stock_percent.max' => 'The low-stock percentage must be between 1 and 100.',
+            'reference_stock.min' => 'The reference stock quantity must be at least 1.',
+        ];
     }
 
     public function updateStockNumber(Request $request, Item $item): JsonResponse

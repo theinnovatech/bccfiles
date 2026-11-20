@@ -120,21 +120,22 @@
                             class="login-enter-item text-2xl sm:text-3xl font-bold text-white tracking-tight"
                             style="--login-enter-delay: 0.29s"
                         >
-                            Welcome Back
+                            {{ heading }}
                         </h2>
                         <p
                             class="login-enter-item text-sm sm:text-base text-[#e8efff]"
                             style="--login-enter-delay: 0.37s"
                         >
-                            Please sign in to access your account
+                            {{ subheading }}
                         </p>
                     </div>
 
                     <form
                         class="login-form-enter login-form-stack"
                         autocomplete="off"
-                        @submit.prevent="submit"
+                        @submit.prevent="onSubmit"
                     >
+                        <template v-if="view === 'login'">
                         <!-- Email -->
                         <div
                             class="login-enter-item login-field"
@@ -216,10 +217,136 @@
                                 </button>
                             </div>
                         </div>
+                        </template>
+
+                        <!-- First-time setup: create the first administrator -->
+                        <template v-else-if="view === 'setup'">
+                            <AuthField
+                                id="setup-name"
+                                v-model="setupForm.name"
+                                label="Full name"
+                                icon="pi-user"
+                                placeholder="e.g. Maria Santos"
+                                autocomplete="name"
+                                required
+                                :error="fieldErrors.name"
+                            />
+                            <AuthField
+                                id="setup-email"
+                                v-model="setupForm.email"
+                                type="email"
+                                label="Email address"
+                                icon="pi-envelope"
+                                placeholder="name@deped.gov.ph"
+                                autocomplete="email"
+                                required
+                                hint="Used to sign in and to receive password reset codes."
+                                :error="fieldErrors.email"
+                            />
+                            <AuthField
+                                id="setup-password"
+                                v-model="setupForm.password"
+                                label="Password"
+                                icon="pi-lock"
+                                autocomplete="new-password"
+                                password
+                                required
+                                hint="At least 8 characters, with letters and numbers."
+                                :error="fieldErrors.password"
+                            />
+                            <AuthField
+                                id="setup-password-confirm"
+                                v-model="setupForm.password_confirmation"
+                                label="Confirm password"
+                                icon="pi-lock"
+                                autocomplete="new-password"
+                                password
+                                required
+                            />
+                            <AuthField
+                                v-if="setupKeyRequired"
+                                id="setup-key"
+                                v-model="setupForm.setup_key"
+                                label="Setup key"
+                                icon="pi-key"
+                                password
+                                required
+                                hint="The OBIMS_SETUP_KEY value set on the server."
+                                :error="fieldErrors.setup_key"
+                            />
+                        </template>
+
+                        <!-- Forgot password: ask for the email -->
+                        <template v-else-if="view === 'forgot'">
+                            <AuthField
+                                id="forgot-email"
+                                v-model="resetForm.email"
+                                type="email"
+                                label="Email address"
+                                icon="pi-envelope"
+                                placeholder="The email you sign in with"
+                                autocomplete="email"
+                                required
+                                :error="fieldErrors.email"
+                            />
+                        </template>
+
+                        <!-- Forgot password: enter the emailed code -->
+                        <template v-else-if="view === 'code'">
+                            <AuthField
+                                id="reset-code"
+                                v-model="resetForm.code"
+                                label="6-digit code"
+                                icon="pi-shield"
+                                placeholder="000000"
+                                autocomplete="one-time-code"
+                                inputmode="numeric"
+                                maxlength="6"
+                                input-class="tracking-[0.4em] font-semibold"
+                                required
+                                :hint="`Sent to ${resetForm.email}. It expires in ${expiresMinutes} minutes.`"
+                                :error="fieldErrors.code"
+                            />
+                        </template>
+
+                        <!-- Choose a new password (after the code, or from the emailed link) -->
+                        <template v-else-if="view === 'newpass'">
+                            <p v-if="resetForm.email" class="text-sm text-[#e8efff]">
+                                Account: <strong>{{ resetForm.email }}</strong>
+                            </p>
+                            <AuthField
+                                id="reset-password"
+                                v-model="resetForm.password"
+                                label="New password"
+                                icon="pi-lock"
+                                autocomplete="new-password"
+                                password
+                                required
+                                hint="At least 8 characters, with letters and numbers."
+                                :error="fieldErrors.password || fieldErrors.code || fieldErrors.token"
+                            />
+                            <AuthField
+                                id="reset-password-confirm"
+                                v-model="resetForm.password_confirmation"
+                                label="Confirm new password"
+                                icon="pi-lock"
+                                autocomplete="new-password"
+                                password
+                                required
+                            />
+                        </template>
+
+                        <!-- Expired or used reset link -->
+                        <template v-else-if="view === 'linkInvalid'">
+                            <p class="rounded-xl border border-red-300/40 bg-red-500/10 px-4 py-3 text-sm text-[#ffe1e1]">
+                                This reset link has expired or was already used. Request a new code to reset your password.
+                            </p>
+                        </template>
 
                         <!-- Cloudflare Turnstile -->
                         <div
                             v-if="turnstileSiteKey"
+                            v-show="needsTurnstile"
                             class="login-enter-fade login-turnstile-field"
                             style="--login-enter-delay: 0.61s"
                         >
@@ -251,9 +378,13 @@
                             </p>
                         </div>
 
-                        <label
-                            class="login-enter-item login-remember"
+                        <div
+                            v-if="view === 'login'"
+                            class="login-enter-item flex items-center justify-between gap-3"
                             style="--login-enter-delay: 0.69s"
+                        >
+                        <label
+                            class="login-remember"
                             for="login-remember"
                         >
                             <input
@@ -268,27 +399,62 @@
                             </span>
                             <span class="login-remember-label">Remember me</span>
                         </label>
+                            <button
+                                type="button"
+                                class="text-sm font-medium text-[#fcd116] underline-offset-2 hover:underline"
+                                @click="goTo('forgot')"
+                            >
+                                Forgot password?
+                            </button>
+                        </div>
 
                         <UiButton
+                            v-if="view !== 'linkInvalid'"
                             type="submit"
+                            :disabled="view === 'forgot' && resendIn > 0"
                             class="login-enter-item login-submit-btn w-full h-11 min-h-[2.75rem] bg-[#fcd116] hover:bg-[#e5bc00] text-[#000f33] hover:text-[#000f33] font-bold rounded-xl transition-all shadow-lg shadow-[#fcd116]/10 border-none"
                             style="--login-enter-delay: 0.77s"
                             :loading="loading"
                         >
-                            Sign In
+                            {{ submitLabel }}
                         </UiButton>
 
-                        <p
-                            class="login-enter-item text-center"
+                        <div
+                            class="login-enter-item flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-center"
                             style="--login-enter-delay: 0.85s"
                         >
+                            <button
+                                v-if="view === 'code'"
+                                type="button"
+                                class="text-sm text-[#e8efff]/80 transition-colors hover:text-white hover:underline"
+                                @click="goTo('forgot')"
+                            >
+                                Didn't get it? Send a new code
+                            </button>
+                            <button
+                                v-if="view === 'linkInvalid'"
+                                type="button"
+                                class="login-submit-btn w-full h-11 rounded-xl bg-[#fcd116] font-bold text-[#000f33] hover:bg-[#e5bc00]"
+                                @click="goTo('forgot')"
+                            >
+                                Request a new code
+                            </button>
+                            <button
+                                v-if="!['login', 'setup'].includes(view)"
+                                type="button"
+                                class="text-sm text-[#e8efff]/80 transition-colors hover:text-white hover:underline"
+                                @click="goTo('login')"
+                            >
+                                Back to sign in
+                            </button>
                             <a
+                                v-if="view === 'login'"
                                 href="/about"
                                 class="text-sm text-[#e8efff]/80 transition-colors hover:text-white hover:underline"
                             >
                                 About OBIMS
                             </a>
-                        </p>
+                        </div>
                     </form>
                 </div>
             </div>
@@ -297,15 +463,25 @@
 </template>
 
 <script setup>
-import { nextTick, onBeforeUnmount, onMounted, reactive, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { Vue3Lottie } from "vue3-lottie";
 import UiButton from "../components/ui/UiButton.vue";
+import AuthField from "../components/auth/AuthField.vue";
+import api from "../services/api";
 import { useNotify } from "../composables/useNotify";
 import { loadTurnstileScript, resetTurnstileLoader } from "../lib/turnstile";
 import { useAuthStore } from "../stores/auth";
 import timeManagementJson from "../../animations/Time management.json";
 
-const { organizationName, turnstileSiteKey } = defineProps({
+const {
+    organizationName,
+    turnstileSiteKey,
+    mode,
+    resetToken,
+    resetEmail,
+    resetLinkValid,
+    setupKeyRequired,
+} = defineProps({
     organizationName: {
         type: String,
         default: "DepEd Supply Unit Inventory",
@@ -314,7 +490,242 @@ const { organizationName, turnstileSiteKey } = defineProps({
         type: String,
         default: "",
     },
+    // "login" (default), "setup" (no administrator yet) or "reset" (opened from the emailed link)
+    mode: { type: String, default: "login" },
+    resetToken: { type: String, default: "" },
+    resetEmail: { type: String, default: "" },
+    resetLinkValid: { type: Boolean, default: false },
+    setupKeyRequired: { type: Boolean, default: false },
 });
+
+// Which form is shown: login | setup | forgot | code | newpass | linkInvalid
+const view = ref(
+    mode === "setup"
+        ? "setup"
+        : mode === "reset"
+          ? resetLinkValid
+              ? "newpass"
+              : "linkInvalid"
+          : "login",
+);
+const setupForm = reactive({
+    name: "",
+    email: "",
+    password: "",
+    password_confirmation: "",
+    setup_key: "",
+});
+const resetForm = reactive({
+    email: resetEmail,
+    code: "",
+    token: mode === "reset" && resetLinkValid ? resetToken : "",
+    password: "",
+    password_confirmation: "",
+});
+const fieldErrors = reactive({});
+const expiresMinutes = ref(15);
+const resendIn = ref(0);
+let resendTimer = null;
+
+const VIEW_TEXT = {
+    login: ["Welcome Back", "Please sign in to access your account", "Sign In"],
+    setup: [
+        "Set up the administrator",
+        "No administrator account exists yet. Create the first one to start using OBIMS.",
+        "Create administrator account",
+    ],
+    forgot: [
+        "Forgot your password?",
+        "Enter the email you sign in with. We will send a 6-digit code and a reset link to it.",
+        "Send code",
+    ],
+    code: ["Check your email", "Enter the 6-digit code we sent.", "Verify code"],
+    newpass: ["Choose a new password", "Enter a new password for your account.", "Save new password"],
+    linkInvalid: ["Link expired", "This password reset link can no longer be used.", ""],
+};
+
+const heading = computed(() => VIEW_TEXT[view.value][0]);
+const subheading = computed(() => VIEW_TEXT[view.value][1]);
+const submitLabel = computed(() =>
+    view.value === "forgot" && resendIn.value > 0
+        ? `Send code (wait ${resendIn.value}s)`
+        : VIEW_TEXT[view.value][2],
+);
+const needsTurnstile = computed(() => ["login", "setup", "forgot"].includes(view.value));
+
+function clearErrors() {
+    Object.keys(fieldErrors).forEach((key) => delete fieldErrors[key]);
+}
+
+function goTo(next) {
+    clearErrors();
+    turnstileError.value = "";
+    if (next === "login" && mode === "reset") {
+        // Leave the one-time link out of the address bar.
+        window.history.replaceState({}, "", "/");
+    }
+    if (next === "forgot" && !resetForm.email && form.email) {
+        resetForm.email = form.email;
+    }
+    view.value = next;
+}
+
+function startResendCountdown(seconds) {
+    clearInterval(resendTimer);
+    resendIn.value = seconds;
+    resendTimer = setInterval(() => {
+        resendIn.value = Math.max(0, resendIn.value - 1);
+        if (resendIn.value === 0) {
+            clearInterval(resendTimer);
+        }
+    }, 1000);
+}
+
+/**
+ * Show the server's validation messages beside the fields and return the first one.
+ */
+function applyErrors(error, fallback) {
+    clearErrors();
+    const status = error.response?.status;
+    if (status === 429) {
+        return "Too many attempts. Wait a minute and try again.";
+    }
+    const errors = error.response?.data?.errors || {};
+    Object.entries(errors).forEach(([key, messages]) => {
+        fieldErrors[key] = Array.isArray(messages) ? messages[0] : messages;
+    });
+    if (fieldErrors.cf_turnstile_response) {
+        turnstileError.value = fieldErrors.cf_turnstile_response;
+    }
+    const first = Object.values(fieldErrors)[0];
+
+    return first || error.response?.data?.message || fallback;
+}
+
+function needsTurnstileToken() {
+    if (turnstileSiteKey && !turnstileToken.value) {
+        turnstileError.value = "Please complete the security check first.";
+        return true;
+    }
+    return false;
+}
+
+function withTurnstile(payload) {
+    return turnstileSiteKey ? { ...payload, cf_turnstile_response: turnstileToken.value } : payload;
+}
+
+async function submitSetup() {
+    if (setupForm.password !== setupForm.password_confirmation) {
+        fieldErrors.password = "The two passwords do not match.";
+        return;
+    }
+    if (needsTurnstileToken()) return;
+    loading.value = true;
+    try {
+        await api.post("/setup", withTurnstile({ ...setupForm }));
+        notify.success("Administrator account created. Welcome to OBIMS.", "Setup complete");
+        splitting.value = true;
+        setTimeout(() => {
+            window.location.href = "/";
+        }, 700);
+    } catch (error) {
+        loading.value = false;
+        resetTurnstile();
+        if (error.response?.status === 409) {
+            notify.warn(error.response.data.message, "Already set up");
+            setTimeout(() => {
+                window.location.href = "/";
+            }, 1200);
+            return;
+        }
+        notify.error(applyErrors(error, "Unable to create the administrator account."), "Setup failed");
+    }
+}
+
+async function submitForgot() {
+    if (needsTurnstileToken()) return;
+    loading.value = true;
+    try {
+        const { data } = await api.post("/forgot-password", withTurnstile({ email: resetForm.email.trim() }));
+        clearErrors();
+        expiresMinutes.value = data.expires_minutes || 15;
+        startResendCountdown(data.resend_seconds || 60);
+        resetForm.code = "";
+        notify.info(data.message, "Check your email");
+        view.value = "code";
+    } catch (error) {
+        notify.error(applyErrors(error, "Unable to send the code."), "Not sent");
+    } finally {
+        loading.value = false;
+        resetTurnstile();
+    }
+}
+
+async function submitCode() {
+    loading.value = true;
+    try {
+        await api.post("/forgot-password/verify", {
+            email: resetForm.email.trim(),
+            code: resetForm.code.trim(),
+        });
+        clearErrors();
+        view.value = "newpass";
+    } catch (error) {
+        notify.error(applyErrors(error, "Unable to check the code."), "Code not accepted");
+    } finally {
+        loading.value = false;
+    }
+}
+
+async function submitNewPassword() {
+    if (resetForm.password !== resetForm.password_confirmation) {
+        fieldErrors.password = "The two passwords do not match.";
+        return;
+    }
+    loading.value = true;
+    try {
+        const payload = resetForm.token
+            ? { token: resetForm.token }
+            : { email: resetForm.email.trim(), code: resetForm.code.trim() };
+        const { data } = await api.post("/reset-password", {
+            ...payload,
+            password: resetForm.password,
+            password_confirmation: resetForm.password_confirmation,
+        });
+        notify.success(data.message, "Password changed");
+        form.email = data.email || resetForm.email;
+        form.password = "";
+        blockAutofill.value = false;
+        resetForm.code = "";
+        resetForm.token = "";
+        resetForm.password = "";
+        resetForm.password_confirmation = "";
+        goTo("login");
+    } catch (error) {
+        const message = applyErrors(error, "Unable to change the password.");
+        notify.error(message, "Password not changed");
+        if (fieldErrors.token) {
+            view.value = "linkInvalid";
+        }
+    } finally {
+        loading.value = false;
+    }
+}
+
+function onSubmit() {
+    switch (view.value) {
+        case "setup":
+            return submitSetup();
+        case "forgot":
+            return submitForgot();
+        case "code":
+            return submitCode();
+        case "newpass":
+            return submitNewPassword();
+        default:
+            return submit();
+    }
+}
 
 const auth = useAuthStore();
 const notify = useNotify();
@@ -552,6 +963,7 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+    clearInterval(resendTimer);
     clearTypewriterTimer();
     destroyTurnstileWidget();
 });

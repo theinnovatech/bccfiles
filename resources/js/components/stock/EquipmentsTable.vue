@@ -75,6 +75,11 @@
                         </Column>
                         <Column field="property_number" header="Property No." />
                         <Column field="name" header="Name" />
+                        <Column header="Brand / Model">
+                            <template #body="{ data }">
+                                {{ data.brand_model || '—' }}
+                            </template>
+                        </Column>
                         <Column v-if="table.showOrigin" header="Origin">
                             <template #body="{ data }">
                                 <span
@@ -185,12 +190,21 @@
                 </span>
             </div>
             <div>
-                <label class="mb-1 block text-sm font-medium text-[#00164d]">Inventory No.</label>
-                <InputText :model-value="form.inventory_number || '—'" class="w-full" readonly />
+                <label class="mb-1 block text-sm font-medium text-[#00164d]">
+                    Property No. <span class="text-[#ce1126]">*</span>
+                </label>
+                <InputText v-model="form.property_number" class="w-full" :readonly="!canManage" />
+                <p class="mt-1 text-xs text-[#4a6490]">
+                    Official number of this record. Saving it unchanged never reports a duplicate.
+                </p>
             </div>
             <div>
-                <label class="mb-1 block text-sm font-medium text-[#00164d]">Property No.</label>
-                <InputText :model-value="form.property_number || '—'" class="w-full" readonly />
+                <label class="mb-1 block text-sm font-medium text-[#00164d]">Inventory No.</label>
+                <InputText v-model="form.inventory_number" class="w-full" :readonly="!canManage" placeholder="Not assigned" />
+            </div>
+            <div>
+                <label class="mb-1 block text-sm font-medium text-[#00164d]">Property Card No.</label>
+                <InputText v-model="form.property_card_number" class="w-full" :readonly="!canManage" placeholder="Not assigned" />
             </div>
             <div>
                 <label class="mb-1 block text-sm font-medium text-[#00164d]">Barcode</label>
@@ -232,6 +246,14 @@
                 <InputText v-model="form.type" class="w-full" required />
             </div>
             <div>
+                <label class="mb-1 block text-sm font-medium text-[#00164d]">Brand</label>
+                <InputText v-model="form.brand" class="w-full" maxlength="255" />
+            </div>
+            <div>
+                <label class="mb-1 block text-sm font-medium text-[#00164d]">Model</label>
+                <InputText v-model="form.model" class="w-full" maxlength="255" />
+            </div>
+            <div>
                 <label class="mb-1 block text-sm font-medium text-[#00164d]">
                     Qty <span class="text-[#ce1126]">*</span>
                 </label>
@@ -254,6 +276,31 @@
                 <p class="mt-1 text-xs text-[#4a6490]">
                     For Returned equipment this is remaining years, not the original span.
                 </p>
+            </div>
+            <div>
+            <label class="mb-1 block text-sm font-medium text-[#00164d]">Property class</label>
+            <Select
+                    v-model="form.property_class"
+                    :options="propertyClassOptions"
+                    optionLabel="label"
+                    optionValue="value"
+                    class="w-full"
+                    placeholder="Not classified yet"
+                />
+            <p class="mt-1 text-xs text-[#4a6490]">Semi-expendable units go on the ICS and the IIRUP.</p>
+            </div>
+            <div>
+            <label class="mb-1 block text-sm font-medium text-[#00164d]">Unit cost</label>
+            <InputNumber
+                    v-model="form.unit_cost"
+                    class="w-full"
+                    mode="decimal"
+                    :minFractionDigits="2"
+                    :maxFractionDigits="2"
+                    :min="0"
+                    placeholder="Optional"
+                />
+            <p class="mt-1 text-xs text-[#4a6490]">Documented acquisition cost. Leave blank if unknown; it prints blank on forms.</p>
             </div>
             <div class="md:col-span-2">
                 <label class="mb-1 block text-sm font-medium text-[#00164d]">Description</label>
@@ -304,7 +351,12 @@
                         {{ equipmentOriginLabel(viewRecord.equipment) }}
                     </span>
                 </div>
-                <p class="mt-1 text-base font-semibold">{{ viewRecord.equipment?.name || '—' }}</p>
+                <p class="mt-1 text-base font-semibold">
+                    {{ viewRecord.equipment?.name || '—' }}
+                    <span v-if="viewRecord.equipment?.brand_model" class="font-normal text-[#4a6490]">
+                        · {{ viewRecord.equipment.brand_model }}
+                    </span>
+                </p>
                 <p class="mt-0.5 text-xs text-[#4a6490]">
                     {{ viewRecord.equipment?.property_number || '—' }}
                     · {{ viewRecord.equipment?.inventory_number || '—' }}
@@ -399,8 +451,11 @@ const canManage = computed(() => auth.isAdmin || auth.isSupplyOfficer);
 const form = reactive({
     inventory_number: '',
     property_number: '',
+    property_card_number: '',
     barcode: '',
     name: '',
+    brand: '',
+    model: '',
     equipment_category_id: null,
     description: '',
     type: '',
@@ -408,7 +463,16 @@ const form = reactive({
     serial_numbers: [''],
     life_span_years: null,
     specs: '',
+    unit_cost: null,
+    property_class: null,
 });
+
+const propertyClassOptions = [
+    { label: 'Not classified yet', value: null },
+    { label: 'Semi-expendable property (ICS / IIRUP)', value: 'semi_expendable' },
+    { label: 'Property, plant and equipment (PAR / Property Card)', value: 'ppe' },
+];
+
 
 const categoryOptions = computed(() => {
     const names = [...new Set(equipments.value.map((item) => item.category?.name).filter(Boolean))].sort();
@@ -434,7 +498,7 @@ const filterConfig = computed(() => [
         type: 'search',
         label: 'Search',
         placeholder: 'Inventory no., property no., serial no., name, category, type...',
-        fields: ['barcode', 'inventory_number', 'property_number', 'serial_search', 'name', 'category.name', 'type', 'description', 'specs'],
+        fields: ['barcode', 'inventory_number', 'property_number', 'property_card_number', 'serial_search', 'name', 'brand', 'model', 'category.name', 'type', 'description', 'specs'],
     },
     {
         key: 'category',
@@ -584,8 +648,11 @@ function editEquipment(equipment) {
     editingEquipment.value = equipment;
     form.inventory_number = equipment.inventory_number || '';
     form.property_number = equipment.property_number || '';
+    form.property_card_number = equipment.property_card_number || '';
     form.barcode = equipment.barcode || '';
     form.name = equipment.name || '';
+    form.brand = equipment.brand || '';
+    form.model = equipment.model || '';
     form.equipment_category_id = equipment.equipment_category_id;
     form.description = equipment.description || '';
     form.type = equipment.type || '';
@@ -596,6 +663,8 @@ function editEquipment(equipment) {
     );
     form.life_span_years = equipment.life_span_years ?? null;
     form.specs = equipment.specs || '';
+    form.unit_cost = equipment.unit_cost != null ? Number(equipment.unit_cost) : null;
+    form.property_class = equipment.property_class || null;
     dialogVisible.value = true;
 }
 
@@ -624,6 +693,11 @@ async function saveEquipment() {
         return;
     }
 
+    if (!form.property_number?.trim()) {
+        notify.warn('The property number cannot be blank.');
+        return;
+    }
+
     const serials = filledSerialNumbers(form.serial_numbers);
     if (serials.length !== Number(form.quantity)) {
         notify.warn(`Enter exactly ${form.quantity} serial number(s), matching the quantity.`);
@@ -646,6 +720,11 @@ async function saveEquipment() {
         await api.put(`/equipments/${editingEquipment.value.id}`, {
             barcode: form.barcode || null,
             name: form.name,
+            brand: form.brand?.trim() || null,
+            model: form.model?.trim() || null,
+            property_number: form.property_number?.trim() || null,
+            inventory_number: form.inventory_number?.trim() || null,
+            property_card_number: form.property_card_number?.trim() || null,
             equipment_category_id: form.equipment_category_id,
             description: form.description || null,
             type: form.type,
@@ -653,12 +732,16 @@ async function saveEquipment() {
             serial_numbers: serials,
             life_span_years: form.life_span_years,
             specs: form.specs || null,
+            unit_cost: form.unit_cost ?? null,
+            property_class: form.property_class || null,
         });
         notify.success('Equipment updated.');
         dialogVisible.value = false;
         await loadEquipments();
     } catch (error) {
-        notify.error(error.response?.data?.message || 'Unable to update equipment.');
+        const errors = error.response?.data?.errors;
+        const first = errors ? Object.values(errors)[0] : null;
+        notify.error((Array.isArray(first) ? first[0] : first) || error.response?.data?.message || 'Unable to update equipment.');
     } finally {
         saving.value = false;
     }
@@ -797,6 +880,11 @@ onMounted(async () => {
 .equipment-history-dot-restocked {
     border-color: #8a5a00;
     background: #fff8e8;
+}
+
+.equipment-history-dot-case {
+    border-color: #ce1126;
+    background: #fff5f5;
 }
 
 .equipment-history-card {

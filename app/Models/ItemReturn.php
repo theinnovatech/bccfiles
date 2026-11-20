@@ -16,6 +16,7 @@ class ItemReturn extends Model
 
     protected $fillable = [
         'reference_number',
+        'idempotency_key',
         'issuance_id',
         'issuance_detail_id',
         'item_id',
@@ -39,6 +40,10 @@ class ItemReturn extends Model
         'restocked',
         'returned_by',
         'date_returned',
+    ];
+
+    protected $hidden = [
+        'idempotency_key',
     ];
 
     protected $appends = [
@@ -118,7 +123,7 @@ class ItemReturn extends Model
             ? $this->condition
             : ReturnCondition::tryFrom((string) $this->condition);
 
-        return $condition?->label() ?? 'Returned well';
+        return $condition?->label() ?? 'Good';
     }
 
     public function getLifespanReachedAttribute(): bool

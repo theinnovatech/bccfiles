@@ -13,12 +13,26 @@ class Issuance extends Model
 
     protected $fillable = [
         'issuance_number',
+        'idempotency_key',
         'department_id',
         'department_name',
         'issued_by',
         'received_by',
         'received_by_name',
+        'recipient_employee_number',
+        'recipient_designation',
+        'recipient_source',
+        'channel',
         'issued_date',
+    ];
+
+    protected $hidden = [
+        'idempotency_key',
+    ];
+
+    protected $appends = [
+        'recipient_display_name',
+        'unit_display_name',
     ];
 
     protected function casts(): array
@@ -31,10 +45,33 @@ class Issuance extends Model
         return $this->belongsTo(Department::class);
     }
 
+    /**
+     * Unit recorded at issuance. New issuances always store a snapshot in department_name,
+     * so later directory/department edits never rewrite history. Legacy rows fall back
+     * to the linked department.
+     */
     public function departmentDisplayName(): ?string
     {
-        return $this->department?->name
-            ?: ($this->department_name ?: $this->receiver?->department?->name);
+        return $this->department_name
+            ?: ($this->department?->name ?: $this->receiver?->department?->name);
+    }
+
+    /**
+     * Recipient name recorded at issuance (snapshot first, then the legacy link).
+     */
+    public function recipientDisplayName(): ?string
+    {
+        return $this->received_by_name ?: $this->receiver?->name;
+    }
+
+    public function getRecipientDisplayNameAttribute(): ?string
+    {
+        return $this->recipientDisplayName();
+    }
+
+    public function getUnitDisplayNameAttribute(): ?string
+    {
+        return $this->departmentDisplayName();
     }
 
     public function issuer(): BelongsTo
@@ -44,7 +81,7 @@ class Issuance extends Model
 
     public function receiver(): BelongsTo
     {
-        return $this->belongsTo(Employee::class, 'received_by');
+        return $this->belongsTo(Employee::class, 'received_by')->withTrashed();
     }
 
     public function details(): HasMany

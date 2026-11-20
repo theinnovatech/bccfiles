@@ -88,51 +88,12 @@
                                     system generates one.
                                 </p>
                             </div>
-                            <div>
-                                <label
-                                    class="mb-1 block text-sm font-medium text-[#00164d]"
-                                    >Department
-                                    <span class="text-[#ce1126]">*</span></label
-                                >
-                                <AutoComplete
-                                    v-model="departmentInput"
-                                    :suggestions="departmentSuggestions"
-                                    optionLabel="name"
-                                    dropdown
-                                    :forceSelection="false"
-                                    completeOnFocus
-                                    placeholder="Select or type department"
-                                    class="w-full"
-                                    inputClass="w-full"
-                                    @complete="searchDepartments"
+                            <div class="md:col-span-2">
+                                <RecipientPicker
+                                    ref="recipientPicker"
+                                    v-model="recipient"
+                                    :disabled="loading"
                                 />
-                                <p class="mt-1 text-xs text-[#4a6490]">
-                                    Pick a department or type a name if not in
-                                    the list.
-                                </p>
-                            </div>
-                            <div>
-                                <label
-                                    class="mb-1 block text-sm font-medium text-[#00164d]"
-                                    >Received By
-                                    <span class="text-[#ce1126]">*</span></label
-                                >
-                                <AutoComplete
-                                    v-model="receivedByInput"
-                                    :suggestions="receiverSuggestions"
-                                    optionLabel="name"
-                                    dropdown
-                                    :forceSelection="false"
-                                    placeholder="Select or type receiver name"
-                                    class="w-full"
-                                    inputClass="w-full"
-                                    :disabled="!hasDepartment"
-                                    @complete="searchReceivers"
-                                />
-                                <p class="mt-1 text-xs text-[#4a6490]">
-                                    Pick an employee or type a name if not in
-                                    the list.
-                                </p>
                             </div>
                             <div
                                 class="md:col-span-2 space-y-3 rounded-md border border-[#a8b8d4] bg-[#f4f7fb] p-3"
@@ -256,7 +217,7 @@
                                 :class="
                                     form.issuance_type === 'equipments'
                                         ? 'md:grid-cols-[minmax(0,1.15fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,9.75rem)_7.25rem_auto]'
-                                        : 'md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_8.75rem_auto]'
+                                        : 'md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,9.75rem)_8.75rem_auto]'
                                 "
                             >
                                 <div class="issuance-line-field min-w-0">
@@ -328,15 +289,21 @@
                                     <InputText
                                         v-model="line.property_number"
                                         class="issuance-line-control w-full"
-                                        placeholder="Type the Property No. from the paper"
-                                        :readonly="isPropertyLocked(line)"
+                                        :placeholder="
+                                            line.equipment_id
+                                                ? 'Type the Property No. from the paper'
+                                                : 'Select equipment first'
+                                        "
+                                        :readonly="isPropertyLocked(line) || !line.equipment_id"
                                         required
+                                        @input="line.property_auto = false"
                                     />
                                     <p
                                         class="issuance-line-hint"
                                         :class="{
                                             'issuance-line-hint-warn':
-                                                usesDefaultFreshProperty(line),
+                                                usesDefaultFreshProperty(line) ||
+                                                propertyRule(line).kind === 'conflict',
                                         }"
                                     >
                                         {{ propertyNumberHint(line) }}
@@ -349,6 +316,7 @@
                                     <InputText
                                         v-model="line.inventory_number"
                                         class="issuance-line-control w-full"
+                                        :readonly="form.issuance_type === 'equipments' && inventoryRule(line).kind === 'unit'"
                                         :placeholder="
                                             form.issuance_type === 'items'
                                                 ? 'Leave blank to auto-generate'
@@ -359,23 +327,32 @@
                                         v-if="form.issuance_type === 'equipments'"
                                         class="issuance-line-hint"
                                     >
-                                        Optional. Leave blank if the paper has
-                                        none.
+                                        {{
+                                            inventoryRule(line).kind === "unit"
+                                                ? "From the selected unit's record (read-only)."
+                                                : "Optional. Leave blank if the paper has none."
+                                        }}
                                     </p>
                                 </div>
-                                <div
-                                    v-if="form.issuance_type === 'equipments'"
-                                    class="issuance-line-field min-w-0"
-                                >
+                                <div class="issuance-line-field min-w-0">
                                     <label class="issuance-line-label">
                                         Date Acquired
+                                        <span class="text-[#ce1126]">*</span>
                                     </label>
                                     <InputText
                                         v-model="line.date_acquired"
                                         type="date"
                                         class="issuance-line-control w-full"
-                                        :max="todayDate"
+                                        :class="{ 'p-invalid': lineSelected(line) && !line.date_acquired }"
+                                        :max="form.use_custom_date && form.issued_date ? form.issued_date : todayDate"
+                                        required
                                     />
+                                    <p
+                                        class="issuance-line-hint"
+                                        :class="{ 'issuance-line-hint-warn': lineSelected(line) && !line.date_acquired }"
+                                    >
+                                        {{ dateAcquiredHint(line) }}
+                                    </p>
                                 </div>
                                 <div class="issuance-line-field min-w-0">
                                     <label class="issuance-line-label">
@@ -488,6 +465,18 @@
                                 "
                                 class="issuance-line-specs"
                             >
+                                <p
+                                    v-if="equipmentBrandModel(line.equipment_id)"
+                                    class="issuance-line-specs-label"
+                                >
+                                    Brand / Model
+                                </p>
+                                <p
+                                    v-if="equipmentBrandModel(line.equipment_id)"
+                                    class="issuance-line-specs-value mb-2"
+                                >
+                                    {{ equipmentBrandModel(line.equipment_id) }}
+                                </p>
                                 <p class="issuance-line-specs-label">Specs</p>
                                 <p class="issuance-line-specs-value">
                                     {{
@@ -606,7 +595,7 @@
                             departmentName(data)
                         }}</template>
                     </Column>
-                    <Column header="Issued By">
+                    <Column header="Processed By">
                         <template #body="{ data }">{{
                             data.issuer?.name
                         }}</template>
@@ -725,7 +714,7 @@
                     </div>
                     <div>
                         <p class="text-xs uppercase tracking-wide text-[#4a6490]">
-                            Issued By
+                            Processed By
                         </p>
                         <p class="mt-0.5 font-medium">
                             {{ selectedIssuance.issuer?.name || "—" }}
@@ -848,11 +837,11 @@
                         </DataTable>
                     </div>
                 </div>
+
+                <OfficeFormsPanel :issuance="selectedIssuance" />
             </div>
             <template #footer>
-                <UiButton variant="outline" @click="viewDialogVisible = false"
-                    >Close</UiButton
-                >
+                <UiButton variant="outline" @click="viewDialogVisible = false">Close</UiButton>
             </template>
         </Dialog>
 
@@ -875,12 +864,19 @@
                         {{ equipmentStatusWord(equipmentInfoRecord) }}
                     </p>
                     <p
-                        v-if="!isReturnedEquipment(equipmentInfoRecord)"
+                        v-if="equipmentInfoLine && ['unit', 'record'].includes(propertyRule(equipmentInfoLine).kind)"
+                        class="mt-3 border border-[#a8b8d4] bg-white p-3 text-sm text-[#00164d]"
+                    >
+                        {{ propertyNumberHint(equipmentInfoLine) }}
+                    </p>
+                    <p
+                        v-else-if="!isReturnedEquipment(equipmentInfoRecord)"
                         class="mt-3 border border-[#ce1126] bg-[#fff5f5] p-3 text-sm text-[#00164d]"
                     >
-                        <span class="font-semibold">New equipment.</span>
-                        You must change the Property No. to the number on the
-                        paper form. The default listing cannot be used.
+                        <span class="font-semibold">Several units under one record.</span>
+                        Type the Property No. of the unit being issued, from
+                        the paper form. The record's shared number cannot be
+                        used for one unit.
                         <span
                             v-if="
                                 usesDefaultFreshProperty(equipmentInfoLine)
@@ -892,6 +888,16 @@
                         </span>
                     </p>
                     <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                        <div v-if="equipmentInfoRecord.brand_model">
+                            <p
+                                class="text-[10px] font-semibold uppercase tracking-wide text-[#4a6490]"
+                            >
+                                Brand / Model
+                            </p>
+                            <p class="mt-0.5 font-medium">
+                                {{ equipmentInfoRecord.brand_model }}
+                            </p>
+                        </div>
                         <div>
                             <p
                                 class="text-[10px] font-semibold uppercase tracking-wide text-[#4a6490]"
@@ -980,22 +986,27 @@
                             !isReturnedEquipment(equipmentInfoRecord),
                     }"
                 >
-                    <p class="font-semibold">New</p>
-                    <p class="mt-1 text-[#4a6490]">
-                        This is first-time stock from supply. You must change
-                        the Property No. to the number on the paper form. The
-                        default listing cannot be used. Inventory No. is
-                        optional — leave it blank if the paper has none.
-                    </p>
-                    <p
-                        v-if="
-                            equipmentInfoRecord &&
-                            !isReturnedEquipment(equipmentInfoRecord)
-                        "
-                        class="mt-2 font-medium text-[#ce1126]"
-                    >
-                        Selected: change the Property No. before you issue
-                        this equipment.
+                    <p class="font-semibold">How the Property No. is decided</p>
+                    <ul class="mt-1 list-disc space-y-1 pl-5 text-[#4a6490]">
+                        <li>
+                            A unit that already has a recorded Property No.
+                            (for example, after a return or repair) keeps it.
+                            It fills in automatically and cannot be changed
+                            here.
+                        </li>
+                        <li>
+                            A record of one unit uses its own official
+                            Property No.
+                        </li>
+                        <li>
+                            A record holding several units under one number:
+                            type the Property No. of the unit being issued,
+                            from the paper form.
+                        </li>
+                    </ul>
+                    <p class="mt-2 text-[#4a6490]">
+                        Inventory No. is optional — leave it blank if the
+                        paper has none.
                     </p>
                 </div>
 
@@ -1052,7 +1063,6 @@
 import { computed, h, onMounted, reactive, ref, watch } from "vue";
 import { useNotify } from "../../composables/useNotify";
 import Select from "primevue/select";
-import AutoComplete from "primevue/autocomplete";
 import InputNumber from "primevue/inputnumber";
 import InputText from "primevue/inputtext";
 import Textarea from "primevue/textarea";
@@ -1067,6 +1077,9 @@ import { useTableFilters } from "../../composables/useTableFilters";
 import api from "../../services/api";
 import { formatEquipmentLifeSpan, equipmentOriginLabel } from "../../utils/equipmentLifeSpan";
 import { formatSerialNumbers, inStockSerials, toSerialId, syncSerialIds, filledSerialIds } from "../../utils/equipmentSerials";
+import RecipientPicker from "../../components/RecipientPicker.vue";
+import OfficeFormsPanel from "../../components/OfficeFormsPanel.vue";
+import { newIdempotencyKey } from "../../utils/idempotency";
 
 const IconItems = {
     render() {
@@ -1162,10 +1175,9 @@ const form = reactive({
     items: [emptyLine()],
 });
 
-const departmentInput = ref(null);
-const departmentSuggestions = ref([]);
-const receivedByInput = ref(null);
-const receiverSuggestions = ref([]);
+const recipient = ref(null);
+const recipientPicker = ref(null);
+const submissionKey = ref(newIdempotencyKey());
 
 const todayDate = computed(() => new Date().toISOString().slice(0, 10));
 
@@ -1180,20 +1192,53 @@ function emptyLine() {
         serial_number_ids: [],
         can_change_property: true,
         default_property_number: "",
+        property_auto: false,
+        inventory_auto: false,
+        date_source: "",
     };
 }
 
 function onItemSelected(line, itemId) {
     const item = items.value.find((row) => row.id === itemId);
     line.inventory_number = item?.inventory_number || "";
+    line.date_acquired = toDateInputValue(item?.last_received_on);
+    line.date_source = item?.last_received_on ? "receipt" : "";
+}
+
+function lineSelected(line) {
+    return Boolean(form.issuance_type === "items" ? line.item_id : line.equipment_id);
+}
+
+function dateAcquiredHint(line) {
+    if (!lineSelected(line)) {
+        return "Auto-filled from the acquisition record.";
+    }
+
+    if (!line.date_acquired) {
+        return "Missing on record. Enter the acquisition date to continue.";
+    }
+
+    if (line.date_source === "receipt") {
+        return "From the latest receipt. Change if needed.";
+    }
+
+    if (line.date_source === "equipment") {
+        return "From the equipment record.";
+    }
+
+    return "Entered manually.";
 }
 
 function onEquipmentSelected(line, equipmentId) {
     const equipment = equipments.value.find((row) => row.id === equipmentId);
+    // A different equipment: every dependent value is replaced or cleared (no stale numbers).
     line.default_property_number = equipment?.property_number || "";
-    line.property_number = equipment?.property_number || "";
+    line.property_number = "";
+    line.property_auto = false;
     line.inventory_number = equipment?.inventory_number || "";
+    line.inventory_auto = false;
     line.date_acquired = toDateInputValue(equipment?.date_acquired);
+    line.date_source = equipment?.date_acquired ? "equipment" : "";
     line.can_change_property = !isReturnedEquipment(equipment);
     line.serial_number_ids = [];
     const serials = inStockSerials(equipment);
@@ -1202,6 +1247,102 @@ function onEquipmentSelected(line, equipmentId) {
         serials.length && serials.length === qty
             ? serials.map((serial) => toSerialId(serial.id))
             : syncSerialIds([], qty);
+    applyLineNumbers(line);
+}
+
+function lineEquipment(line) {
+    return equipments.value.find((row) => row.id === line.equipment_id) || null;
+}
+
+function selectedUnits(line) {
+    const ids = filledSerialIds(line.serial_number_ids);
+
+    return (lineEquipment(line)?.serial_numbers || []).filter((unit) =>
+        ids.includes(toSerialId(unit.id)),
+    );
+}
+
+function distinctNumbers(values) {
+    const seen = new Map();
+    values
+        .map((value) => (value || "").trim())
+        .filter(Boolean)
+        .forEach((value) => seen.set(value.toLowerCase(), value));
+
+    return [...seen.values()];
+}
+
+/**
+ * How the server decides this line's Property No. (IssuanceController::resolveLinePropertyNumber):
+ * a number recorded on the selected unit(s), the record's own number for a single-unit record,
+ * the listed number for returned stock, otherwise the number typed from the paper form.
+ */
+function propertyRule(line) {
+    const equipment = lineEquipment(line);
+    if (!equipment) {
+        return { kind: "none" };
+    }
+
+    const units = selectedUnits(line);
+    const numbers = distinctNumbers(units.map((unit) => unit.property_number));
+    if (numbers.length > 1) {
+        return { kind: "conflict", numbers };
+    }
+    if (units.length && units.every((unit) => (unit.property_number || "").trim())) {
+        return { kind: "unit", number: numbers[0] };
+    }
+    if (isReturnedEquipment(equipment)) {
+        return { kind: "returned", number: equipment.property_number };
+    }
+    if (Number(equipment.unit_count) === 1 && equipment.property_number) {
+        return { kind: "record", number: equipment.property_number };
+    }
+
+    return { kind: "typed" };
+}
+
+function inventoryRule(line) {
+    const units = selectedUnits(line);
+    const numbers = distinctNumbers(units.map((unit) => unit.inventory_number));
+    if (numbers.length === 1 && units.every((unit) => (unit.inventory_number || "").trim())) {
+        return { kind: "unit", number: numbers[0] };
+    }
+
+    return { kind: "record" };
+}
+
+/**
+ * Refresh the numbers that depend on the selected equipment / units. Authoritative values are
+ * filled in (and locked); a value filled automatically earlier is cleared when it no longer
+ * applies, so a stale number is never submitted. Numbers the user typed are left alone.
+ */
+function applyLineNumbers(line) {
+    const rule = propertyRule(line);
+    if (rule.kind === "unit" || rule.kind === "record") {
+        line.property_number = rule.number;
+        line.property_auto = true;
+    } else if (rule.kind === "returned") {
+        if (!line.can_change_property) {
+            line.property_number = rule.number || "";
+            line.property_auto = true;
+        }
+    } else if (line.property_auto) {
+        line.property_number = "";
+        line.property_auto = false;
+    }
+
+    const inventory = inventoryRule(line);
+    if (inventory.kind === "unit") {
+        line.inventory_number = inventory.number;
+        line.inventory_auto = true;
+    } else if (line.inventory_auto) {
+        line.inventory_number = lineEquipment(line)?.inventory_number || "";
+        line.inventory_auto = false;
+    }
+}
+
+function equipmentBrandModel(equipmentId) {
+    return equipments.value.find((row) => row.id === equipmentId)?.brand_model || "";
 }
 
 function isReturnedEquipment(equipment) {
@@ -1219,6 +1360,7 @@ function trimLineSerials(line) {
         line.serial_number_ids,
         line.quantity,
     );
+    applyLineNumbers(line);
 }
 
 function serialSlotCount(line) {
@@ -1241,6 +1383,7 @@ function setLineSerial(line, slot, value) {
     const next = syncSerialIds(line.serial_number_ids, line.quantity);
     next[slot] = toSerialId(value);
     line.serial_number_ids = next;
+    applyLineNumbers(line);
 }
 
 function serialOptionsForSlot(line, lineIndex, slot) {
@@ -1270,7 +1413,7 @@ function usesDefaultFreshProperty(line) {
     const equipment = equipments.value.find(
         (row) => row.id === line.equipment_id,
     );
-    if (!equipment || isReturnedEquipment(equipment)) {
+    if (!equipment || isReturnedEquipment(equipment) || propertyRule(line).kind !== "typed") {
         return false;
     }
 
@@ -1293,17 +1436,32 @@ function equipmentStatusWord(equipment) {
 }
 
 function isPropertyLocked(line) {
-    const equipment = equipments.value.find(
-        (row) => row.id === line.equipment_id,
-    );
+    const rule = propertyRule(line);
+    if (rule.kind === "unit" || rule.kind === "record") {
+        return true;
+    }
 
-    return isReturnedEquipment(equipment) && !line.can_change_property;
+    return rule.kind === "returned" && !line.can_change_property;
 }
 
 function propertyNumberHint(line) {
     const equipment = equipments.value.find(
         (row) => row.id === line.equipment_id,
     );
+    const rule = propertyRule(line);
+
+    if (!equipment) {
+        return "Fills in from the equipment record once selected.";
+    }
+    if (rule.kind === "conflict") {
+        return `The selected units carry different Property Nos. (${rule.numbers.join(", ")}). Issue them on separate lines.`;
+    }
+    if (rule.kind === "unit") {
+        return "From the selected unit's record (read-only). Correct it in Supply Master > Equipment if it is wrong.";
+    }
+    if (rule.kind === "record") {
+        return "Single-unit record: its official Property No. is used (read-only).";
+    }
 
     if (isReturnedEquipment(equipment)) {
         return line.can_change_property
@@ -1312,10 +1470,14 @@ function propertyNumberHint(line) {
     }
 
     if (usesDefaultFreshProperty(line)) {
-        return "Change this Property No. The default listing cannot be used for New equipment.";
+        return `${equipment.property_number} is the record's shared number for ${equipment.unit_count || "several"} units. Type the Property No. of the unit being issued.`;
     }
 
-    return "Required. Use the Property No. from the paper form.";
+    if (lineTracksSerials(line) && !filledSerialIds(line.serial_number_ids).length) {
+        return "Select the serial number(s) first; a number recorded on the unit fills in automatically.";
+    }
+
+    return "Required. Type the Property No. of this unit from the paper form.";
 }
 
 function openEquipmentInfo(line) {
@@ -1326,6 +1488,7 @@ function openEquipmentInfo(line) {
 function setReturnedPropertyChoice(canChange) {
     if (equipmentInfoLine.value) {
         equipmentInfoLine.value.can_change_property = canChange;
+        applyLineNumbers(equipmentInfoLine.value);
     }
     equipmentInfoVisible.value = false;
 }
@@ -1334,55 +1497,6 @@ function equipmentSpecs(equipmentId) {
     const equipment = equipments.value.find((row) => row.id === equipmentId);
     return String(equipment?.specs || "").trim();
 }
-
-function selectedDepartmentId() {
-    const value = departmentInput.value;
-    return value && typeof value === "object" && value.id ? value.id : null;
-}
-
-function resolveDepartmentPayload() {
-    const value = departmentInput.value;
-
-    if (value && typeof value === "object" && value.id) {
-        return {
-            department_id: value.id,
-            department_name: null,
-        };
-    }
-
-    const typedName = typeof value === "string" ? value.trim() : "";
-    if (!typedName) {
-        return {
-            department_id: null,
-            department_name: null,
-        };
-    }
-
-    const match = departments.value.find(
-        (department) =>
-            String(department.name || "").toLowerCase() === typedName.toLowerCase(),
-    );
-
-    return match
-        ? { department_id: match.id, department_name: null }
-        : { department_id: null, department_name: typedName };
-}
-
-const employeeOptions = computed(() => {
-    const selectedId = selectedDepartmentId();
-    if (selectedId) {
-        return employees.value.filter(
-            (employee) => employee.department_id === selectedId,
-        );
-    }
-
-    return hasDepartment.value ? employees.value : [];
-});
-
-const hasDepartment = computed(() => {
-    const payload = resolveDepartmentPayload();
-    return Boolean(payload.department_id || payload.department_name);
-});
 
 const filterConfig = computed(() => [
     {
@@ -1438,43 +1552,11 @@ const visibleIssuances = computed(() =>
 );
 
 watch(
-    () => selectedDepartmentId(),
-    () => {
-        receivedByInput.value = null;
-        receiverSuggestions.value = [];
-    },
-);
-
-watch(
     () => form.issuance_type,
     (type) => {
         historyType.value = type;
     },
 );
-
-function searchReceivers(event) {
-    const query = (event.query || "").trim().toLowerCase();
-    const options = employeeOptions.value;
-
-    receiverSuggestions.value = query
-        ? options.filter((employee) =>
-              employee.name.toLowerCase().includes(query),
-          )
-        : options;
-}
-
-function searchDepartments(event) {
-    const query = (event.query || "").trim().toLowerCase();
-    const options = departments.value;
-
-    departmentSuggestions.value = query
-        ? options.filter((department) => {
-              const name = String(department.name || "").toLowerCase();
-              const code = String(department.code || "").toLowerCase();
-              return name.includes(query) || code.includes(query);
-          })
-        : options;
-}
 
 function setIssuanceType(type) {
     if (form.issuance_type === type) {
@@ -1530,45 +1612,28 @@ function removeLine(index) {
 
 function resetForm() {
     form.issuance_number = "";
-    departmentInput.value = null;
-    departmentSuggestions.value = [];
-    receivedByInput.value = null;
-    receiverSuggestions.value = [];
+    recipient.value = null;
+    recipientPicker.value?.reset();
+    submissionKey.value = newIdempotencyKey();
     form.remarks = "";
     form.use_custom_date = false;
     form.issued_date = "";
     form.items = [emptyLine()];
 }
 
+// Name / unit as recorded at issuance (snapshot), falling back to the legacy links.
 function departmentName(issuance) {
     return (
-        issuance.department?.name ||
+        issuance.unit_display_name ||
         issuance.department_name ||
+        issuance.department?.name ||
         issuance.receiver?.department?.name ||
         "—"
     );
 }
 
 function receiverName(issuance) {
-    return issuance.receiver?.name || issuance.received_by_name || "—";
-}
-
-function resolveReceiverPayload() {
-    const value = receivedByInput.value;
-
-    if (value && typeof value === "object" && value.id) {
-        return {
-            received_by: value.id,
-            received_by_name: null,
-        };
-    }
-
-    const typedName = typeof value === "string" ? value.trim() : "";
-
-    return {
-        received_by: null,
-        received_by_name: typedName || null,
-    };
+    return issuance.recipient_display_name || issuance.received_by_name || issuance.receiver?.name || "—";
 }
 
 function issuanceTypeKey(issuance) {
@@ -1712,8 +1777,10 @@ function totalQuantity(issuance) {
 function buildPayload() {
     const payload = {
         issuance_type: form.issuance_type,
-        ...resolveDepartmentPayload(),
-        ...resolveReceiverPayload(),
+        idempotency_key: submissionKey.value,
+        channel: "manual",
+        recipient_source: recipient.value?.source || "directory",
+        received_by: recipient.value?.source === "self" ? null : recipient.value?.employee?.id ?? null,
         remarks: form.remarks || null,
         use_custom_date: form.use_custom_date,
         items: form.items.map((line) => {
@@ -1721,6 +1788,7 @@ function buildPayload() {
                 return {
                     item_id: line.item_id,
                     inventory_number: (line.inventory_number || "").trim() || null,
+                    date_acquired: (line.date_acquired || "").trim() || null,
                     quantity: line.quantity,
                 };
             }
@@ -1749,21 +1817,22 @@ function buildPayload() {
 }
 
 async function submit() {
-    const department = resolveDepartmentPayload();
-    const receiver = resolveReceiverPayload();
-
-    if (!department.department_id && !department.department_name) {
-        notify.warn("Please select a department or type the department name.");
+    if (loading.value) {
         return;
     }
 
-    if (!receiver.received_by && !receiver.received_by_name) {
-        notify.warn("Please select an employee or type the receiver name.");
+    if (!recipient.value?.employee) {
+        notify.warn("Select the recipient from the employee directory.");
         return;
     }
 
     if (form.use_custom_date && !form.issued_date) {
         notify.warn("Please select the custom issuance date.");
+        return;
+    }
+
+    if (form.items.some((line) => !line.date_acquired)) {
+        notify.warn("Date Acquired is required on every line. Resolve missing acquisition dates before issuing.");
         return;
     }
 
@@ -1812,11 +1881,15 @@ async function submit() {
 
     loading.value = true;
     try {
-        await api.post("/issuances", buildPayload());
-        notify.success(
-            "Issuance was recorded successfully.",
-            "Issuance completed",
-        );
+        const { data } = await api.post("/issuances", buildPayload());
+        if (data?.duplicate) {
+            notify.info(data.message, "Already processed");
+        } else {
+            notify.success(
+                `Issuance ${data?.issuance_number || ""} was recorded successfully.`,
+                "Issuance completed",
+            );
+        }
         resetForm();
         await loadLookups();
         await loadIssuances();
@@ -1837,7 +1910,7 @@ async function loadLookups() {
         const [deptRes, empRes, itemRes, equipmentRes] = await Promise.all([
             api.get("/departments/list"),
             api.get("/employees/list"),
-            api.get("/items/list", { params: { all: 1 } }),
+            api.get("/items/list", { params: { all: 1, with_receipts: 1 } }),
             api.get("/equipments/list"),
         ]);
 
@@ -1846,6 +1919,7 @@ async function loadLookups() {
         items.value = (Array.isArray(itemRes.data) ? itemRes.data : itemRes.data?.data ?? []).map((item) => ({
             id: item.id,
             inventory_number: item.inventory_number || "",
+            last_received_on: item.last_received_on || "",
             label: `${item.item_name}${item.barcode || item.item_number ? ` (${item.barcode || item.item_number})` : ""} · Stock: ${item.current_stock ?? 0}`,
         }));
         equipments.value = (equipmentRes.data ?? []).map((equipment) => {
@@ -1854,6 +1928,8 @@ async function loadLookups() {
             return {
                 id: equipment.id,
                 name: equipment.name,
+                brand_model: equipment.brand_model || "",
+                unit_count: equipment.unit_count,
                 property_number: equipment.property_number || "",
                 inventory_number: equipment.inventory_number || "",
                 date_acquired: toDateInputValue(equipment.date_acquired),
@@ -1866,6 +1942,7 @@ async function loadLookups() {
                 lifespan_expires_on: equipment.lifespan_expires_on,
                 label: [
                     equipment.name,
+                    equipment.brand_model || null,
                     equipment.property_number || null,
                     Number(equipment.quantity) > 0 ? "Available" : "Not Available",
                     equipmentOriginLabel(equipment),

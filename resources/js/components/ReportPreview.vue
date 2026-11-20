@@ -21,6 +21,8 @@
             <Column header="Category"><template #body="{ data }">{{ data.category?.name }}</template></Column>
             <Column field="current_stock" header="Current Stock" />
             <Column field="minimum_stock" header="Minimum Stock" />
+            <Column header="Reference Stock"><template #body="{ data }">{{ data.reference_stock ?? 'Not set' }}</template></Column>
+            <Column header="Status"><template #body="{ data }">{{ data.stock_status_label }}</template></Column>
             <Column header="Location"><template #body="{ data }">{{ data.location?.name }}</template></Column>
         </template>
 
@@ -80,6 +82,7 @@
         <template v-else-if="type === 'issuance'">
             <Column field="issuance_number" header="Issuance No." />
             <Column header="Department"><template #body="{ data }">{{ data.department }}</template></Column>
+            <Column field="recipient" header="Received By" />
             <Column field="line_type" header="Type" />
             <Column header="Item / Equipment"><template #body="{ data }">{{ data.item_name }}</template></Column>
             <Column field="identifier" header="Barcode / Property No." />
@@ -93,6 +96,7 @@
             <Column header="Department"><template #body="{ data }">{{ data.department?.name || '—' }}</template></Column>
             <Column field="quantity" header="Qty" />
             <Column header="Returned By"><template #body="{ data }">{{ data.borrower?.name || data.borrower_name || '—' }}</template></Column>
+            <Column field="condition_label" header="Condition" />
             <Column field="reason" header="Remarks" />
         </template>
 
@@ -100,13 +104,41 @@
             <Column field="barcode" header="Barcode" />
             <Column field="item_name" header="Item" />
             <Column field="current_stock" header="Current Stock" />
-            <Column field="minimum_stock" header="Minimum Stock" />
+            <Column header="Reference Stock"><template #body="{ data }">{{ data.reference_stock ?? 'Not set' }}</template></Column>
+            <Column field="low_stock_threshold" header="Threshold (50%)" />
+            <Column header="Status"><template #body="{ data }">{{ data.stock_status_label }}</template></Column>
             <Column header="Location"><template #body="{ data }">{{ data.location?.name }}</template></Column>
         </template>
 
         <template v-else-if="type === 'monthly-consumption'">
             <Column field="department" header="Department" />
             <Column field="total" header="Total Issued" />
+        </template>
+
+        <template v-else-if="type === 'equipment-status'">
+            <Column field="status_label" header="Status" />
+            <Column header="Case No."><template #body="{ data }">{{ data.case_number || '—' }}</template></Column>
+            <Column field="name" header="Equipment" />
+            <Column field="property_number" header="Property No." />
+            <Column header="Serial No(s)."><template #body="{ data }">{{ data.serial_number || '—' }}</template></Column>
+            <Column field="quantity" header="Qty" />
+            <Column field="condition_label" header="Condition" />
+            <Column header="Custody / Holder"><template #body="{ data }">{{ data.custody_label }}<template v-if="data.holder"> · {{ data.holder }}</template></template></Column>
+            <Column header="Date"><template #body="{ data }">{{ data.date || '—' }}</template></Column>
+        </template>
+
+        <template v-else-if="type === 'delivery-inspections'">
+            <Column field="inspection_number" header="Inspection No." />
+            <Column field="reference" header="DR / PO" />
+            <Column field="supplier" header="Supplier" />
+            <Column field="inspection_date" header="Inspection Date" />
+            <Column field="status" header="Status" />
+            <Column field="line_name" header="Item / Equipment" />
+            <Column field="expected" header="Expected" />
+            <Column field="delivered" header="Delivered" />
+            <Column field="accepted" header="Accepted" />
+            <Column field="rejected" header="Rejected" />
+            <Column field="remarks" header="Condition / Remarks" />
         </template>
     </DataTable>
     </div>
@@ -117,6 +149,7 @@ import { computed } from 'vue';
 import DataTable from 'primevue/datatable';
 import Column from 'primevue/column';
 import { formatEquipmentLifeSpan } from '../utils/equipmentLifeSpan';
+import { movementLabel } from '../utils/terminology';
 
 const props = defineProps({
     type: { type: String, required: true },
@@ -128,18 +161,37 @@ const rows = computed(() => {
         return [];
     }
 
+    if (props.type === 'delivery-inspections') {
+        return props.data.flatMap((inspection) => (inspection.lines || []).map((line) => ({
+            inspection_number: inspection.inspection_number,
+            reference: [inspection.delivery_reference ? `DR ${inspection.delivery_reference}` : null, inspection.purchase_reference ? `PO ${inspection.purchase_reference}` : null].filter(Boolean).join(' / '),
+            supplier: inspection.supplier || '—',
+            inspection_date: (inspection.inspection_date || '').slice(0, 10),
+            status: inspection.status === 'posted' ? 'Posted' : 'Draft',
+            line_name: line.item?.item_name || line.equipment?.name || line.description || '—',
+            expected: line.expected_quantity,
+            delivered: line.delivered_quantity,
+            accepted: line.accepted_quantity,
+            rejected: line.rejected_quantity,
+            remarks: [line.condition_label, line.discrepancy_remarks].filter(Boolean).join(' — '),
+        })));
+    }
+
     if (props.type === 'issuance') {
         return props.data.flatMap((issuance) => {
-            const department = issuance.department?.name
+            const department = issuance.unit_display_name
                 || issuance.department_name
+                || issuance.department?.name
                 || issuance.receiver?.department?.name
                 || '-';
+            const recipient = issuance.recipient_display_name || issuance.received_by_name || issuance.receiver?.name || '-';
             const details = issuance.details || [];
 
             if (!details.length) {
                 return [{
                     issuance_number: issuance.issuance_number,
                     department,
+                    recipient,
                     line_type: '-',
                     item_name: '-',
                     identifier: '-',
@@ -151,6 +203,7 @@ const rows = computed(() => {
             return details.map((detail) => ({
                 issuance_number: issuance.issuance_number,
                 department,
+                recipient,
                 line_type: detail.equipment_id || detail.equipment ? 'Equipment' : 'Item',
                 item_name: detail.equipment?.name || detail.item?.item_name || '-',
                 identifier: detail.equipment?.property_number || detail.barcode || detail.item?.barcode || detail.item?.item_number || '-',
@@ -172,8 +225,7 @@ function formatDateTime(value) {
 }
 
 function formatType(value) {
-    if (!value) return '-';
-    return typeof value === 'string' ? value : value.value || value;
+    return movementLabel(value);
 }
 </script>
 

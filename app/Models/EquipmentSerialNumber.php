@@ -14,10 +14,15 @@ class EquipmentSerialNumber extends Model
     public const STATUS_IN_STOCK = 'in_stock';
     public const STATUS_ISSUED = 'issued';
     public const STATUS_UNAVAILABLE = 'unavailable';
+    public const STATUS_FOR_REPAIR = 'for_repair';
+    public const STATUS_FOR_DISPOSAL = 'for_disposal';
+    public const STATUS_DISPOSED = 'disposed';
 
     protected $fillable = [
         'equipment_id',
         'serial_number',
+        'property_number',
+        'inventory_number',
         'status',
         'issuance_detail_id',
         'item_return_id',

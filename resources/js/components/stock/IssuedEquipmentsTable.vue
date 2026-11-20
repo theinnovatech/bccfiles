@@ -70,7 +70,7 @@ const issuedEquipments = computed(() => {
                     ?? issuance.department_name
                     ?? issuance.receiver?.department?.name
                     ?? '—',
-                received_by: issuance.receiver?.name ?? issuance.received_by_name ?? '—',
+                received_by: issuance.recipient_display_name ?? issuance.received_by_name ?? issuance.receiver?.name ?? '—',
                 issued_by: issuance.issuer?.name ?? '—',
                 issued_date: issuance.issued_date,
             });
