@@ -1,14 +1,14 @@
 <template>
     <div
-        class="login-page flex min-h-screen min-h-[100dvh] overflow-x-hidden flex-col md:h-screen md:overflow-hidden md:flex-row bg-gradient-to-br from-[#001f6b] via-[#00164d] to-[#000f33]"
+        class="login-page flex min-h-screen min-h-[100dvh] overflow-x-hidden flex-col md:h-screen md:h-[100dvh] md:overflow-hidden md:flex-row bg-gradient-to-br from-[#001f6b] via-[#00164d] to-[#000f33]"
         :class="{ 'login-split-open': splitting }"
     >
         <!-- Left Side: White panel -->
         <div
-            class="hidden md:flex md:w-1/2 flex-col items-center justify-center bg-white p-8 lg:p-12 rounded-r-[2.5rem] shadow-2xl z-10 login-panel-left"
+            class="hidden md:flex md:w-1/2 flex-col items-center justify-center overflow-hidden bg-white px-8 py-6 lg:px-12 rounded-r-[2.5rem] shadow-2xl z-10 login-panel-left"
             :class="{ 'panel-slide-left': splitting }"
         >
-            <div class="max-w-md w-full text-center space-y-5">
+            <div class="login-brand max-w-md w-full text-center">
                 <div class="flex items-center justify-center gap-5">
                     <div class="login-logo-circle login-logo-circle--lg">
                         <img
@@ -33,7 +33,7 @@
                         {{ organizationName }}
                     </p>
                 </div>
-                <div class="flex justify-center py-2">
+                <div class="login-lottie flex justify-center">
                     <Vue3Lottie
                         :animation-data="timeManagementJson"
                         :height="280"
@@ -57,18 +57,21 @@
 
         <!-- Right Side: Blue login panel -->
         <div
-            class="login-panel-right flex-1 md:w-1/2 flex items-start md:items-center justify-center bg-transparent relative overflow-x-hidden overflow-y-auto md:overflow-hidden"
+            class="login-panel-right flex-1 md:w-1/2 flex flex-col bg-transparent relative overflow-x-hidden overflow-y-auto"
             :class="{ 'panel-slide-right': splitting }"
         >
-            <div
-                class="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-white/5 blur-3xl pointer-events-none hidden sm:block"
-            ></div>
-            <div
-                class="absolute -bottom-24 -left-24 w-96 h-96 rounded-full bg-white/5 blur-3xl pointer-events-none hidden sm:block"
-            ></div>
+            <!-- Background glow, clipped so it never adds a scrollbar -->
+            <div class="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+                <div
+                    class="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-white/5 blur-3xl hidden sm:block"
+                ></div>
+                <div
+                    class="absolute -bottom-24 -left-24 w-96 h-96 rounded-full bg-white/5 blur-3xl hidden sm:block"
+                ></div>
+            </div>
 
             <div
-                class="login-panel-inner w-full max-w-md relative z-10 login-enter mx-auto"
+                class="login-panel-inner w-full relative z-10 login-enter mx-auto my-auto"
             >
                 <!-- Mobile Only Header -->
                 <div
@@ -98,7 +101,7 @@
                     style="--login-enter-delay: 0.13s"
                 >
                     <h1
-                        class="text-2xl sm:text-3xl font-extrabold tracking-tight text-white"
+                        class="login-mobile-name font-extrabold tracking-tight text-white"
                     >
                         OBIMS
                     </h1>
@@ -110,20 +113,20 @@
                 </div>
 
                 <!-- Login -->
-                <div class="login-form-block space-y-5 sm:space-y-6">
-                    <div class="space-y-2">
+                <div class="login-form-block">
+                    <div class="login-heading-group">
                         <div
                             class="login-enter-item h-1 w-12 bg-[#fcd116] rounded-full"
                             style="--login-enter-delay: 0.21s"
                         ></div>
                         <h2
-                            class="login-enter-item text-2xl sm:text-3xl font-bold text-white tracking-tight"
+                            class="login-enter-item login-heading font-bold text-white tracking-tight"
                             style="--login-enter-delay: 0.29s"
                         >
                             {{ heading }}
                         </h2>
                         <p
-                            class="login-enter-item text-sm sm:text-base text-[#e8efff]"
+                            class="login-enter-item login-subheading text-[#e8efff]"
                             style="--login-enter-delay: 0.37s"
                         >
                             {{ subheading }}
@@ -240,29 +243,32 @@
                                 placeholder="name@deped.gov.ph"
                                 autocomplete="email"
                                 required
-                                hint="Used to sign in and to receive password reset codes."
                                 :error="fieldErrors.email"
                             />
-                            <AuthField
-                                id="setup-password"
-                                v-model="setupForm.password"
-                                label="Password"
-                                icon="pi-lock"
-                                autocomplete="new-password"
-                                password
-                                required
-                                hint="At least 8 characters, with letters and numbers."
-                                :error="fieldErrors.password"
-                            />
-                            <AuthField
-                                id="setup-password-confirm"
-                                v-model="setupForm.password_confirmation"
-                                label="Confirm password"
-                                icon="pi-lock"
-                                autocomplete="new-password"
-                                password
-                                required
-                            />
+                            <div class="login-field-row">
+                                <AuthField
+                                    id="setup-password"
+                                    v-model="setupForm.password"
+                                    label="Password"
+                                    icon="pi-lock"
+                                    autocomplete="new-password"
+                                    password
+                                    required
+                                    :error="fieldErrors.password"
+                                />
+                                <AuthField
+                                    id="setup-password-confirm"
+                                    v-model="setupForm.password_confirmation"
+                                    label="Confirm password"
+                                    icon="pi-lock"
+                                    autocomplete="new-password"
+                                    password
+                                    required
+                                />
+                            </div>
+                            <p v-if="!fieldErrors.password" class="login-hint">
+                                At least 8 characters, with letters and numbers.
+                            </p>
                             <AuthField
                                 v-if="setupKeyRequired"
                                 id="setup-key"
@@ -314,26 +320,33 @@
                             <p v-if="resetForm.email" class="text-sm text-[#e8efff]">
                                 Account: <strong>{{ resetForm.email }}</strong>
                             </p>
-                            <AuthField
-                                id="reset-password"
-                                v-model="resetForm.password"
-                                label="New password"
-                                icon="pi-lock"
-                                autocomplete="new-password"
-                                password
-                                required
-                                hint="At least 8 characters, with letters and numbers."
-                                :error="fieldErrors.password || fieldErrors.code || fieldErrors.token"
-                            />
-                            <AuthField
-                                id="reset-password-confirm"
-                                v-model="resetForm.password_confirmation"
-                                label="Confirm new password"
-                                icon="pi-lock"
-                                autocomplete="new-password"
-                                password
-                                required
-                            />
+                            <div class="login-field-row">
+                                <AuthField
+                                    id="reset-password"
+                                    v-model="resetForm.password"
+                                    label="New password"
+                                    icon="pi-lock"
+                                    autocomplete="new-password"
+                                    password
+                                    required
+                                    :error="fieldErrors.password || fieldErrors.code || fieldErrors.token"
+                                />
+                                <AuthField
+                                    id="reset-password-confirm"
+                                    v-model="resetForm.password_confirmation"
+                                    label="Confirm new password"
+                                    icon="pi-lock"
+                                    autocomplete="new-password"
+                                    password
+                                    required
+                                />
+                            </div>
+                            <p
+                                v-if="!(fieldErrors.password || fieldErrors.code || fieldErrors.token)"
+                                class="login-hint"
+                            >
+                                At least 8 characters, with letters and numbers.
+                            </p>
                         </template>
 
                         <!-- Expired or used reset link -->
@@ -412,7 +425,7 @@
                             v-if="view !== 'linkInvalid'"
                             type="submit"
                             :disabled="view === 'forgot' && resendIn > 0"
-                            class="login-enter-item login-submit-btn w-full h-11 min-h-[2.75rem] bg-[#fcd116] hover:bg-[#e5bc00] text-[#000f33] hover:text-[#000f33] font-bold rounded-xl transition-all shadow-lg shadow-[#fcd116]/10 border-none"
+                            class="login-enter-item login-submit-btn w-full bg-[#fcd116] hover:bg-[#e5bc00] text-[#000f33] hover:text-[#000f33] font-bold rounded-xl transition-all shadow-lg shadow-[#fcd116]/10 border-none"
                             style="--login-enter-delay: 0.77s"
                             :loading="loading"
                         >
@@ -434,7 +447,7 @@
                             <button
                                 v-if="view === 'linkInvalid'"
                                 type="button"
-                                class="login-submit-btn w-full h-11 rounded-xl bg-[#fcd116] font-bold text-[#000f33] hover:bg-[#e5bc00]"
+                                class="login-submit-btn w-full rounded-xl bg-[#fcd116] font-bold text-[#000f33] hover:bg-[#e5bc00]"
                                 @click="goTo('forgot')"
                             >
                                 Request a new code
@@ -1092,23 +1105,95 @@ async function submit() {
     }
 }
 
-.login-form-enter {
-    display: contents;
+/* ─── Compact sizing (scales with the window height) ─────────── */
+.login-page {
+    --login-field-h: 2.75rem;
+    --login-stack-gap: clamp(0.625rem, 1.7vh, 1rem);
+    --login-btn-h: 2.75rem;
 }
 
-.login-form-stack > .login-enter-item + .login-enter-item,
-.login-form-stack > .login-enter-item + .login-enter-fade,
-.login-form-stack > .login-enter-fade + .login-enter-item,
-.login-form-stack > .login-enter-fade + .login-enter-fade {
-    margin-top: 1.125rem;
+/* Short laptop windows (e.g. 1366x768 with browser bars). */
+@media (min-width: 768px) and (max-height: 760px) {
+    .login-page {
+        --login-field-h: 2.5rem;
+        --login-stack-gap: 0.625rem;
+        --login-btn-h: 2.5rem;
+    }
+}
+
+/* Every field, hint and button in the form is spaced the same way. */
+.login-form-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--login-stack-gap);
+}
+
+.login-form-block {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(0.875rem, 2.4vh, 1.5rem);
+}
+
+.login-heading-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+}
+
+.login-heading {
+    font-size: clamp(1.375rem, 1.05rem + 1.1vw, 1.875rem);
+    line-height: 1.15;
+}
+
+.login-subheading {
+    font-size: 0.875rem;
+    line-height: 1.45;
+}
+
+.login-mobile-name {
+    font-size: clamp(1.5rem, 1.2rem + 1.5vw, 1.875rem);
+}
+
+.login-hint {
+    margin-top: calc(var(--login-stack-gap) * -0.5);
+    font-size: 0.75rem;
+    color: #c8d6f0;
+}
+
+/* Password + confirm side by side when there is room. */
+.login-field-row {
+    display: grid;
+    gap: var(--login-stack-gap);
 }
 
 @media (min-width: 640px) {
-    .login-form-stack > .login-enter-item + .login-enter-item,
-    .login-form-stack > .login-enter-item + .login-enter-fade,
-    .login-form-stack > .login-enter-fade + .login-enter-item,
-    .login-form-stack > .login-enter-fade + .login-enter-fade {
-        margin-top: 1.25rem;
+    .login-field-row {
+        grid-template-columns: 1fr 1fr;
+        align-items: start;
+    }
+}
+
+.login-submit-btn {
+    height: var(--login-btn-h);
+    min-height: var(--login-btn-h);
+}
+
+/* Left panel: logos and illustration shrink on short windows. */
+.login-brand {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(0.5rem, 2vh, 1.25rem);
+}
+
+.login-lottie > div {
+    width: clamp(150px, 32vh, 280px) !important;
+    height: clamp(150px, 32vh, 280px) !important;
+}
+
+@media (max-height: 560px) {
+    .login-lottie,
+    .login-tagline-typewriter {
+        display: none;
     }
 }
 
@@ -1133,33 +1218,21 @@ async function submit() {
 
 @media (min-width: 768px) {
     .login-panel-right {
-        padding: 3rem;
-    }
-}
-
-@media (min-width: 1024px) {
-    .login-panel-right {
-        padding: 4rem;
+        padding: clamp(1rem, 4vh, 3rem) clamp(1.5rem, 4vw, 3.5rem);
     }
 }
 
 .login-panel-inner {
     display: flex;
     flex-direction: column;
-    gap: 1.25rem;
+    gap: clamp(0.75rem, 2vh, 1.5rem);
     width: 100%;
-    max-width: 28rem;
+    max-width: 26rem;
 }
 
 @media (min-width: 640px) {
     .login-panel-inner {
-        gap: 1.5rem;
-    }
-}
-
-@media (min-width: 768px) {
-    .login-panel-inner {
-        gap: 2rem;
+        max-width: 28rem;
     }
 }
 
@@ -1176,23 +1249,21 @@ async function submit() {
 }
 
 @media (max-width: 639px) {
-    .login-logo-circle {
-        width: 4.25rem;
-        height: 4.25rem;
-        padding: 0.5rem;
+    .login-page {
+        /* Comfortable touch targets on phones. */
+        --login-field-h: 2.875rem;
+        --login-btn-h: 2.875rem;
     }
 
-    .login-field-box {
-        height: 3rem;
+    .login-logo-circle {
+        width: 3.5rem;
+        height: 3.5rem;
+        padding: 0.4rem;
     }
 
     .login-field-input {
+        /* 16px stops iOS from zooming into the field. */
         font-size: 16px;
-        line-height: 3rem;
-    }
-
-    .login-field-label {
-        font-size: 0.75rem;
     }
 
     .login-remember-label {
@@ -1202,9 +1273,35 @@ async function submit() {
     .login-turnstile-field p {
         word-break: break-word;
     }
+}
 
-    .login-submit-btn {
-        min-height: 2.875rem;
+/* Phones turned sideways: drop the duplicate logo header. */
+@media (max-width: 767px) and (max-height: 500px) {
+    .login-mobile-header {
+        display: none;
+    }
+}
+
+/* Very short windows (phones sideways): smallest spacing, heading only. */
+@media (max-height: 480px) {
+    .login-page {
+        --login-field-h: 2.375rem;
+        --login-stack-gap: 0.5rem;
+        --login-btn-h: 2.375rem;
+    }
+
+    .login-subheading,
+    .login-heading-group > .h-1 {
+        display: none;
+    }
+
+    .login-heading {
+        font-size: 1.25rem;
+    }
+
+    .login-panel-right {
+        padding-top: 0.75rem;
+        padding-bottom: 0.75rem;
     }
 }
 
@@ -1245,9 +1342,9 @@ async function submit() {
 }
 
 .login-logo-circle--lg {
-    width: 7rem;
-    height: 7rem;
-    padding: 0.75rem;
+    width: clamp(4rem, 11vh, 7rem);
+    height: clamp(4rem, 11vh, 7rem);
+    padding: 0.625rem;
 }
 
 .login-logo-circle img {
@@ -1373,11 +1470,12 @@ async function submit() {
 .login-field {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.375rem;
+    min-width: 0;
 }
 
 .login-field-label {
-    font-size: 0.8125rem;
+    font-size: 0.75rem;
     font-weight: 600;
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -1388,8 +1486,8 @@ async function submit() {
     position: relative;
     display: flex;
     align-items: center;
-    height: 3.375rem;
-    padding: 0 1rem;
+    height: var(--login-field-h);
+    padding: 0 0.875rem;
     background: rgba(255, 255, 255, 0.18);
     border: 1.5px solid rgba(255, 255, 255, 0.45);
     border-radius: 0.75rem;
@@ -1419,7 +1517,7 @@ async function submit() {
     width: 100%;
     height: 100%;
     margin: 0;
-    padding: 0 1rem 0 2.75rem;
+    padding: 0 0.875rem 0 2.5rem;
     border: none;
     border-radius: 0.75rem;
     outline: none;
@@ -1429,14 +1527,14 @@ async function submit() {
     -webkit-appearance: none;
     appearance: none;
     color: #fff;
-    font-size: 1rem;
+    font-size: 0.9375rem;
     font-family: inherit;
-    line-height: 3.375rem;
+    line-height: var(--login-field-h);
     z-index: 1;
 }
 
 .login-field-box--password .login-field-input {
-    padding-right: 2.75rem;
+    padding-right: 2.5rem;
 }
 
 .login-field-input[readonly] {
